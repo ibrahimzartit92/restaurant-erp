@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { DatabaseModule } from './database/database.module';
 import { HealthController } from './health/health.controller';
 import { AttachmentsModule } from './modules/attachments/attachments.module';
 import { AttendanceFilesModule } from './modules/attendance-files/attendance-files.module';
@@ -13,6 +14,7 @@ import { ItemsModule } from './modules/items/items.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { PayrollModule } from './modules/payroll/payroll.module';
 import { PurchasesModule } from './modules/purchases/purchases.module';
+import { RolesModule } from './modules/roles/roles.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { SupplierPaymentsModule } from './modules/supplier-payments/supplier-payments.module';
 import { SuppliersModule } from './modules/suppliers/suppliers.module';
@@ -22,6 +24,7 @@ import { WarehousesModule } from './modules/warehouses/warehouses.module';
 
 @Module({
   imports: [
+    DatabaseModule,
     AttachmentsModule,
     AttendanceFilesModule,
     AuthModule,
@@ -35,6 +38,7 @@ import { WarehousesModule } from './modules/warehouses/warehouses.module';
     NotificationsModule,
     PayrollModule,
     PurchasesModule,
+    RolesModule,
     SettingsModule,
     SupplierPaymentsModule,
     SuppliersModule,

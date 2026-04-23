@@ -23,7 +23,7 @@ restaurant-erp/
 
 ## Folder Guide
 
-- `apps/api` contains the NestJS backend. It currently has only the application bootstrap and a `/health` endpoint.
+- `apps/api` contains the NestJS backend. It now includes health checks plus the first authentication and access modules.
 - `apps/web` contains the Next.js frontend. It currently has a simple Arabic start screen.
 - `packages/shared` is a small TypeScript package reserved for future code shared by the backend and frontend, such as shared types.
 - `infra/nginx` contains the Nginx reverse proxy configuration.
@@ -107,6 +107,7 @@ Current backend domain modules:
 - `notifications` handles system notification records.
 - `payroll` handles payroll records.
 - `purchases` handles supplier purchase records.
+- `roles` handles access role records.
 - `settings` handles system configuration records.
 - `supplier-payments` handles payments made to suppliers.
 - `suppliers` handles supplier records.
@@ -118,12 +119,115 @@ The files are placeholders only. They define the clean NestJS boundaries now, wh
 
 ## Development Notes
 
-- Domain module skeletons exist, but no business logic has been added yet.
+- Most domain modules are still placeholders. The first real backend logic is in `auth`, `roles`, `users`, and `branches`.
 - Keep backend module names in English.
 - Keep UI text Arabic until another language is intentionally added.
 - Add new backend features under `apps/api/src`.
 - Add new frontend routes under `apps/web/app`.
 - Use `packages/shared` only when both apps truly need the same code.
+
+## Authentication And Access Setup
+
+The first real backend foundation includes:
+
+- `roles`: defines access levels such as admin, accountant, and branch manager.
+- `branches`: stores restaurant branches.
+- `users`: stores users, hashed passwords, assigned role, and optional assigned branch.
+- `auth`: handles login and returns a JWT access token.
+
+Branch access rules:
+
+- `admin` can access all branches.
+- `accountant` can access all branches.
+- `branch_manager` must be assigned to one branch and is restricted to that branch.
+
+### Run Migrations
+
+Start PostgreSQL first:
+
+```bash
+docker compose up postgres
+```
+
+In another terminal, run the backend migration inside the API service:
+
+```bash
+docker compose run --rm api pnpm migration:run
+```
+
+This creates the first real database tables:
+
+- `roles`
+- `branches`
+- `users`
+
+### Seed Roles
+
+After migrations, seed the required roles:
+
+```bash
+docker compose run --rm api pnpm seed:roles
+```
+
+This creates:
+
+- `admin`
+- `accountant`
+- `branch_manager`
+
+### Create A Branch
+
+Start the backend:
+
+```bash
+docker compose up api
+```
+
+Create a branch:
+
+```bash
+curl -X POST http://localhost:3001/branches \
+  -H "Content-Type: application/json" \
+  -d "{\"name\":\"Main Branch\",\"code\":\"MAIN\"}"
+```
+
+List branches:
+
+```bash
+curl http://localhost:3001/branches
+```
+
+### Create A User
+
+Create an admin user:
+
+```bash
+curl -X POST http://localhost:3001/users \
+  -H "Content-Type: application/json" \
+  -d "{\"fullName\":\"System Admin\",\"email\":\"admin@example.com\",\"password\":\"password123\",\"role\":\"admin\"}"
+```
+
+Create a branch manager user after creating a branch. Replace `BRANCH_ID_HERE` with the branch `id`:
+
+```bash
+curl -X POST http://localhost:3001/users \
+  -H "Content-Type: application/json" \
+  -d "{\"fullName\":\"Branch Manager\",\"email\":\"manager@example.com\",\"password\":\"password123\",\"role\":\"branch_manager\",\"branchId\":\"BRANCH_ID_HERE\"}"
+```
+
+### Test Login
+
+```bash
+curl -X POST http://localhost:3001/auth/login \
+  -H "Content-Type: application/json" \
+  -d "{\"email\":\"admin@example.com\",\"password\":\"password123\"}"
+```
+
+The response includes:
+
+- `accessToken`: the JWT token used for future protected requests.
+- `user`: the logged-in user.
+- `branchAccess`: whether the user can access all branches or only one branch.
 
 ## Production Direction
 

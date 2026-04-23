@@ -27,6 +27,8 @@ services:
       - .env.example
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-restaurant_user}:${POSTGRES_PASSWORD:-restaurant_password}@postgres:5432/${POSTGRES_DB:-restaurant_erp}
+      JWT_SECRET: ${JWT_SECRET:-change_this_secret_before_production}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
       NODE_ENV: development
       PORT: 3001
     ports:
