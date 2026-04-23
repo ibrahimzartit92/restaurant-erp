@@ -79,9 +79,46 @@ restaurant-erp/
 
 These can be changed in `.env`.
 
+## Backend Module Map
+
+Backend domains live under `apps/api/src/modules`. Each domain is intentionally structured the same way:
+
+```text
+domain-name/
+  dto/
+  entities/
+  domain-name.controller.ts
+  domain-name.module.ts
+  domain-name.service.ts
+```
+
+Current backend domain modules:
+
+- `attachments` handles uploaded file references and document links.
+- `attendance-files` handles imported attendance files.
+- `auth` handles authentication entry points.
+- `bank-accounts` handles restaurant bank account records.
+- `branches` handles restaurant branches.
+- `daily-sales` handles daily sales summaries.
+- `drawers` handles cash drawer records.
+- `employees` handles employee records.
+- `expenses` handles expense records.
+- `items` handles inventory and sale item records.
+- `notifications` handles system notification records.
+- `payroll` handles payroll records.
+- `purchases` handles supplier purchase records.
+- `settings` handles system configuration records.
+- `supplier-payments` handles payments made to suppliers.
+- `suppliers` handles supplier records.
+- `transfers` handles stock or cash transfer records.
+- `users` handles application user records.
+- `warehouses` handles warehouse records.
+
+The files are placeholders only. They define the clean NestJS boundaries now, while business logic, validation rules, database decorators, and permissions will be added later.
+
 ## Development Notes
 
-- No business modules have been added yet.
+- Domain module skeletons exist, but no business logic has been added yet.
 - Keep backend module names in English.
 - Keep UI text Arabic until another language is intentionally added.
 - Add new backend features under `apps/api/src`.
