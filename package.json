@@ -1,0 +1,14 @@
+{
+  "name": "restaurant-erp",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@9.15.4",
+  "scripts": {
+    "dev": "docker compose up --build",
+    "dev:detached": "docker compose up --build -d",
+    "down": "docker compose down",
+    "logs": "docker compose logs -f",
+    "lint": "pnpm --recursive lint",
+    "build": "pnpm --recursive build"
+  }
+}
