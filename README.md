@@ -24,7 +24,7 @@ restaurant-erp/
 ## Folder Guide
 
 - `apps/api` contains the NestJS backend. It now includes health checks, authentication/access modules, and the first inventory/supplier master-data modules.
-- `apps/web` contains the Next.js frontend. It currently has a simple Arabic start screen.
+- `apps/web` contains the Next.js frontend. It now includes the first Arabic RTL admin interface.
 - `packages/shared` is a small TypeScript package reserved for future code shared by the backend and frontend, such as shared types.
 - `infra/nginx` contains the Nginx reverse proxy configuration.
 - `infra/docker` is reserved for future deployment-specific Docker files and scripts.
@@ -78,6 +78,34 @@ restaurant-erp/
 - `8080`: Nginx entry point
 
 These can be changed in `.env`.
+
+## Frontend Admin Interface
+
+The first real frontend is Arabic-only and uses RTL layout.
+
+Available pages:
+
+- `/login`: تسجيل الدخول
+- `/`: الرئيسية
+- `/items`: المواد
+- `/suppliers`: الموردون
+- `/purchase-invoices`: فواتير الشراء
+- `/supplier-payments`: دفعات الموردين
+
+The admin layout includes a sidebar, top header, dashboard cards, table loading behavior, empty states, and list pages connected to the available backend endpoints.
+
+Run the frontend locally:
+
+```bash
+cd apps/web
+pnpm dev
+```
+
+Or run it with Docker from the repository root:
+
+```bash
+docker compose up web
+```
 
 ## Backend Module Map
 

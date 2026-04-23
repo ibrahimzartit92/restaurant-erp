@@ -32,6 +32,7 @@ export class SupplierPaymentsService {
         ...(purchaseInvoiceId ? { purchaseInvoiceId } : {}),
         ...(branchId ? { branchId } : {}),
       },
+      relations: { purchaseInvoice: true },
       order: { paymentDate: 'DESC', paymentNumber: 'DESC' },
     });
   }

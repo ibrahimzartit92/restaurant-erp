@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Restaurant ERP',
-  description: 'Restaurant ERP workspace',
+  title: 'نظام إدارة المطاعم',
+  description: 'لوحة إدارة المطعم',
 };
 
 export default function RootLayout({
