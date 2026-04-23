@@ -23,7 +23,7 @@ restaurant-erp/
 
 ## Folder Guide
 
-- `apps/api` contains the NestJS backend. It now includes health checks plus the first authentication and access modules.
+- `apps/api` contains the NestJS backend. It now includes health checks, authentication/access modules, and the first inventory/supplier master-data modules.
 - `apps/web` contains the Next.js frontend. It currently has a simple Arabic start screen.
 - `packages/shared` is a small TypeScript package reserved for future code shared by the backend and frontend, such as shared types.
 - `infra/nginx` contains the Nginx reverse proxy configuration.
@@ -103,14 +103,16 @@ Current backend domain modules:
 - `drawers` handles cash drawer records.
 - `employees` handles employee records.
 - `expenses` handles expense records.
-- `items` handles inventory and sale item records.
+- `item-categories` handles inventory category master data.
+- `items` handles inventory and sale item master data.
 - `notifications` handles system notification records.
 - `payroll` handles payroll records.
 - `purchases` handles supplier purchase records.
 - `roles` handles access role records.
 - `settings` handles system configuration records.
 - `supplier-payments` handles payments made to suppliers.
-- `suppliers` handles supplier records.
+- `supplier-representatives` handles supplier contact people.
+- `suppliers` handles supplier master data.
 - `transfers` handles stock or cash transfer records.
 - `users` handles application user records.
 - `warehouses` handles warehouse records.
@@ -119,7 +121,7 @@ The files are placeholders only. They define the clean NestJS boundaries now, wh
 
 ## Development Notes
 
-- Most domain modules are still placeholders. The first real backend logic is in `auth`, `roles`, `users`, and `branches`.
+- Most domain modules are still placeholders. The first real backend logic is in `auth`, `roles`, `users`, `branches`, `item-categories`, `units`, `items`, `suppliers`, and `supplier-representatives`.
 - Keep backend module names in English.
 - Keep UI text Arabic until another language is intentionally added.
 - Add new backend features under `apps/api/src`.
@@ -160,6 +162,11 @@ This creates the first real database tables:
 - `roles`
 - `branches`
 - `users`
+- `item_categories`
+- `units`
+- `items`
+- `suppliers`
+- `supplier_representatives`
 
 ### Seed Roles
 
@@ -195,6 +202,64 @@ List branches:
 
 ```bash
 curl http://localhost:3001/branches
+```
+
+## Inventory And Supplier Master Data
+
+The first core business domain includes these backend-only CRUD modules:
+
+- `item-categories`
+- `units`
+- `items`
+- `suppliers`
+- `supplier-representatives`
+
+All modules support:
+
+- `GET /resource`
+- `GET /resource/:id`
+- `POST /resource`
+- `PATCH /resource/:id`
+- `DELETE /resource/:id`
+
+List endpoints support simple search where useful:
+
+```bash
+curl "http://localhost:3001/items?search=coffee"
+curl "http://localhost:3001/suppliers?search=main"
+curl "http://localhost:3001/supplier-representatives?supplierId=SUPPLIER_ID_HERE"
+```
+
+Create inventory setup records first:
+
+```bash
+curl -X POST http://localhost:3001/item-categories \
+  -H "Content-Type: application/json" \
+  -d "{\"code\":\"FOOD\",\"name\":\"Food\"}"
+
+curl -X POST http://localhost:3001/units \
+  -H "Content-Type: application/json" \
+  -d "{\"code\":\"KG\",\"name\":\"Kilogram\"}"
+```
+
+Create an item after creating a category and unit:
+
+```bash
+curl -X POST http://localhost:3001/items \
+  -H "Content-Type: application/json" \
+  -d "{\"code\":\"ITEM-001\",\"name\":\"Coffee Beans\",\"categoryId\":\"CATEGORY_ID_HERE\",\"unitId\":\"UNIT_ID_HERE\",\"initialPrice\":0,\"costPrice\":12.5,\"salePrice\":18,\"searchKeywords\":\"coffee beans espresso\"}"
+```
+
+Create supplier master data:
+
+```bash
+curl -X POST http://localhost:3001/suppliers \
+  -H "Content-Type: application/json" \
+  -d "{\"code\":\"SUP-001\",\"name\":\"Main Supplier\",\"phone\":\"+123456789\",\"address\":\"Industrial Area\",\"defaultDueDays\":30}"
+
+curl -X POST http://localhost:3001/supplier-representatives \
+  -H "Content-Type: application/json" \
+  -d "{\"supplierId\":\"SUPPLIER_ID_HERE\",\"name\":\"Sales Contact\",\"phone\":\"+123456789\",\"isPrimary\":true}"
 ```
 
 ### Create A User

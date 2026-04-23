@@ -7,10 +7,10 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { SupplierRepresentativeEntity } from '../../supplier-representatives/entities/supplier-representative.entity';
+import { ItemEntity } from '../../items/entities/item.entity';
 
-@Entity('suppliers')
-export class SupplierEntity {
+@Entity('item_categories')
+export class ItemCategoryEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
@@ -19,17 +19,8 @@ export class SupplierEntity {
   code!: string;
 
   @Index()
-  @Column({ type: 'varchar', length: 180 })
+  @Column({ type: 'varchar', length: 160 })
   name!: string;
-
-  @Column({ type: 'varchar', length: 40, nullable: true })
-  phone!: string | null;
-
-  @Column({ type: 'text', nullable: true })
-  address!: string | null;
-
-  @Column({ name: 'default_due_days', type: 'integer', default: 0 })
-  defaultDueDays!: number;
 
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive!: boolean;
@@ -37,8 +28,8 @@ export class SupplierEntity {
   @Column({ type: 'text', nullable: true })
   notes!: string | null;
 
-  @OneToMany(() => SupplierRepresentativeEntity, (representative) => representative.supplier)
-  representatives!: SupplierRepresentativeEntity[];
+  @OneToMany(() => ItemEntity, (item) => item.category)
+  items!: ItemEntity[];
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date;
