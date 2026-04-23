@@ -107,6 +107,8 @@ Current backend domain modules:
 - `items` handles inventory and sale item master data.
 - `notifications` handles system notification records.
 - `payroll` handles payroll records.
+- `purchase-invoice-items` handles purchase invoice line items.
+- `purchase-invoices` handles supplier and miscellaneous purchase invoices.
 - `purchases` handles supplier purchase records.
 - `roles` handles access role records.
 - `settings` handles system configuration records.
@@ -117,11 +119,11 @@ Current backend domain modules:
 - `users` handles application user records.
 - `warehouses` handles warehouse records.
 
-The files are placeholders only. They define the clean NestJS boundaries now, while business logic, validation rules, database decorators, and permissions will be added later.
+Some later business domains are still placeholders. Implemented domains use the same NestJS structure so they can be expanded safely over time.
 
 ## Development Notes
 
-- Most domain modules are still placeholders. The first real backend logic is in `auth`, `roles`, `users`, `branches`, `item-categories`, `units`, `items`, `suppliers`, and `supplier-representatives`.
+- Most later domain modules are still placeholders. Real backend logic now exists in `auth`, `roles`, `users`, `branches`, `item-categories`, `units`, `items`, `suppliers`, `supplier-representatives`, `warehouses`, `drawers`, `bank-accounts`, `purchase-invoices`, `purchase-invoice-items`, and `supplier-payments`.
 - Keep backend module names in English.
 - Keep UI text Arabic until another language is intentionally added.
 - Add new backend features under `apps/api/src`.
@@ -167,6 +169,12 @@ This creates the first real database tables:
 - `items`
 - `suppliers`
 - `supplier_representatives`
+- `warehouses`
+- `drawers`
+- `bank_accounts`
+- `purchase_invoices`
+- `purchase_invoice_items`
+- `supplier_payments`
 
 ### Seed Roles
 
@@ -261,6 +269,83 @@ curl -X POST http://localhost:3001/supplier-representatives \
   -H "Content-Type: application/json" \
   -d "{\"supplierId\":\"SUPPLIER_ID_HERE\",\"name\":\"Sales Contact\",\"phone\":\"+123456789\",\"isPrimary\":true}"
 ```
+
+## Purchasing Core
+
+The purchasing backend supports supplier invoices, miscellaneous purchase invoices, invoice line items, and supplier payments.
+
+Main endpoints:
+
+- `GET /purchase-invoices`
+- `GET /purchase-invoices/:id`
+- `POST /purchase-invoices`
+- `PATCH /purchase-invoices/:id`
+- `DELETE /purchase-invoices/:id`
+- `POST /purchase-invoices/:id/payments`
+- `GET /purchase-invoice-items?purchase_invoice_id=INVOICE_ID_HERE`
+- `POST /purchase-invoice-items`
+- `GET /supplier-payments?purchase_invoice_id=INVOICE_ID_HERE`
+- `POST /supplier-payments`
+
+Invoice list filters:
+
+```bash
+curl "http://localhost:3001/purchase-invoices?branch_id=BRANCH_ID_HERE&status=open"
+curl "http://localhost:3001/purchase-invoices?supplier_id=SUPPLIER_ID_HERE"
+curl "http://localhost:3001/purchase-invoices?invoice_date_from=2026-04-01&invoice_date_to=2026-04-30"
+curl "http://localhost:3001/purchase-invoices?search=PI-202604"
+```
+
+Create the setup records used by purchases:
+
+```bash
+curl -X POST http://localhost:3001/warehouses \
+  -H "Content-Type: application/json" \
+  -d "{\"code\":\"MAIN-WH\",\"name\":\"Main Warehouse\"}"
+
+curl -X POST http://localhost:3001/drawers \
+  -H "Content-Type: application/json" \
+  -d "{\"code\":\"MAIN-CASH\",\"name\":\"Main Cash Drawer\"}"
+
+curl -X POST http://localhost:3001/bank-accounts \
+  -H "Content-Type: application/json" \
+  -d "{\"code\":\"MAIN-BANK\",\"accountName\":\"Main Bank Account\",\"bankName\":\"Restaurant Bank\"}"
+```
+
+Create a purchase invoice with items. If `invoiceNumber` is not sent, the backend generates a temporary number such as `PI-20260423-00001`.
+
+```bash
+curl -X POST http://localhost:3001/purchase-invoices \
+  -H "Content-Type: application/json" \
+  -d "{\"invoiceLabel\":\"Weekly coffee order\",\"branchId\":\"BRANCH_ID_HERE\",\"warehouseId\":\"WAREHOUSE_ID_HERE\",\"supplierId\":\"SUPPLIER_ID_HERE\",\"supplierRepresentativeId\":\"REPRESENTATIVE_ID_HERE\",\"invoiceDate\":\"2026-04-23\",\"discountAmount\":0,\"dueDate\":\"2026-05-23\",\"items\":[{\"itemId\":\"ITEM_ID_HERE\",\"quantity\":10,\"unitPrice\":12.5,\"notes\":\"Green beans\"}]}"
+```
+
+Create a miscellaneous invoice by omitting `supplierId`. The backend sets `isMiscellaneous` to `true`.
+
+Add a cash payment to an invoice:
+
+```bash
+curl -X POST http://localhost:3001/purchase-invoices/INVOICE_ID_HERE/payments \
+  -H "Content-Type: application/json" \
+  -d "{\"branchId\":\"BRANCH_ID_HERE\",\"paymentDate\":\"2026-04-23\",\"paymentMethod\":\"cash\",\"drawerId\":\"DRAWER_ID_HERE\",\"amount\":50,\"referenceNumber\":\"CASH-001\"}"
+```
+
+Add a bank payment:
+
+```bash
+curl -X POST http://localhost:3001/purchase-invoices/INVOICE_ID_HERE/payments \
+  -H "Content-Type: application/json" \
+  -d "{\"branchId\":\"BRANCH_ID_HERE\",\"paymentDate\":\"2026-04-23\",\"paymentMethod\":\"bank\",\"bankAccountId\":\"BANK_ACCOUNT_ID_HERE\",\"amount\":75,\"referenceNumber\":\"TRANSFER-001\"}"
+```
+
+Payment rules:
+
+- Cash payments require `drawerId`.
+- Bank payments require `bankAccountId`.
+- Multiple payments can be added to one invoice.
+- After each payment, the invoice updates `paidAmount`, `remainingAmount`, `lastPaymentDate`, and payment status.
+
+The invoice detail endpoint returns the invoice with its `items` and `payments`, leaving a clear place to add attachments, returns, and reporting later.
 
 ### Create A User
 

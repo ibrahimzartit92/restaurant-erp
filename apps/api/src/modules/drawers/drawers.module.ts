@@ -1,8 +1,11 @@
 import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { DrawersController } from './drawers.controller';
 import { DrawersService } from './drawers.service';
+import { DrawerEntity } from './entities/drawer.entity';
 
 @Module({
+  imports: [TypeOrmModule.forFeature([DrawerEntity])],
   controllers: [DrawersController],
   providers: [DrawersService],
   exports: [DrawersService],

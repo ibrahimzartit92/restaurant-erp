@@ -14,6 +14,8 @@ import { ItemCategoriesModule } from './modules/item-categories/item-categories.
 import { ItemsModule } from './modules/items/items.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { PayrollModule } from './modules/payroll/payroll.module';
+import { PurchaseInvoiceItemsModule } from './modules/purchase-invoice-items/purchase-invoice-items.module';
+import { PurchaseInvoicesModule } from './modules/purchase-invoices/purchase-invoices.module';
 import { PurchasesModule } from './modules/purchases/purchases.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { SettingsModule } from './modules/settings/settings.module';
@@ -41,6 +43,8 @@ import { WarehousesModule } from './modules/warehouses/warehouses.module';
     ItemsModule,
     NotificationsModule,
     PayrollModule,
+    PurchaseInvoiceItemsModule,
+    PurchaseInvoicesModule,
     PurchasesModule,
     RolesModule,
     SettingsModule,
