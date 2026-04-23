@@ -1,4 +1,4 @@
-# Restaurant ERP
+﻿# Restaurant ERP
 
 Custom restaurant ERP workspace built with NestJS, Next.js, PostgreSQL, Docker Compose, and Nginx.
 
@@ -85,14 +85,28 @@ The first real frontend is Arabic-only and uses RTL layout.
 
 Available pages:
 
-- `/login`: تسجيل الدخول
-- `/`: الرئيسية
-- `/items`: المواد
-- `/suppliers`: الموردون
-- `/purchase-invoices`: فواتير الشراء
-- `/supplier-payments`: دفعات الموردين
+- `/login`: ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø¯Ø®ÙˆÙ„
+- `/`: Ø§Ù„Ø±Ø¦ÙŠØ³ÙŠØ©
+- `/items`: Ø§Ù„Ù…ÙˆØ§Ø¯
+- `/suppliers`: Ø§Ù„Ù…ÙˆØ±Ø¯ÙˆÙ†
+- `/purchase-invoices`: ÙÙˆØ§ØªÙŠØ± Ø§Ù„Ø´Ø±Ø§Ø¡
+- `/supplier-payments`: Ø¯ÙØ¹Ø§Øª Ø§Ù„Ù…ÙˆØ±Ø¯ÙŠÙ†
+- `/expense-categories`: Ø£Ù†ÙˆØ§Ø¹ Ø§Ù„Ù…ØµØ§Ø±ÙŠÙ
+- `/expense-templates`: Ù‚ÙˆØ§Ù„Ø¨ Ø§Ù„Ù…ØµØ§Ø±ÙŠÙ
+- `/expenses`: Ø§Ù„Ù…ØµØ§Ø±ÙŠÙ
+- `/expenses/new`: Ø¥Ø¶Ø§ÙØ© Ù…ØµØ±ÙˆÙ
+- `/daily-sales`: Ø§Ù„Ù…Ø¨ÙŠØ¹Ø§Øª Ø§Ù„ÙŠÙˆÙ…ÙŠØ©
+- `/daily-sales/new`: Ø¥Ø¶Ø§ÙØ© Ù…Ø¨ÙŠØ¹Ø§Øª ÙŠÙˆÙ…ÙŠØ©
+
 
 The admin layout includes a sidebar, top header, dashboard cards, table loading behavior, empty states, and list pages connected to the available backend endpoints.
+
+Dashboard finance cards show simple live totals when the backend is running:
+
+- Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ù…ØµØ§Ø±ÙŠÙ
+- Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ù…Ø¨ÙŠØ¹Ø§Øª Ø§Ù„ÙŠÙˆÙ…ÙŠØ©
+- Ù…Ø¨ÙŠØ¹Ø§Øª Ù†Ù‚Ø¯ÙŠØ©
+- Ù…Ø¨ÙŠØ¹Ø§Øª ØºÙŠØ± Ù†Ù‚Ø¯ÙŠØ©
 
 Run the frontend locally:
 
@@ -130,6 +144,8 @@ Current backend domain modules:
 - `daily-sales` handles daily sales summaries.
 - `drawers` handles cash drawer records.
 - `employees` handles employee records.
+- `expense-categories` handles expense category master data.
+- `expense-templates` handles reusable recurring expense templates.
 - `expenses` handles expense records.
 - `item-categories` handles inventory category master data.
 - `items` handles inventory and sale item master data.
@@ -151,7 +167,7 @@ Some later business domains are still placeholders. Implemented domains use the 
 
 ## Development Notes
 
-- Most later domain modules are still placeholders. Real backend logic now exists in `auth`, `roles`, `users`, `branches`, `item-categories`, `units`, `items`, `suppliers`, `supplier-representatives`, `warehouses`, `drawers`, `bank-accounts`, `purchase-invoices`, `purchase-invoice-items`, and `supplier-payments`.
+- Most later domain modules are still placeholders. Real backend logic now exists in `auth`, `roles`, `users`, `branches`, `item-categories`, `units`, `items`, `suppliers`, `supplier-representatives`, `warehouses`, `drawers`, `bank-accounts`, `purchase-invoices`, `purchase-invoice-items`, `supplier-payments`, `expense-categories`, `expense-templates`, `expenses`, and `daily-sales`.
 - Keep backend module names in English.
 - Keep UI text Arabic until another language is intentionally added.
 - Add new backend features under `apps/api/src`.
@@ -203,6 +219,10 @@ This creates the first real database tables:
 - `purchase_invoices`
 - `purchase_invoice_items`
 - `supplier_payments`
+- `expense_categories`
+- `expense_templates`
+- `expenses`
+- `daily_sales`
 
 ### Seed Roles
 

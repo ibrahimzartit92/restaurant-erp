@@ -1,7 +1,11 @@
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { BankAccountEntity } from '../modules/bank-accounts/entities/bank-account.entity';
 import { BranchEntity } from '../modules/branches/entities/branch.entity';
+import { DailySaleEntity } from '../modules/daily-sales/entities/daily-sale.entity';
 import { DrawerEntity } from '../modules/drawers/entities/drawer.entity';
+import { ExpenseCategoryEntity } from '../modules/expense-categories/entities/expense-category.entity';
+import { ExpenseTemplateEntity } from '../modules/expense-templates/entities/expense-template.entity';
+import { ExpenseEntity } from '../modules/expenses/entities/expense.entity';
 import { ItemCategoryEntity } from '../modules/item-categories/entities/item-category.entity';
 import { ItemEntity } from '../modules/items/entities/item.entity';
 import { PurchaseInvoiceItemEntity } from '../modules/purchase-invoice-items/entities/purchase-invoice-item.entity';
@@ -17,7 +21,11 @@ import { WarehouseEntity } from '../modules/warehouses/entities/warehouse.entity
 export const databaseEntities = [
   BankAccountEntity,
   BranchEntity,
+  DailySaleEntity,
   DrawerEntity,
+  ExpenseCategoryEntity,
+  ExpenseEntity,
+  ExpenseTemplateEntity,
   ItemCategoryEntity,
   ItemEntity,
   PurchaseInvoiceEntity,

@@ -9,6 +9,8 @@ import { BranchesModule } from './modules/branches/branches.module';
 import { DailySalesModule } from './modules/daily-sales/daily-sales.module';
 import { DrawersModule } from './modules/drawers/drawers.module';
 import { EmployeesModule } from './modules/employees/employees.module';
+import { ExpenseCategoriesModule } from './modules/expense-categories/expense-categories.module';
+import { ExpenseTemplatesModule } from './modules/expense-templates/expense-templates.module';
 import { ExpensesModule } from './modules/expenses/expenses.module';
 import { ItemCategoriesModule } from './modules/item-categories/item-categories.module';
 import { ItemsModule } from './modules/items/items.module';
@@ -38,6 +40,8 @@ import { WarehousesModule } from './modules/warehouses/warehouses.module';
     DailySalesModule,
     DrawersModule,
     EmployeesModule,
+    ExpenseCategoriesModule,
+    ExpenseTemplatesModule,
     ExpensesModule,
     ItemCategoriesModule,
     ItemsModule,

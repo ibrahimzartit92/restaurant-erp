@@ -29,6 +29,39 @@ export async function fetchList<T>(path: string): Promise<ApiListResult<T>> {
   }
 }
 
+export async function fetchOne<T>(path: string): Promise<{ data: T | null; error?: string }> {
+  try {
+    const response = await fetch(`${apiBaseUrl}${path}`, {
+      cache: 'no-store',
+    });
+
+    if (!response.ok) {
+      return { data: null, error: 'تعذر تحميل السجل المطلوب.' };
+    }
+
+    return { data: (await response.json()) as T };
+  } catch {
+    return {
+      data: null,
+      error: 'الخادم غير متاح حالياً.',
+    };
+  }
+}
+
+export function buildQuery(params: Record<string, string | undefined>) {
+  const query = new URLSearchParams();
+
+  Object.entries(params).forEach(([key, value]) => {
+    if (value) {
+      query.set(key, value);
+    }
+  });
+
+  const queryString = query.toString();
+
+  return queryString ? `?${queryString}` : '';
+}
+
 export function formatMoney(value?: number | string | null) {
   const numericValue = Number(value ?? 0);
 

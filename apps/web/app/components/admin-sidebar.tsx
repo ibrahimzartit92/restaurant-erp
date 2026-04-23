@@ -12,6 +12,8 @@ const navigationItems = [
   { href: '/purchase-invoices', label: 'فواتير الشراء', mark: 'ش' },
   { href: '/supplier-payments', label: 'دفعات الموردين', mark: 'د' },
   { href: '/expenses', label: 'المصاريف', mark: 'ص' },
+  { href: '/expense-categories', label: 'أنواع المصاريف', mark: 'ن' },
+  { href: '/expense-templates', label: 'قوالب المصاريف', mark: 'ل' },
   { href: '/daily-sales', label: 'المبيعات اليومية', mark: 'ي' },
   { href: '/transfers', label: 'التحويل بين الفروع', mark: 'ت' },
   { href: '/employees', label: 'الموظفون', mark: 'ظ' },

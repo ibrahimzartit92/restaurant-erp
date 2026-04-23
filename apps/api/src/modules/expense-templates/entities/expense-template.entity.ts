@@ -12,46 +12,42 @@ import { BankAccountEntity } from '../../bank-accounts/entities/bank-account.ent
 import { BranchEntity } from '../../branches/entities/branch.entity';
 import { DrawerEntity } from '../../drawers/entities/drawer.entity';
 import { ExpenseCategoryEntity } from '../../expense-categories/entities/expense-category.entity';
-import { ExpenseTemplateEntity } from '../../expense-templates/entities/expense-template.entity';
-import { ExpensePaymentMethod, numericTransformer } from '../expense-shared';
+import { ExpensePaymentMethod, numericTransformer } from '../../expenses/expense-shared';
 
-export { ExpensePaymentMethod, numericTransformer };
-
-@Entity('expenses')
-export class ExpenseEntity {
+@Entity('expense_templates')
+export class ExpenseTemplateEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
   @Index()
-  @Column({ name: 'expense_number', type: 'varchar', length: 50, unique: true })
-  expenseNumber!: string;
+  @Column({ type: 'varchar', length: 180 })
+  name!: string;
 
   @Index()
-  @Column({ name: 'expense_date', type: 'date' })
-  expenseDate!: string;
+  @Column({ name: 'branch_id', type: 'uuid', nullable: true })
+  branchId!: string | null;
 
-  @Index()
-  @Column({ name: 'branch_id', type: 'uuid' })
-  branchId!: string;
-
-  @ManyToOne(() => BranchEntity, { eager: true })
+  @ManyToOne(() => BranchEntity, { eager: true, nullable: true })
   @JoinColumn({ name: 'branch_id' })
-  branch!: BranchEntity;
+  branch!: BranchEntity | null;
 
   @Index()
   @Column({ name: 'expense_category_id', type: 'uuid' })
   expenseCategoryId!: string;
 
-  @ManyToOne(() => ExpenseCategoryEntity, (category) => category.expenses, { eager: true })
+  @ManyToOne(() => ExpenseCategoryEntity, (category) => category.templates, { eager: true })
   @JoinColumn({ name: 'expense_category_id' })
   expenseCategory!: ExpenseCategoryEntity;
 
-  @Index()
-  @Column({ type: 'varchar', length: 180 })
-  title!: string;
-
-  @Column({ type: 'numeric', precision: 12, scale: 2, transformer: numericTransformer })
-  amount!: number;
+  @Column({
+    name: 'default_amount',
+    type: 'numeric',
+    precision: 12,
+    scale: 2,
+    default: 0,
+    transformer: numericTransformer,
+  })
+  defaultAmount!: number;
 
   @Column({ name: 'payment_method', type: 'enum', enum: ExpensePaymentMethod })
   paymentMethod!: ExpensePaymentMethod;
@@ -70,15 +66,8 @@ export class ExpenseEntity {
   @JoinColumn({ name: 'bank_account_id' })
   bankAccount!: BankAccountEntity | null;
 
-  @Column({ name: 'is_fixed', type: 'boolean', default: false })
-  isFixed!: boolean;
-
-  @Column({ name: 'template_id', type: 'uuid', nullable: true })
-  templateId!: string | null;
-
-  @ManyToOne(() => ExpenseTemplateEntity, { eager: true, nullable: true })
-  @JoinColumn({ name: 'template_id' })
-  template!: ExpenseTemplateEntity | null;
+  @Column({ name: 'is_active', type: 'boolean', default: true })
+  isActive!: boolean;
 
   @Column({ type: 'text', nullable: true })
   notes!: string | null;

@@ -367,7 +367,12 @@ a {
 
 .quick-actions button,
 .primary-button,
-.login-form button {
+.login-form button,
+.filters button,
+.form-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 42px;
   border: 0;
   border-radius: 8px;
@@ -384,8 +389,104 @@ a {
 
 .quick-actions button:hover,
 .primary-button:hover,
-.login-form button:hover {
+.login-form button:hover,
+.filters button:hover,
+.form-actions button:hover {
   filter: brightness(0.97);
+}
+
+.text-link {
+  color: var(--primary);
+  font-weight: 900;
+}
+
+.page-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  width: 100%;
+}
+
+.filters label,
+.form-panel label {
+  display: grid;
+  gap: 7px;
+  color: var(--muted-strong);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.filters input,
+.form-panel input,
+.form-panel select,
+.form-panel textarea {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  outline: 0;
+  background: var(--surface);
+  color: var(--foreground);
+  padding: 0 12px;
+}
+
+.filters label {
+  min-width: 170px;
+}
+
+.filters button {
+  align-self: end;
+}
+
+.form-panel {
+  display: grid;
+  gap: 18px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 22px;
+  box-shadow: 0 12px 30px rgba(23, 33, 43, 0.05);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.form-panel textarea {
+  min-height: 110px;
+  padding: 12px;
+  resize: vertical;
+}
+
+.checkbox-field {
+  align-content: end;
+  grid-template-columns: 18px 1fr;
+  align-items: center;
+  min-height: 68px;
+}
+
+.checkbox-field input {
+  min-height: auto;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.notice.danger {
+  border-color: #efd0d0;
+  background: #fff3f3;
+  color: #9a2f2f;
 }
 
 .timeline-list {
@@ -635,8 +736,14 @@ tr:last-child td {
   }
 
   .content-grid,
-  .login-panel {
+  .login-panel,
+  .form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .page-toolbar {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 

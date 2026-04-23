@@ -1,9 +1,13 @@
-const summaryCards = [
-  { label: 'فواتير شراء مفتوحة', value: '0', detail: 'بانتظار بيانات التشغيل' },
-  { label: 'مدفوعات اليوم', value: '0.00', detail: 'سيتم ربطها بالتقارير لاحقاً' },
-  { label: 'مواد نشطة', value: '0', detail: 'من سجل المواد' },
-  { label: 'موردون نشطون', value: '0', detail: 'من سجل الموردين' },
-];
+import { fetchList, formatMoney } from '../lib/api';
+
+type ExpenseSummaryRow = { amount: number };
+type DailySaleSummaryRow = {
+  cashSalesAmount: number;
+  bankSalesAmount: number;
+  deliverySalesAmount: number;
+  websiteSalesAmount: number;
+  netSalesAmount: number;
+};
 
 const quickLinks = [
   'إضافة فاتورة شراء',
@@ -12,7 +16,29 @@ const quickLinks = [
   'متابعة الموردين',
 ];
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  const [expenses, dailySales] = await Promise.all([
+    fetchList<ExpenseSummaryRow>('/expenses'),
+    fetchList<DailySaleSummaryRow>('/daily-sales'),
+  ]);
+  const totalExpenses = expenses.data.reduce((sum, expense) => sum + Number(expense.amount ?? 0), 0);
+  const totalDailySales = dailySales.data.reduce((sum, sale) => sum + Number(sale.netSalesAmount ?? 0), 0);
+  const cashSales = dailySales.data.reduce((sum, sale) => sum + Number(sale.cashSalesAmount ?? 0), 0);
+  const nonCashSales = dailySales.data.reduce(
+    (sum, sale) =>
+      sum +
+      Number(sale.bankSalesAmount ?? 0) +
+      Number(sale.deliverySalesAmount ?? 0) +
+      Number(sale.websiteSalesAmount ?? 0),
+    0,
+  );
+  const summaryCards = [
+    { label: 'إجمالي المصاريف', value: formatMoney(totalExpenses), detail: 'من سجل المصاريف' },
+    { label: 'إجمالي المبيعات اليومية', value: formatMoney(totalDailySales), detail: 'صافي المبيعات المسجلة' },
+    { label: 'مبيعات نقدية', value: formatMoney(cashSales), detail: 'جاهزة للربط مع الدرج' },
+    { label: 'مبيعات غير نقدية', value: formatMoney(nonCashSales), detail: 'بنكي وتوصيل وموقع' },
+  ];
+
   return (
     <>
       <section className="dashboard-hero">
