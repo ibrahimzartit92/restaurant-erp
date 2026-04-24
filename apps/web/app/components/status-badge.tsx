@@ -18,6 +18,12 @@ const labels: Record<string, string> = {
   withdrawal: 'سحب',
   settlement: 'تسوية',
   transfer: 'تحويل',
+  supplier_payment_bank: 'دفعة مورد بنكية',
+  expense_bank: 'مصروف بنكي',
+  sales_receipt_bank: 'قبض مبيعات بنكي',
+  refund_bank: 'مرتجع بنكي',
+  incoming: 'داخل',
+  outgoing: 'خارج',
 };
 
 export function StatusBadge({ value }: Readonly<{ value?: string | boolean | null }>) {

@@ -1,5 +1,6 @@
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { BankAccountEntity } from '../modules/bank-accounts/entities/bank-account.entity';
+import { BankAccountTransactionEntity } from '../modules/bank-account-transactions/entities/bank-account-transaction.entity';
 import { BranchEntity } from '../modules/branches/entities/branch.entity';
 import { DailySaleEntity } from '../modules/daily-sales/entities/daily-sale.entity';
 import { DrawerDailySessionEntity } from '../modules/drawer-daily-sessions/entities/drawer-daily-session.entity';
@@ -23,6 +24,7 @@ import { WarehouseEntity } from '../modules/warehouses/entities/warehouse.entity
 
 export const databaseEntities = [
   BankAccountEntity,
+  BankAccountTransactionEntity,
   BranchEntity,
   DailySaleEntity,
   DrawerDailySessionEntity,

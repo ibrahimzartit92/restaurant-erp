@@ -27,6 +27,13 @@ const navigationSections: NavigationSection[] = [
     ],
   },
   {
+    title: 'المال والبنوك',
+    items: [
+      { href: '/bank-accounts', label: 'الحسابات البنكية', mark: 'ب', alwaysVisible: true },
+      { href: '/bank-account-transactions', label: 'حركات البنك', mark: 'ح', alwaysVisible: true },
+    ],
+  },
+  {
     title: 'لوحة العمل',
     items: [
       { href: '/', label: 'الرئيسية', mark: 'ر', alwaysVisible: true },

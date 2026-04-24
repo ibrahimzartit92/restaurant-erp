@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { fetchList, formatMoney } from '../lib/api';
+import type { BankAccountSummary, BankAccountTransactionSummary } from '../lib/types';
 
 type ExpenseSummaryRow = { amount: number };
 type DailySaleSummaryRow = {
@@ -29,10 +30,12 @@ const adminQuickLinks = [
 ];
 
 export default async function DashboardPage() {
-  const [expenses, dailySales, drawerSessions] = await Promise.all([
+  const [expenses, dailySales, drawerSessions, bankAccounts, bankTransactions] = await Promise.all([
     fetchList<ExpenseSummaryRow>('/expenses'),
     fetchList<DailySaleSummaryRow>('/daily-sales'),
     fetchList<DrawerSessionSummaryRow>('/drawer-daily-sessions'),
+    fetchList<BankAccountSummary>('/bank-accounts'),
+    fetchList<BankAccountTransactionSummary>('/bank-account-transactions'),
   ]);
 
   const totalExpenses = expenses.data.reduce((sum, expense) => sum + Number(expense.amount ?? 0), 0);
@@ -53,6 +56,16 @@ export default async function DashboardPage() {
     (sum, session) => sum + Number(session.differenceAmount ?? 0),
     0,
   );
+  const totalBankBalance = bankAccounts.data.reduce((sum, account) => sum + Number(account.currentBalance ?? 0), 0);
+  const totalDeposits = bankTransactions.data
+    .filter((transaction) => transaction.transactionType === 'deposit')
+    .reduce((sum, transaction) => sum + Number(transaction.amount ?? 0), 0);
+  const totalWithdrawals = bankTransactions.data
+    .filter((transaction) => transaction.transactionType === 'withdrawal')
+    .reduce((sum, transaction) => sum + Number(transaction.amount ?? 0), 0);
+  const totalTransfers = bankTransactions.data
+    .filter((transaction) => transaction.transactionType === 'transfer')
+    .reduce((sum, transaction) => sum + Number(transaction.amount ?? 0), 0);
 
   const summaryCards = [
     { label: 'إجمالي المصاريف', value: formatMoney(totalExpenses), detail: 'من سجل المصاريف' },
@@ -60,8 +73,11 @@ export default async function DashboardPage() {
     { label: 'مبيعات نقدية', value: formatMoney(cashSales), detail: 'جاهزة للربط مع الدرج' },
     { label: 'مبيعات غير نقدية', value: formatMoney(nonCashSales), detail: 'بنكي وتوصيل وموقع' },
     { label: 'رصيد الدرج الحالي', value: formatMoney(currentDrawerBalance), detail: 'من الجلسات المفتوحة' },
-    { label: 'مصاريف نقدية اليوم', value: formatMoney(0), detail: 'يربط لاحقاً بحركات الدرج' },
     { label: 'فرق الدرج', value: formatMoney(drawerDifference), detail: 'من جلسات الدرج' },
+    { label: 'إجمالي الرصيد البنكي', value: formatMoney(totalBankBalance), detail: 'من جميع الحسابات البنكية' },
+    { label: 'إجمالي الإيداعات', value: formatMoney(totalDeposits), detail: 'من سجل حركات البنك' },
+    { label: 'إجمالي السحوبات', value: formatMoney(totalWithdrawals), detail: 'من سجل حركات البنك' },
+    { label: 'إجمالي التحويلات', value: formatMoney(totalTransfers), detail: 'من حركات نوع تحويل' },
   ];
 
   return (
@@ -70,7 +86,7 @@ export default async function DashboardPage() {
         <div>
           <p className="eyebrow">صباح العمل الهادئ</p>
           <h2>نظرة سريعة على تشغيل المطعم</h2>
-          <p>هذه الصفحة مركز المتابعة اليومية للفروع والمخزون والمشتريات، ومنها يمكنك الآن الوصول أيضاً إلى إدارة المستخدمين والأدوار والصلاحيات.</p>
+          <p>هذه الصفحة مركز المتابعة اليومية للفروع والمخزون والمشتريات، ومنها يمكنك الآن الوصول إلى إدارة البنوك والمستخدمين والأدوار والصلاحيات.</p>
         </div>
         <div className="hero-note">
           <span>اليوم</span>
@@ -111,23 +127,46 @@ export default async function DashboardPage() {
           <ul className="timeline-list">
             <li>تم تجهيز واجهة الإدارة الأساسية.</li>
             <li>صفحات القوائم متصلة بنقاط النهاية المتاحة.</li>
-            <li>قسم إدارة الوصول أصبح ظاهراً في القائمة الرئيسية ولوحة البداية.</li>
+            <li>تمت إضافة قسم البنوك مع الحسابات البنكية وحركات البنك.</li>
           </ul>
         </div>
       </section>
 
-      <section className="panel">
-        <div className="panel-heading">
-          <h3>إدارة الوصول</h3>
-          <span>قسم الإدارة</span>
+      <section className="content-grid">
+        <div className="panel">
+          <div className="panel-heading">
+            <h3>إدارة الوصول</h3>
+            <span>قسم الإدارة</span>
+          </div>
+          <div className="admin-shortcuts">
+            {adminQuickLinks.map((link) => (
+              <Link className="admin-shortcut-card" href={link.href} key={link.href}>
+                <strong>{link.label}</strong>
+                <span>{link.note}</span>
+              </Link>
+            ))}
+          </div>
         </div>
-        <div className="admin-shortcuts">
-          {adminQuickLinks.map((link) => (
-            <Link className="admin-shortcut-card" href={link.href} key={link.href}>
-              <strong>{link.label}</strong>
-              <span>{link.note}</span>
+
+        <div className="panel">
+          <div className="panel-heading">
+            <h3>البنوك</h3>
+            <span>حركات وأرصدة</span>
+          </div>
+          <div className="quick-actions">
+            <Link className="quick-link-button" href="/bank-accounts">
+              الحسابات البنكية
             </Link>
-          ))}
+            <Link className="quick-link-button" href="/bank-account-transactions">
+              حركات البنك
+            </Link>
+            <Link className="quick-link-button" href="/bank-accounts/new">
+              إضافة حساب بنكي
+            </Link>
+            <Link className="quick-link-button" href="/bank-account-transactions/new">
+              إضافة حركة بنكية
+            </Link>
+          </div>
         </div>
       </section>
     </>

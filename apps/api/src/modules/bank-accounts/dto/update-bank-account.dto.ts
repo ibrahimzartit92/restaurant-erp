@@ -9,14 +9,33 @@ export class UpdateBankAccountDto {
   @IsString()
   @IsOptional()
   @MaxLength(160)
-  accountName?: string;
+  name?: string;
 
   @IsString()
   @IsOptional()
   @MaxLength(160)
-  bankName?: string | null;
+  bankName?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(34)
+  iban?: string | null;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(60)
+  accountNumber?: string | null;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(10)
+  currency?: string;
 
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;
+
+  @IsString()
+  @IsOptional()
+  notes?: string | null;
 }

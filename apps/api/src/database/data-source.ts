@@ -6,6 +6,7 @@ import { PurchasingCore1730000002000 } from './migrations/1730000002000-purchasi
 import { FinanceCore1730000003000 } from './migrations/1730000003000-finance-core';
 import { CashDrawerCore1730000004000 } from './migrations/1730000004000-cash-drawer-core';
 import { AccessControlManagement1730000005000 } from './migrations/1730000005000-access-control-management';
+import { BankAccountTransactions1730000006000 } from './migrations/1730000006000-bank-account-transactions';
 import { databaseEntities } from './typeorm-options';
 
 export const AppDataSource = new DataSource({
@@ -19,6 +20,7 @@ export const AppDataSource = new DataSource({
     FinanceCore1730000003000,
     CashDrawerCore1730000004000,
     AccessControlManagement1730000005000,
+    BankAccountTransactions1730000006000,
   ],
   synchronize: false,
 });

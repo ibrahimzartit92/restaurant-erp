@@ -87,6 +87,12 @@ Available pages:
 
 - `/login`: تسجيل الدخول
 - `/`: الرئيسية
+- `/bank-accounts`: قائمة الحسابات البنكية
+- `/bank-accounts/new`: صفحة إضافة حساب بنكي
+- `/bank-accounts/:id`: صفحة تفاصيل الحساب البنكي
+- `/bank-accounts/:id/edit`: صفحة تعديل حساب بنكي
+- `/bank-account-transactions`: قائمة حركات البنك
+- `/bank-account-transactions/new`: صفحة إضافة حركة بنكية
 - `/users`: قائمة المستخدمين
 - `/users/new`: صفحة إضافة مستخدم
 - `/users/:id/edit`: صفحة تعديل مستخدم
@@ -111,10 +117,14 @@ The admin layout includes a sidebar, top header, dashboard cards, table loading 
 
 Dashboard finance cards show simple live totals when the backend is running:
 
-- Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ù…ØµØ§Ø±ÙŠÙ
-- Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ù…Ø¨ÙŠØ¹Ø§Øª Ø§Ù„ÙŠÙˆÙ…ÙŠØ©
-- Ù…Ø¨ÙŠØ¹Ø§Øª Ù†Ù‚Ø¯ÙŠØ©
-- Ù…Ø¨ÙŠØ¹Ø§Øª ØºÙŠØ± Ù†Ù‚Ø¯ÙŠØ©
+- إجمالي المصاريف
+- إجمالي المبيعات اليومية
+- مبيعات نقدية
+- مبيعات غير نقدية
+- إجمالي الرصيد البنكي
+- إجمالي الإيداعات
+- إجمالي السحوبات
+- إجمالي التحويلات
 
 Run the frontend locally:
 
@@ -148,6 +158,7 @@ Current backend domain modules:
 - `attendance-files` handles imported attendance files.
 - `auth` handles authentication entry points.
 - `bank-accounts` handles restaurant bank account records.
+- `bank-account-transactions` handles the bank ledger and transaction records linked to bank accounts.
 - `branches` handles restaurant branches.
 - `daily-sales` handles daily sales summaries.
 - `drawers` handles cash drawer records.
@@ -175,7 +186,7 @@ Some later business domains are still placeholders. Implemented domains use the 
 
 ## Development Notes
 
-- Most later domain modules are still placeholders. Real backend logic now exists in `auth`, `roles`, `users`, `branches`, `item-categories`, `units`, `items`, `suppliers`, `supplier-representatives`, `warehouses`, `drawers`, `bank-accounts`, `purchase-invoices`, `purchase-invoice-items`, `supplier-payments`, `expense-categories`, `expense-templates`, `expenses`, and `daily-sales`.
+- Most later domain modules are still placeholders. Real backend logic now exists in `auth`, `roles`, `users`, `branches`, `item-categories`, `units`, `items`, `suppliers`, `supplier-representatives`, `warehouses`, `drawers`, `bank-accounts`, `bank-account-transactions`, `purchase-invoices`, `purchase-invoice-items`, `supplier-payments`, `expense-categories`, `expense-templates`, `expenses`, and `daily-sales`.
 - Keep backend module names in English.
 - Keep UI text Arabic until another language is intentionally added.
 - Add new backend features under `apps/api/src`.
@@ -235,6 +246,7 @@ This creates the real database tables, including:
 - `warehouses`
 - `drawers`
 - `bank_accounts`
+- `bank_account_transactions`
 - `purchase_invoices`
 - `purchase_invoice_items`
 - `supplier_payments`
@@ -264,6 +276,31 @@ The full seed creates:
 - `branch_manager`
 - the permissions catalog for modules such as `users`, `roles`, `branches`, `warehouses`, `bank_accounts`, `drawers`, `items`, `suppliers`, `purchase_invoices`, `supplier_payments`, `expenses`, `daily_sales`, `reports`, and `settings`
 - the default role-permission assignments
+
+## Bank Accounts And Bank Transactions
+
+The bank module now has two clear parts:
+
+- `bank-accounts`: master data for each bank account with `code`, `name`, `bank_name`, optional `iban`, optional `account_number`, `currency`, active state, and `notes`
+- `bank-account-transactions`: the transaction ledger linked to bank accounts, with optional branch and future-ready source references
+
+Supported bank transaction types:
+
+- `deposit`: manual or operational deposit into a bank account
+- `withdrawal`: direct withdrawal from a bank account
+- `transfer`: transfer movement between financial contexts
+- `settlement`: balancing or adjustment transaction
+- `supplier_payment_bank`: supplier payment made through a bank account
+- `expense_bank`: expense paid through a bank account
+- `sales_receipt_bank`: bank receipt for sales proceeds
+- `refund_bank`: bank-side refund or return
+
+Each bank transaction also stores:
+
+- `direction`: `incoming` or `outgoing`
+- `branch_id`: optional branch relation
+- `source_type` and `source_id`: optional future link to modules such as expenses, supplier payments, daily sales, or returns
+- `reference_number`, `description`, and `notes`
 
 ### Create A Branch
 

@@ -62,5 +62,40 @@ export type DrawerOption = {
 
 export type BankAccountOption = {
   id: string;
-  accountName: string;
+  name: string;
+};
+
+export type BankAccountSummary = {
+  id: string;
+  code: string;
+  name: string;
+  bankName: string;
+  iban?: string | null;
+  accountNumber?: string | null;
+  currency: string;
+  isActive: boolean;
+  notes?: string | null;
+  currentBalance?: number;
+  transactionTotals?: {
+    deposits: number;
+    withdrawals: number;
+    transfers: number;
+  };
+};
+
+export type BankAccountTransactionSummary = {
+  id: string;
+  bankAccountId: string;
+  bankAccount: BankAccountSummary;
+  transactionDate: string;
+  transactionType: string;
+  direction: string;
+  amount: number;
+  branchId?: string | null;
+  branch?: BranchOption | null;
+  sourceType?: string | null;
+  sourceId?: string | null;
+  referenceNumber?: string | null;
+  description: string;
+  notes?: string | null;
 };

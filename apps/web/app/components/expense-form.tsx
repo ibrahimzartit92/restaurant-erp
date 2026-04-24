@@ -157,7 +157,7 @@ export function ExpenseForm({
             <option value="">غير محدد</option>
             {bankAccounts.map((bankAccount) => (
               <option key={bankAccount.id} value={bankAccount.id}>
-                {bankAccount.accountName}
+                {bankAccount.name}
               </option>
             ))}
           </select>
