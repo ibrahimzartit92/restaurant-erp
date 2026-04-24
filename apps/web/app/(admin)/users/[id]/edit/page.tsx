@@ -1,7 +1,9 @@
 import { notFound } from 'next/navigation';
+import { BackendFallbackNote } from '../../../../components/backend-fallback-note';
 import { PageHeader } from '../../../../components/page-header';
 import { UserForm } from '../../../../components/user-form';
 import { fetchList, fetchOne } from '../../../../lib/api';
+import { findMockUser, mockBranches, mockRoles, withMockFallback } from '../../../../lib/access-control-mocks';
 import type { BranchOption, RoleSummary, UserSummary } from '../../../../lib/types';
 
 export default async function EditUserPage({
@@ -16,7 +18,11 @@ export default async function EditUserPage({
     fetchList<BranchOption>('/branches'),
   ]);
 
-  if (!userResult.data && !userResult.error) {
+  const user = userResult.data ?? findMockUser(id);
+  const roles = withMockFallback(rolesResult.data, mockRoles);
+  const branches = withMockFallback(branchesResult.data, mockBranches);
+
+  if (!user) {
     notFound();
   }
 
@@ -24,7 +30,10 @@ export default async function EditUserPage({
     <>
       <PageHeader title="صفحة تعديل مستخدم" description="عدّل بيانات المستخدم أو انقل صلاحياته إلى دور آخر مع الحفاظ على بساطة الإدارة." />
       {userResult.error ? <p className="notice">{userResult.error}</p> : null}
-      <UserForm branches={branchesResult.data} initialUser={userResult.data} mode="edit" roles={rolesResult.data} />
+      {!userResult.data ? (
+        <BackendFallbackNote message="تعذر تحميل بيانات المستخدم من الخادم، لذلك يتم عرض سجل تجريبي آمن للتصميم والتجربة." />
+      ) : null}
+      <UserForm branches={branches} initialUser={user} mode="edit" roles={roles} />
     </>
   );
 }
