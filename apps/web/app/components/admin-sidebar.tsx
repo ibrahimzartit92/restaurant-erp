@@ -51,10 +51,11 @@ const navigationSections: NavigationSection[] = [
       { href: '/expense-templates', label: 'قوالب المصاريف', mark: 'ق' },
       { href: '/daily-sales', label: 'المبيعات اليومية', mark: 'ي', permissionCodes: ['view_daily_sales'] },
       { href: '/transfers', label: 'التحويل بين الفروع', mark: 'ت' },
+      { href: '/stock-counts', label: 'الجرد', mark: 'ع' },
       { href: '/employees', label: 'الموظفون', mark: 'ظ' },
       { href: '/payroll', label: 'الرواتب', mark: 'ب' },
       { href: '/reports', label: 'التقارير', mark: 'ر', permissionCodes: ['view_reports'] },
-      { href: '/settings', label: 'الإعدادات', mark: 'ع', permissionCodes: ['manage_settings'] },
+      { href: '/settings', label: 'الإعدادات', mark: 'إ', permissionCodes: ['manage_settings'] },
     ],
   },
 ];

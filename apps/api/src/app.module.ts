@@ -25,6 +25,7 @@ import { PurchaseInvoicesModule } from './modules/purchase-invoices/purchase-inv
 import { PurchasesModule } from './modules/purchases/purchases.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { SettingsModule } from './modules/settings/settings.module';
+import { StockCountsModule } from './modules/stock-counts/stock-counts.module';
 import { SupplierRepresentativesModule } from './modules/supplier-representatives/supplier-representatives.module';
 import { SupplierPaymentsModule } from './modules/supplier-payments/supplier-payments.module';
 import { SuppliersModule } from './modules/suppliers/suppliers.module';
@@ -60,6 +61,7 @@ import { WarehousesModule } from './modules/warehouses/warehouses.module';
     PurchasesModule,
     RolesModule,
     SettingsModule,
+    StockCountsModule,
     SupplierRepresentativesModule,
     SupplierPaymentsModule,
     SuppliersModule,

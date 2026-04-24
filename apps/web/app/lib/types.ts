@@ -149,3 +149,30 @@ export type BranchTransferSummary = {
   createdAt?: string;
   updatedAt?: string;
 };
+
+export type StockCountItemSummary = {
+  id?: string;
+  stockCountId?: string;
+  itemId: string;
+  item: ItemOption;
+  systemQuantity: number;
+  countedQuantity: number;
+  differenceQuantity: number;
+  estimatedCostDifference: number;
+  notes?: string | null;
+};
+
+export type StockCountSummary = {
+  id: string;
+  countNumber: string;
+  branchId: string;
+  branch: BranchOption;
+  warehouseId: string;
+  warehouse: WarehouseOption;
+  countDate: string;
+  status: 'draft' | 'completed' | 'cancelled';
+  notes?: string | null;
+  items: StockCountItemSummary[];
+  createdAt?: string;
+  updatedAt?: string;
+};

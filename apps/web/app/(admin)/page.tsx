@@ -4,6 +4,7 @@ import type {
   BankAccountSummary,
   BankAccountTransactionSummary,
   BranchTransferSummary,
+  StockCountSummary,
 } from '../lib/types';
 
 type ExpenseSummaryRow = { amount: number };
@@ -34,14 +35,16 @@ const adminQuickLinks = [
 ];
 
 export default async function DashboardPage() {
-  const [expenses, dailySales, drawerSessions, bankAccounts, bankTransactions, transfers] = await Promise.all([
-    fetchList<ExpenseSummaryRow>('/expenses'),
-    fetchList<DailySaleSummaryRow>('/daily-sales'),
-    fetchList<DrawerSessionSummaryRow>('/drawer-daily-sessions'),
-    fetchList<BankAccountSummary>('/bank-accounts'),
-    fetchList<BankAccountTransactionSummary>('/bank-account-transactions'),
-    fetchList<BranchTransferSummary>('/transfers'),
-  ]);
+  const [expenses, dailySales, drawerSessions, bankAccounts, bankTransactions, transfers, stockCounts] =
+    await Promise.all([
+      fetchList<ExpenseSummaryRow>('/expenses'),
+      fetchList<DailySaleSummaryRow>('/daily-sales'),
+      fetchList<DrawerSessionSummaryRow>('/drawer-daily-sessions'),
+      fetchList<BankAccountSummary>('/bank-accounts'),
+      fetchList<BankAccountTransactionSummary>('/bank-account-transactions'),
+      fetchList<BranchTransferSummary>('/transfers'),
+      fetchList<StockCountSummary>('/stock-counts'),
+    ]);
 
   const totalExpenses = expenses.data.reduce((sum, expense) => sum + Number(expense.amount ?? 0), 0);
   const totalDailySales = dailySales.data.reduce((sum, sale) => sum + Number(sale.netSalesAmount ?? 0), 0);
@@ -72,8 +75,16 @@ export default async function DashboardPage() {
     .filter((transaction) => transaction.transactionType === 'transfer')
     .reduce((sum, transaction) => sum + Number(transaction.amount ?? 0), 0);
   const transfersCount = transfers.data.length;
-  const transfersTotalCost = transfers.data.reduce(
-    (sum, transfer) => sum + Number(transfer.totalCostAmount ?? 0),
+  const transfersTotalCost = transfers.data.reduce((sum, transfer) => sum + Number(transfer.totalCostAmount ?? 0), 0);
+  const stockCountsCount = stockCounts.data.length;
+  const stockCountsQuantityDifference = stockCounts.data.reduce(
+    (sum, stockCount) =>
+      sum + stockCount.items.reduce((itemSum, item) => itemSum + Number(item.differenceQuantity ?? 0), 0),
+    0,
+  );
+  const stockCountsCostDifference = stockCounts.data.reduce(
+    (sum, stockCount) =>
+      sum + stockCount.items.reduce((itemSum, item) => itemSum + Number(item.estimatedCostDifference ?? 0), 0),
     0,
   );
 
@@ -90,6 +101,9 @@ export default async function DashboardPage() {
     { label: 'إجمالي التحويلات البنكية', value: formatMoney(totalBankTransfers), detail: 'من حركات نوع تحويل' },
     { label: 'عدد التحويلات', value: String(transfersCount), detail: 'تحويلات بين الفروع' },
     { label: 'إجمالي تكلفة التحويلات', value: formatMoney(transfersTotalCost), detail: 'قيمة المواد المحولة' },
+    { label: 'عدد عمليات الجرد', value: String(stockCountsCount), detail: 'عمليات الجرد اليدوي' },
+    { label: 'إجمالي فرق الكميات', value: stockCountsQuantityDifference.toFixed(3), detail: 'مجموع فروقات الجرد' },
+    { label: 'إجمالي فرق التكلفة', value: formatMoney(stockCountsCostDifference), detail: 'فرق التكلفة التقديري' },
   ];
 
   return (
@@ -100,7 +114,7 @@ export default async function DashboardPage() {
           <h2>نظرة سريعة على عمل المطعم</h2>
           <p>
             هذه الصفحة تجمع أهم مؤشرات التشغيل اليومية، وتمنحك وصولًا سريعًا إلى الإدارة المالية والبنوك
-            والتحويلات بين الفروع وإدارة المستخدمين والصلاحيات.
+            والتحويلات بين الفروع والجرد اليدوي وإدارة المستخدمين والصلاحيات.
           </p>
         </div>
         <div className="hero-note">
@@ -141,7 +155,7 @@ export default async function DashboardPage() {
           </div>
           <ul className="timeline-list">
             <li>واجهة الإدارة الأساسية تعمل داخل تخطيط عربي RTL موحد.</li>
-            <li>الأقسام المالية والبنكية والتحويلات جاهزة للتطوير التدريجي.</li>
+            <li>الأقسام المالية والبنكية والتحويلات والجرد جاهزة للتطوير التدريجي.</li>
             <li>إدارة المستخدمين والأدوار والصلاحيات متاحة من الواجهة.</li>
           </ul>
         </div>
@@ -203,6 +217,23 @@ export default async function DashboardPage() {
 
         <div className="panel">
           <div className="panel-heading">
+            <h3>الجرد اليدوي</h3>
+            <span>مخزون وفروقات</span>
+          </div>
+          <div className="quick-actions">
+            <Link className="quick-link-button" href="/stock-counts">
+              قائمة الجرد
+            </Link>
+            <Link className="quick-link-button" href="/stock-counts/new">
+              إضافة جرد جديد
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      <section className="content-grid">
+        <div className="panel">
+          <div className="panel-heading">
             <h3>ملاحظات التشغيل</h3>
             <span>تحويلات الفروع</span>
           </div>
@@ -210,6 +241,18 @@ export default async function DashboardPage() {
             <li>التحويل الحالي يسجل حركة مواد بين فرع مصدر وفرع مستهدف.</li>
             <li>التأثير المخزني جاهز للإضافة لاحقًا دون تغيير الواجهة الأساسية.</li>
             <li>تفاصيل التحويل تعرض المواد والكميات والتكلفة وتدعم التوسعة للطباعة مستقبلًا.</li>
+          </ul>
+        </div>
+
+        <div className="panel">
+          <div className="panel-heading">
+            <h3>ملاحظات الجرد</h3>
+            <span>المخزون</span>
+          </div>
+          <ul className="timeline-list">
+            <li>الجرد الحالي يدوي ويسجل كمية النظام وكمية العد لكل مادة.</li>
+            <li>فرق الكمية وفرق التكلفة يحسبان مباشرة داخل السطور.</li>
+            <li>الهيكل جاهز لاحقًا لربط التسويات والتحليل بين المشتريات والمبيعات والهدر.</li>
           </ul>
         </div>
       </section>

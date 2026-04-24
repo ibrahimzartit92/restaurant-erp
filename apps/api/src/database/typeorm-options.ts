@@ -18,6 +18,8 @@ import { RoleEntity } from '../modules/roles/entities/role.entity';
 import { SupplierRepresentativeEntity } from '../modules/supplier-representatives/entities/supplier-representative.entity';
 import { SupplierPaymentEntity } from '../modules/supplier-payments/entities/supplier-payment.entity';
 import { SupplierEntity } from '../modules/suppliers/entities/supplier.entity';
+import { StockCountItemEntity } from '../modules/stock-counts/entities/stock-count-item.entity';
+import { StockCountEntity } from '../modules/stock-counts/entities/stock-count.entity';
 import { UnitEntity } from '../modules/units/entities/unit.entity';
 import { UserEntity } from '../modules/users/entities/user.entity';
 import { WarehouseEntity } from '../modules/warehouses/entities/warehouse.entity';
@@ -44,6 +46,8 @@ export const databaseEntities = [
   SupplierEntity,
   SupplierPaymentEntity,
   SupplierRepresentativeEntity,
+  StockCountEntity,
+  StockCountItemEntity,
   TransferEntity,
   BranchTransferItemEntity,
   UnitEntity,

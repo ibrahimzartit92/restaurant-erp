@@ -115,6 +115,10 @@ Available pages:
 - `/transfers/new`: صفحة إضافة تحويل جديد
 - `/transfers/:id`: صفحة تفاصيل تحويل
 - `/transfers/:id/edit`: صفحة تعديل تحويل
+- `/stock-counts`: قائمة الجرد
+- `/stock-counts/new`: صفحة إضافة جرد جديد
+- `/stock-counts/:id`: صفحة تفاصيل الجرد
+- `/stock-counts/:id/edit`: صفحة تعديل الجرد
 
 
 The admin layout includes a sidebar, top header, dashboard cards, table loading behavior, empty states, and list pages connected to the available backend endpoints.
@@ -129,6 +133,9 @@ Dashboard finance cards show simple live totals when the backend is running:
 - إجمالي الإيداعات
 - إجمالي السحوبات
 - إجمالي التحويلات
+- عدد عمليات الجرد
+- إجمالي فرق الكميات
+- إجمالي فرق التكلفة
 
 Run the frontend locally:
 
@@ -179,6 +186,7 @@ Current backend domain modules:
 - `purchases` handles supplier purchase records.
 - `roles` handles access role records.
 - `settings` handles system configuration records.
+- `stock-counts` handles manual stock counting records and item count lines.
 - `supplier-payments` handles payments made to suppliers.
 - `supplier-representatives` handles supplier contact people.
 - `suppliers` handles supplier master data.
@@ -190,7 +198,7 @@ Some later business domains are still placeholders. Implemented domains use the 
 
 ## Development Notes
 
-- Most later domain modules are still placeholders. Real backend logic now exists in `auth`, `roles`, `users`, `branches`, `item-categories`, `units`, `items`, `suppliers`, `supplier-representatives`, `warehouses`, `drawers`, `bank-accounts`, `bank-account-transactions`, `purchase-invoices`, `purchase-invoice-items`, `supplier-payments`, `expense-categories`, `expense-templates`, `expenses`, and `daily-sales`.
+- Most later domain modules are still placeholders. Real backend logic now exists in `auth`, `roles`, `users`, `branches`, `item-categories`, `units`, `items`, `suppliers`, `supplier-representatives`, `warehouses`, `drawers`, `bank-accounts`, `bank-account-transactions`, `purchase-invoices`, `purchase-invoice-items`, `supplier-payments`, `expense-categories`, `expense-templates`, `expenses`, `daily-sales`, `transfers`, and `stock-counts`.
 - Keep backend module names in English.
 - Keep UI text Arabic until another language is intentionally added.
 - Add new backend features under `apps/api/src`.
@@ -258,6 +266,7 @@ This creates the real database tables, including:
 - `expense_templates`
 - `expenses`
 - `daily_sales`
+- `stock_counts`
 
 ### Seed Access Control
 
@@ -319,6 +328,22 @@ Current transfer flow:
 - the first version does not require a separate receive confirmation
 - the total cost is visible in the list, form, and details page
 - the structure is ready to apply stock decrease on the source warehouse and stock increase on the destination warehouse later without changing the main data model
+
+## Manual Stock Counts
+
+The stock count module now stores manual inventory counting in a simple and extendable way:
+
+- `stock-counts`: the count header with `count_number`, `branch_id`, `warehouse_id`, `count_date`, `status`, and `notes`
+- `stock-count-items`: the count lines with `item_id`, `system_quantity`, `counted_quantity`, `difference_quantity`, `estimated_cost_difference`, and `notes`
+
+Current stock count flow:
+
+- the user creates a manual stock count for one branch and one warehouse
+- the first version stores the system quantity snapshot directly inside each line for clarity and future comparison
+- the counted quantity is entered manually by the user
+- `difference_quantity = counted_quantity - system_quantity`
+- `estimated_cost_difference` uses the current item cost price when available
+- the structure is ready for future adjustment posting and later comparison between purchases, stock counts, daily sales, waste, and profit analysis
 
 ### Create A Branch
 
