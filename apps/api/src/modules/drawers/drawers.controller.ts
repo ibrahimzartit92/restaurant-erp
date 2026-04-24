@@ -8,8 +8,8 @@ export class DrawersController {
   constructor(private readonly drawersService: DrawersService) {}
 
   @Get()
-  findAll(@Query('search') search?: string) {
-    return this.drawersService.findAll(search);
+  findAll(@Query('search') search?: string, @Query('branch_id') branchId?: string) {
+    return this.drawersService.findAll(search, branchId);
   }
 
   @Get(':id')

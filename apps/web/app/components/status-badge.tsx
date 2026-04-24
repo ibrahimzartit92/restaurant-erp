@@ -4,9 +4,18 @@ const labels: Record<string, string> = {
   partially_paid: 'مدفوعة جزئياً',
   paid: 'مدفوعة',
   cancelled: 'ملغاة',
+  closed: 'مغلقة',
   cash: 'نقداً',
   bank: 'بنكي',
   other: 'أخرى',
+  daily_cash_sales: 'مبيعات نقدية',
+  supplier_payment_cash: 'دفعة مورد نقدية',
+  expense_cash: 'مصروف نقدي',
+  sales_return_cash: 'مرتجع نقدي',
+  deposit: 'إيداع',
+  withdrawal: 'سحب',
+  settlement: 'تسوية',
+  transfer: 'تحويل',
 };
 
 export function StatusBadge({ value }: Readonly<{ value?: string | boolean | null }>) {

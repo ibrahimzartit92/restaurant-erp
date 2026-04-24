@@ -395,6 +395,33 @@ Payment rules:
 
 The invoice detail endpoint returns the invoice with its `items` and `payments`, leaving a clear place to add attachments, returns, and reporting later.
 
+## Cash Drawer System
+
+The cash drawer backend and frontend now support:
+
+- `drawers`: one active cash drawer per branch in the first version.
+- `drawer-daily-sessions`: daily opening and closing sessions for each drawer.
+- `drawer-transactions`: cash movements in or out of a drawer.
+
+Main frontend pages:
+
+- `/drawers`: قائمة الأدراج
+- `/drawer-daily-sessions`: قائمة جلسات الدرج اليومية
+- `/drawer-daily-sessions/new`: فتح جلسة درج
+- `/drawer-daily-sessions/:id`: تفاصيل جلسة الدرج
+- `/drawer-daily-sessions/:id/close`: إغلاق جلسة درج
+- `/drawer-transactions`: قائمة حركات الدرج
+
+Session flow:
+
+1. Create one drawer for each branch.
+2. Open a daily drawer session with a manual `openingBalance`.
+3. Add drawer transactions for cash sales, cash expenses, supplier payments, deposits, withdrawals, settlements, or transfers.
+4. The session `calculatedBalance` is opening balance plus incoming transactions minus outgoing transactions.
+5. Close the session with the actual `closingBalance`; the system stores `differenceAmount = closingBalance - calculatedBalance`.
+
+The dashboard includes drawer summary cards for current drawer balance, today cash expenses placeholder, and drawer difference.
+
 ### Create A User
 
 Create an admin user:

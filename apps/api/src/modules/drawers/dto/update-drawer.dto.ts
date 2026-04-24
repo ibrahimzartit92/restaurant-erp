@@ -1,6 +1,10 @@
-import { IsBoolean, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 
 export class UpdateDrawerDto {
+  @IsUUID()
+  @IsOptional()
+  branchId?: string;
+
   @IsString()
   @IsOptional()
   @MaxLength(50)
@@ -14,4 +18,8 @@ export class UpdateDrawerDto {
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;
+
+  @IsString()
+  @IsOptional()
+  notes?: string | null;
 }

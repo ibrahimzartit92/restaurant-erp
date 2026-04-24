@@ -7,6 +7,8 @@ import { AuthModule } from './modules/auth/auth.module';
 import { BankAccountsModule } from './modules/bank-accounts/bank-accounts.module';
 import { BranchesModule } from './modules/branches/branches.module';
 import { DailySalesModule } from './modules/daily-sales/daily-sales.module';
+import { DrawerDailySessionsModule } from './modules/drawer-daily-sessions/drawer-daily-sessions.module';
+import { DrawerTransactionsModule } from './modules/drawer-transactions/drawer-transactions.module';
 import { DrawersModule } from './modules/drawers/drawers.module';
 import { EmployeesModule } from './modules/employees/employees.module';
 import { ExpenseCategoriesModule } from './modules/expense-categories/expense-categories.module';
@@ -38,6 +40,8 @@ import { WarehousesModule } from './modules/warehouses/warehouses.module';
     BankAccountsModule,
     BranchesModule,
     DailySalesModule,
+    DrawerDailySessionsModule,
+    DrawerTransactionsModule,
     DrawersModule,
     EmployeesModule,
     ExpenseCategoriesModule,

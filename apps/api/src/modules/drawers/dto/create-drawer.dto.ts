@@ -1,6 +1,9 @@
-import { IsBoolean, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 
 export class CreateDrawerDto {
+  @IsUUID()
+  branchId!: string;
+
   @IsString()
   @IsNotEmpty()
   @MaxLength(50)
@@ -14,4 +17,8 @@ export class CreateDrawerDto {
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;
+
+  @IsString()
+  @IsOptional()
+  notes?: string;
 }

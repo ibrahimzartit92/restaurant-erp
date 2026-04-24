@@ -17,6 +17,8 @@ export type ExpenseTemplateOption = {
 export type DrawerOption = {
   id: string;
   name: string;
+  branchId?: string;
+  branch?: BranchOption | null;
 };
 
 export type BankAccountOption = {
