@@ -99,3 +99,53 @@ export type BankAccountTransactionSummary = {
   description: string;
   notes?: string | null;
 };
+
+export type WarehouseOption = {
+  id: string;
+  code: string;
+  name: string;
+  isActive: boolean;
+};
+
+export type ItemOption = {
+  id: string;
+  code: string;
+  name: string;
+  costPrice?: number;
+  isActive: boolean;
+  unit?: {
+    id: string;
+    name: string;
+  } | null;
+};
+
+export type BranchTransferItemSummary = {
+  id?: string;
+  branchTransferId?: string;
+  itemId: string;
+  item: ItemOption;
+  quantity: number;
+  unitCost: number;
+  lineTotal: number;
+  notes?: string | null;
+};
+
+export type BranchTransferSummary = {
+  id: string;
+  transferNumber: string;
+  transferDate: string;
+  fromBranchId: string;
+  fromBranch: BranchOption;
+  toBranchId: string;
+  toBranch: BranchOption;
+  fromWarehouseId: string;
+  fromWarehouse: WarehouseOption;
+  toWarehouseId: string;
+  toWarehouse: WarehouseOption;
+  status: 'draft' | 'completed' | 'cancelled';
+  totalCostAmount: number;
+  notes?: string | null;
+  items: BranchTransferItemSummary[];
+  createdAt?: string;
+  updatedAt?: string;
+};

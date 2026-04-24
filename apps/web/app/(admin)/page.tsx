@@ -1,6 +1,10 @@
 import Link from 'next/link';
 import { fetchList, formatMoney } from '../lib/api';
-import type { BankAccountSummary, BankAccountTransactionSummary } from '../lib/types';
+import type {
+  BankAccountSummary,
+  BankAccountTransactionSummary,
+  BranchTransferSummary,
+} from '../lib/types';
 
 type ExpenseSummaryRow = { amount: number };
 type DailySaleSummaryRow = {
@@ -30,12 +34,13 @@ const adminQuickLinks = [
 ];
 
 export default async function DashboardPage() {
-  const [expenses, dailySales, drawerSessions, bankAccounts, bankTransactions] = await Promise.all([
+  const [expenses, dailySales, drawerSessions, bankAccounts, bankTransactions, transfers] = await Promise.all([
     fetchList<ExpenseSummaryRow>('/expenses'),
     fetchList<DailySaleSummaryRow>('/daily-sales'),
     fetchList<DrawerSessionSummaryRow>('/drawer-daily-sessions'),
     fetchList<BankAccountSummary>('/bank-accounts'),
     fetchList<BankAccountTransactionSummary>('/bank-account-transactions'),
+    fetchList<BranchTransferSummary>('/transfers'),
   ]);
 
   const totalExpenses = expenses.data.reduce((sum, expense) => sum + Number(expense.amount ?? 0), 0);
@@ -63,9 +68,14 @@ export default async function DashboardPage() {
   const totalWithdrawals = bankTransactions.data
     .filter((transaction) => transaction.transactionType === 'withdrawal')
     .reduce((sum, transaction) => sum + Number(transaction.amount ?? 0), 0);
-  const totalTransfers = bankTransactions.data
+  const totalBankTransfers = bankTransactions.data
     .filter((transaction) => transaction.transactionType === 'transfer')
     .reduce((sum, transaction) => sum + Number(transaction.amount ?? 0), 0);
+  const transfersCount = transfers.data.length;
+  const transfersTotalCost = transfers.data.reduce(
+    (sum, transfer) => sum + Number(transfer.totalCostAmount ?? 0),
+    0,
+  );
 
   const summaryCards = [
     { label: 'إجمالي المصاريف', value: formatMoney(totalExpenses), detail: 'من سجل المصاريف' },
@@ -77,24 +87,29 @@ export default async function DashboardPage() {
     { label: 'إجمالي الرصيد البنكي', value: formatMoney(totalBankBalance), detail: 'من جميع الحسابات البنكية' },
     { label: 'إجمالي الإيداعات', value: formatMoney(totalDeposits), detail: 'من سجل حركات البنك' },
     { label: 'إجمالي السحوبات', value: formatMoney(totalWithdrawals), detail: 'من سجل حركات البنك' },
-    { label: 'إجمالي التحويلات', value: formatMoney(totalTransfers), detail: 'من حركات نوع تحويل' },
+    { label: 'إجمالي التحويلات البنكية', value: formatMoney(totalBankTransfers), detail: 'من حركات نوع تحويل' },
+    { label: 'عدد التحويلات', value: String(transfersCount), detail: 'تحويلات بين الفروع' },
+    { label: 'إجمالي تكلفة التحويلات', value: formatMoney(transfersTotalCost), detail: 'قيمة المواد المحولة' },
   ];
 
   return (
     <>
       <section className="dashboard-hero">
         <div>
-          <p className="eyebrow">صباح العمل الهادئ</p>
-          <h2>نظرة سريعة على تشغيل المطعم</h2>
-          <p>هذه الصفحة مركز المتابعة اليومية للفروع والمخزون والمشتريات، ومنها يمكنك الآن الوصول إلى إدارة البنوك والمستخدمين والأدوار والصلاحيات.</p>
+          <p className="eyebrow">تشغيل اليوم</p>
+          <h2>نظرة سريعة على عمل المطعم</h2>
+          <p>
+            هذه الصفحة تجمع أهم مؤشرات التشغيل اليومية، وتمنحك وصولًا سريعًا إلى الإدارة المالية والبنوك
+            والتحويلات بين الفروع وإدارة المستخدمين والصلاحيات.
+          </p>
         </div>
         <div className="hero-note">
-          <span>اليوم</span>
-          <strong>جاهز للربط مع البيانات</strong>
+          <span>الحالة</span>
+          <strong>جاهز للتوسع وربط البيانات</strong>
         </div>
       </section>
 
-      <section className="summary-grid" aria-label="ملخصات سريعة">
+      <section aria-label="ملخصات سريعة" className="summary-grid">
         {summaryCards.map((card) => (
           <article className="summary-card" key={card.label}>
             <p>{card.label}</p>
@@ -122,12 +137,12 @@ export default async function DashboardPage() {
         <div className="panel">
           <div className="panel-heading">
             <h3>حالة النظام</h3>
-            <span>تجريبي</span>
+            <span>ملخص</span>
           </div>
           <ul className="timeline-list">
-            <li>تم تجهيز واجهة الإدارة الأساسية.</li>
-            <li>صفحات القوائم متصلة بنقاط النهاية المتاحة.</li>
-            <li>تمت إضافة قسم البنوك مع الحسابات البنكية وحركات البنك.</li>
+            <li>واجهة الإدارة الأساسية تعمل داخل تخطيط عربي RTL موحد.</li>
+            <li>الأقسام المالية والبنكية والتحويلات جاهزة للتطوير التدريجي.</li>
+            <li>إدارة المستخدمين والأدوار والصلاحيات متاحة من الواجهة.</li>
           </ul>
         </div>
       </section>
@@ -167,6 +182,35 @@ export default async function DashboardPage() {
               إضافة حركة بنكية
             </Link>
           </div>
+        </div>
+      </section>
+
+      <section className="content-grid">
+        <div className="panel">
+          <div className="panel-heading">
+            <h3>التحويل بين الفروع</h3>
+            <span>مواد وتكلفة</span>
+          </div>
+          <div className="quick-actions">
+            <Link className="quick-link-button" href="/transfers">
+              قائمة التحويلات
+            </Link>
+            <Link className="quick-link-button" href="/transfers/new">
+              إضافة تحويل جديد
+            </Link>
+          </div>
+        </div>
+
+        <div className="panel">
+          <div className="panel-heading">
+            <h3>ملاحظات التشغيل</h3>
+            <span>تحويلات الفروع</span>
+          </div>
+          <ul className="timeline-list">
+            <li>التحويل الحالي يسجل حركة مواد بين فرع مصدر وفرع مستهدف.</li>
+            <li>التأثير المخزني جاهز للإضافة لاحقًا دون تغيير الواجهة الأساسية.</li>
+            <li>تفاصيل التحويل تعرض المواد والكميات والتكلفة وتدعم التوسعة للطباعة مستقبلًا.</li>
+          </ul>
         </div>
       </section>
     </>

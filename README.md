@@ -111,6 +111,10 @@ Available pages:
 - `/expenses/new`: إضافة مصروف
 - `/daily-sales`: المبيعات اليومية
 - `/daily-sales/new`: إضافة مبيعات يومية
+- `/transfers`: قائمة التحويلات بين الفروع
+- `/transfers/new`: صفحة إضافة تحويل جديد
+- `/transfers/:id`: صفحة تفاصيل تحويل
+- `/transfers/:id/edit`: صفحة تعديل تحويل
 
 
 The admin layout includes a sidebar, top header, dashboard cards, table loading behavior, empty states, and list pages connected to the available backend endpoints.
@@ -178,7 +182,7 @@ Current backend domain modules:
 - `supplier-payments` handles payments made to suppliers.
 - `supplier-representatives` handles supplier contact people.
 - `suppliers` handles supplier master data.
-- `transfers` handles stock or cash transfer records.
+- `transfers` handles branch-to-branch material transfer records.
 - `users` handles application user records.
 - `warehouses` handles warehouse records.
 
@@ -301,6 +305,20 @@ Each bank transaction also stores:
 - `branch_id`: optional branch relation
 - `source_type` and `source_id`: optional future link to modules such as expenses, supplier payments, daily sales, or returns
 - `reference_number`, `description`, and `notes`
+
+## Branch Transfers Between Branches
+
+The branch transfer module now stores material transfers between branches in a simple and extendable way:
+
+- `branch-transfers`: the transfer header with `transfer_number`, `transfer_date`, source branch and warehouse, destination branch and warehouse, `status`, `total_cost_amount`, and `notes`
+- `branch-transfer-items`: the transfer lines with `item_id`, `quantity`, `unit_cost`, `line_total`, and `notes`
+
+Current transfer flow:
+
+- the user creates one transfer from a source branch to a destination branch
+- the first version does not require a separate receive confirmation
+- the total cost is visible in the list, form, and details page
+- the structure is ready to apply stock decrease on the source warehouse and stock increase on the destination warehouse later without changing the main data model
 
 ### Create A Branch
 

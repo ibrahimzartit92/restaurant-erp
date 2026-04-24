@@ -21,6 +21,8 @@ import { SupplierEntity } from '../modules/suppliers/entities/supplier.entity';
 import { UnitEntity } from '../modules/units/entities/unit.entity';
 import { UserEntity } from '../modules/users/entities/user.entity';
 import { WarehouseEntity } from '../modules/warehouses/entities/warehouse.entity';
+import { BranchTransferItemEntity } from '../modules/transfers/entities/transfer-item.entity';
+import { TransferEntity } from '../modules/transfers/entities/transfer.entity';
 
 export const databaseEntities = [
   BankAccountEntity,
@@ -42,6 +44,8 @@ export const databaseEntities = [
   SupplierEntity,
   SupplierPaymentEntity,
   SupplierRepresentativeEntity,
+  TransferEntity,
+  BranchTransferItemEntity,
   UnitEntity,
   UserEntity,
   WarehouseEntity,

@@ -533,6 +533,34 @@ a {
   gap: 16px;
 }
 
+.transfer-items-section,
+.transfer-items-list {
+  display: grid;
+  gap: 14px;
+}
+
+.transfer-item-card {
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  padding: 16px;
+}
+
+.transfer-item-grid {
+  display: grid;
+  grid-template-columns: 2fr repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.transfer-item-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .compact-form {
   gap: 14px;
 }
@@ -903,12 +931,18 @@ tr:last-child td {
   .content-grid,
   .login-panel,
   .form-grid,
+  .transfer-item-grid,
   .permission-grid,
   .admin-shortcuts {
     grid-template-columns: 1fr;
   }
 
   .page-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .transfer-item-meta {
     align-items: stretch;
     flex-direction: column;
   }

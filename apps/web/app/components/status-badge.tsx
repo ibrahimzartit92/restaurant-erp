@@ -1,4 +1,5 @@
 const labels: Record<string, string> = {
+  completed: 'مكتمل',
   draft: 'مسودة',
   open: 'مفتوحة',
   partially_paid: 'مدفوعة جزئياً',
