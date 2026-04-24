@@ -1,9 +1,14 @@
 import Link from 'next/link';
 import { fetchList, formatMoney } from '../lib/api';
 import type {
+  AttendanceFileSummary,
   BankAccountSummary,
   BankAccountTransactionSummary,
   BranchTransferSummary,
+  EmployeeAdvanceSummary,
+  EmployeePenaltySummary,
+  EmployeeSummary,
+  PayrollSummary,
   StockCountSummary,
 } from '../lib/types';
 
@@ -35,7 +40,7 @@ const adminQuickLinks = [
 ];
 
 export default async function DashboardPage() {
-  const [expenses, dailySales, drawerSessions, bankAccounts, bankTransactions, transfers, stockCounts] =
+  const [expenses, dailySales, drawerSessions, bankAccounts, bankTransactions, transfers, stockCounts, employees, advances, penalties, payrolls, attendanceFiles] =
     await Promise.all([
       fetchList<ExpenseSummaryRow>('/expenses'),
       fetchList<DailySaleSummaryRow>('/daily-sales'),
@@ -44,6 +49,11 @@ export default async function DashboardPage() {
       fetchList<BankAccountTransactionSummary>('/bank-account-transactions'),
       fetchList<BranchTransferSummary>('/transfers'),
       fetchList<StockCountSummary>('/stock-counts'),
+      fetchList<EmployeeSummary>('/employees'),
+      fetchList<EmployeeAdvanceSummary>('/employee-advances'),
+      fetchList<EmployeePenaltySummary>('/employee-penalties'),
+      fetchList<PayrollSummary>('/payrolls'),
+      fetchList<AttendanceFileSummary>('/attendance-files'),
     ]);
 
   const totalExpenses = expenses.data.reduce((sum, expense) => sum + Number(expense.amount ?? 0), 0);
@@ -87,6 +97,10 @@ export default async function DashboardPage() {
       sum + stockCount.items.reduce((itemSum, item) => itemSum + Number(item.estimatedCostDifference ?? 0), 0),
     0,
   );
+  const employeesCount = employees.data.length;
+  const totalAdvances = advances.data.reduce((sum, advance) => sum + Number(advance.amount ?? 0), 0);
+  const totalPenalties = penalties.data.reduce((sum, penalty) => sum + Number(penalty.amount ?? 0), 0);
+  const totalPayrolls = payrolls.data.reduce((sum, payroll) => sum + Number(payroll.netSalary ?? 0), 0);
 
   const summaryCards = [
     { label: 'إجمالي المصاريف', value: formatMoney(totalExpenses), detail: 'من سجل المصاريف' },
@@ -104,6 +118,10 @@ export default async function DashboardPage() {
     { label: 'عدد عمليات الجرد', value: String(stockCountsCount), detail: 'عمليات الجرد اليدوي' },
     { label: 'إجمالي فرق الكميات', value: stockCountsQuantityDifference.toFixed(3), detail: 'مجموع فروقات الجرد' },
     { label: 'إجمالي فرق التكلفة', value: formatMoney(stockCountsCostDifference), detail: 'فرق التكلفة التقديري' },
+    { label: 'عدد الموظفين', value: String(employeesCount), detail: 'الموظفون المسجلون' },
+    { label: 'إجمالي السلف', value: formatMoney(totalAdvances), detail: 'من سجل السلف' },
+    { label: 'إجمالي العقوبات', value: formatMoney(totalPenalties), detail: 'من سجل العقوبات' },
+    { label: 'إجمالي الرواتب', value: formatMoney(totalPayrolls), detail: 'صافي الرواتب المسجلة' },
   ];
 
   return (
@@ -228,6 +246,44 @@ export default async function DashboardPage() {
               إضافة جرد جديد
             </Link>
           </div>
+        </div>
+      </section>
+
+      <section className="content-grid">
+        <div className="panel">
+          <div className="panel-heading">
+            <h3>الموظفون والرواتب</h3>
+            <span>الموارد البشرية</span>
+          </div>
+          <div className="quick-actions">
+            <Link className="quick-link-button" href="/employees">
+              قائمة الموظفين
+            </Link>
+            <Link className="quick-link-button" href="/employee-advances">
+              السلف
+            </Link>
+            <Link className="quick-link-button" href="/employee-penalties">
+              العقوبات
+            </Link>
+            <Link className="quick-link-button" href="/payroll">
+              الرواتب
+            </Link>
+            <Link className="quick-link-button" href="/attendance-files">
+              ملفات البصمة
+            </Link>
+          </div>
+        </div>
+
+        <div className="panel">
+          <div className="panel-heading">
+            <h3>ملاحظات الموظفين</h3>
+            <span>{attendanceFiles.data.length} ملف بصمة</span>
+          </div>
+          <ul className="timeline-list">
+            <li>الرواتب تدخل يدويًا مع منع التكرار لنفس الموظف والشهر والسنة.</li>
+            <li>السلف والعقوبات محفوظة بطريقة جاهزة للربط مع الرواتب لاحقًا.</li>
+            <li>ملفات البصمة تحفظ كسجل مرفقات للعرض والمتابعة فقط في هذه النسخة.</li>
+          </ul>
         </div>
       </section>
 

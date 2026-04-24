@@ -176,3 +176,68 @@ export type StockCountSummary = {
   createdAt?: string;
   updatedAt?: string;
 };
+
+export type EmployeeSummary = {
+  id: string;
+  employeeNumber: string;
+  fullName: string;
+  phone?: string | null;
+  jobTitle?: string | null;
+  defaultBranchId?: string | null;
+  defaultBranch?: BranchOption | null;
+  hireDate?: string | null;
+  isActive: boolean;
+  notes?: string | null;
+};
+
+export type EmployeeAdvanceSummary = {
+  id: string;
+  employeeId: string;
+  employee: EmployeeSummary;
+  advanceDate: string;
+  amount: number;
+  payrollMonth?: number | null;
+  payrollYear?: number | null;
+  notes?: string | null;
+};
+
+export type EmployeePenaltySummary = {
+  id: string;
+  employeeId: string;
+  employee: EmployeeSummary;
+  penaltyDate: string;
+  amount: number;
+  reason?: string | null;
+  payrollMonth?: number | null;
+  payrollYear?: number | null;
+  notes?: string | null;
+};
+
+export type PayrollSummary = {
+  id: string;
+  employeeId: string;
+  employee: EmployeeSummary;
+  payrollMonth: number;
+  payrollYear: number;
+  baseSalary: number;
+  allowancesAmount: number;
+  advancesDeductionAmount: number;
+  penaltiesDeductionAmount: number;
+  otherDeductionAmount: number;
+  netSalary: number;
+  notes?: string | null;
+};
+
+export type AttendanceFileSummary = {
+  id: string;
+  employeeId?: string | null;
+  employee?: EmployeeSummary | null;
+  branchId?: string | null;
+  branch?: BranchOption | null;
+  month: number;
+  year: number;
+  fileName: string;
+  filePath: string;
+  fileType: string;
+  notes?: string | null;
+};

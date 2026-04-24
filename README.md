@@ -119,6 +119,19 @@ Available pages:
 - `/stock-counts/new`: صفحة إضافة جرد جديد
 - `/stock-counts/:id`: صفحة تفاصيل الجرد
 - `/stock-counts/:id/edit`: صفحة تعديل الجرد
+- `/employees`: قائمة الموظفين
+- `/employees/new`: صفحة إضافة موظف
+- `/employees/:id`: صفحة تفاصيل موظف
+- `/employees/:id/edit`: صفحة تعديل موظف
+- `/employee-advances`: قائمة السلف
+- `/employee-advances/new`: صفحة إضافة سلفة
+- `/employee-penalties`: قائمة العقوبات
+- `/employee-penalties/new`: صفحة إضافة عقوبة
+- `/payroll`: قائمة الرواتب
+- `/payroll/new`: صفحة إضافة راتب
+- `/payroll/:id/edit`: صفحة تعديل راتب
+- `/attendance-files`: قائمة ملفات البصمة
+- `/attendance-files/new`: صفحة رفع ملف بصمة
 
 
 The admin layout includes a sidebar, top header, dashboard cards, table loading behavior, empty states, and list pages connected to the available backend endpoints.
@@ -136,6 +149,10 @@ Dashboard finance cards show simple live totals when the backend is running:
 - عدد عمليات الجرد
 - إجمالي فرق الكميات
 - إجمالي فرق التكلفة
+- عدد الموظفين
+- إجمالي السلف
+- إجمالي العقوبات
+- إجمالي الرواتب
 
 Run the frontend locally:
 
@@ -167,6 +184,8 @@ Current backend domain modules:
 
 - `attachments` handles uploaded file references and document links.
 - `attendance-files` handles imported attendance files.
+- `employee-advances` handles employee advance records.
+- `employee-penalties` handles employee penalty records.
 - `auth` handles authentication entry points.
 - `bank-accounts` handles restaurant bank account records.
 - `bank-account-transactions` handles the bank ledger and transaction records linked to bank accounts.
@@ -198,7 +217,7 @@ Some later business domains are still placeholders. Implemented domains use the 
 
 ## Development Notes
 
-- Most later domain modules are still placeholders. Real backend logic now exists in `auth`, `roles`, `users`, `branches`, `item-categories`, `units`, `items`, `suppliers`, `supplier-representatives`, `warehouses`, `drawers`, `bank-accounts`, `bank-account-transactions`, `purchase-invoices`, `purchase-invoice-items`, `supplier-payments`, `expense-categories`, `expense-templates`, `expenses`, `daily-sales`, `transfers`, and `stock-counts`.
+- Most later domain modules are still placeholders. Real backend logic now exists in `auth`, `roles`, `users`, `branches`, `item-categories`, `units`, `items`, `suppliers`, `supplier-representatives`, `warehouses`, `drawers`, `bank-accounts`, `bank-account-transactions`, `purchase-invoices`, `purchase-invoice-items`, `supplier-payments`, `expense-categories`, `expense-templates`, `expenses`, `daily-sales`, `transfers`, `stock-counts`, `employees`, `employee-advances`, `employee-penalties`, `payroll`, and `attendance-files`.
 - Keep backend module names in English.
 - Keep UI text Arabic until another language is intentionally added.
 - Add new backend features under `apps/api/src`.
@@ -267,6 +286,11 @@ This creates the real database tables, including:
 - `expenses`
 - `daily_sales`
 - `stock_counts`
+- `employees`
+- `employee_advances`
+- `employee_penalties`
+- `payrolls`
+- `attendance_files`
 
 ### Seed Access Control
 
@@ -344,6 +368,24 @@ Current stock count flow:
 - `difference_quantity = counted_quantity - system_quantity`
 - `estimated_cost_difference` uses the current item cost price when available
 - the structure is ready for future adjustment posting and later comparison between purchases, stock counts, daily sales, waste, and profit analysis
+
+## Employees, Payroll, And Attendance Files
+
+The employee and payroll area now stores simple manual HR records in a way that stays easy to extend:
+
+- `employees`: employee master data with employee number, full name, optional phone, optional job title, optional default branch, optional hire date, active state, and notes
+- `employee-advances`: advance records linked to employees, with optional payroll month and year
+- `employee-penalties`: penalty records linked to employees, with optional reason and optional payroll month and year
+- `payrolls`: manual payroll records with base salary, allowances, deductions, net salary, and notes
+- `attendance-files`: uploaded PDF and Excel files linked optionally to employee, branch, month, and year
+
+Current payroll and attendance flow:
+
+- employee records are maintained separately from payroll
+- advances and penalties are entered independently so they can be linked to payroll later
+- payroll is entered manually and duplicate payroll for the same employee, month, and year is blocked
+- attendance files are uploaded for record keeping and viewing only in this version
+- the structure is ready for future parsing, payroll automation, and cross-checking with attendance and branch activity later
 
 ### Create A Branch
 

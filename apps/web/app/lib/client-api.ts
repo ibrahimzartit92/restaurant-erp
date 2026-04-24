@@ -22,3 +22,21 @@ export async function submitJson(path: string, method: 'POST' | 'PATCH', body: R
 
   return response.json();
 }
+
+export async function submitFormData(path: string, formData: FormData) {
+  const accessToken = readAccessTokenFromDocument();
+  const response = await fetch(`${clientApiBaseUrl}${path}`, {
+    method: 'POST',
+    headers: {
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => null);
+    throw new Error(error?.message ?? 'تعذر رفع الملف.');
+  }
+
+  return response.json();
+}
