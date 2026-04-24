@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { fetchList, formatMoney } from '../lib/api';
 
 type ExpenseSummaryRow = { amount: number };
@@ -14,7 +15,18 @@ type DrawerSessionSummaryRow = {
   status: string;
 };
 
-const quickLinks = ['إضافة فاتورة شراء', 'تسجيل دفعة مورد', 'مراجعة المواد', 'متابعة الموردين'];
+const quickLinks = [
+  { href: '/purchase-invoices', label: 'إضافة فاتورة شراء' },
+  { href: '/supplier-payments', label: 'تسجيل دفعة مورد' },
+  { href: '/items', label: 'مراجعة المواد' },
+  { href: '/suppliers', label: 'متابعة الموردين' },
+];
+
+const adminQuickLinks = [
+  { href: '/users', label: 'إدارة المستخدمين', note: 'عرض الحسابات وإضافة مستخدم جديد' },
+  { href: '/roles', label: 'إدارة الأدوار', note: 'تنظيم الأدوار وربطها بالصلاحيات' },
+  { href: '/permissions', label: 'إدارة الصلاحيات', note: 'مراجعة كتالوج الصلاحيات الحالي' },
+];
 
 export default async function DashboardPage() {
   const [expenses, dailySales, drawerSessions] = await Promise.all([
@@ -22,6 +34,7 @@ export default async function DashboardPage() {
     fetchList<DailySaleSummaryRow>('/daily-sales'),
     fetchList<DrawerSessionSummaryRow>('/drawer-daily-sessions'),
   ]);
+
   const totalExpenses = expenses.data.reduce((sum, expense) => sum + Number(expense.amount ?? 0), 0);
   const totalDailySales = dailySales.data.reduce((sum, sale) => sum + Number(sale.netSalesAmount ?? 0), 0);
   const cashSales = dailySales.data.reduce((sum, sale) => sum + Number(sale.cashSalesAmount ?? 0), 0);
@@ -40,6 +53,7 @@ export default async function DashboardPage() {
     (sum, session) => sum + Number(session.differenceAmount ?? 0),
     0,
   );
+
   const summaryCards = [
     { label: 'إجمالي المصاريف', value: formatMoney(totalExpenses), detail: 'من سجل المصاريف' },
     { label: 'إجمالي المبيعات اليومية', value: formatMoney(totalDailySales), detail: 'صافي المبيعات المسجلة' },
@@ -56,7 +70,7 @@ export default async function DashboardPage() {
         <div>
           <p className="eyebrow">صباح العمل الهادئ</p>
           <h2>نظرة سريعة على تشغيل المطعم</h2>
-          <p>هذه الصفحة ستكون مركز المتابعة اليومي للفروع والمخزون والمشتريات والمدفوعات.</p>
+          <p>هذه الصفحة مركز المتابعة اليومية للفروع والمخزون والمشتريات، ومنها يمكنك الآن الوصول أيضاً إلى إدارة المستخدمين والأدوار والصلاحيات.</p>
         </div>
         <div className="hero-note">
           <span>اليوم</span>
@@ -78,11 +92,13 @@ export default async function DashboardPage() {
         <div className="panel">
           <div className="panel-heading">
             <h3>مهام سريعة</h3>
-            <span>قريباً</span>
+            <span>روابط مباشرة</span>
           </div>
           <div className="quick-actions">
             {quickLinks.map((link) => (
-              <button key={link}>{link}</button>
+              <Link className="quick-link-button" href={link.href} key={link.href}>
+                {link.label}
+              </Link>
             ))}
           </div>
         </div>
@@ -95,8 +111,23 @@ export default async function DashboardPage() {
           <ul className="timeline-list">
             <li>تم تجهيز واجهة الإدارة الأساسية.</li>
             <li>صفحات القوائم متصلة بنقاط النهاية المتاحة.</li>
-            <li>النماذج والصلاحيات ستضاف في المراحل التالية.</li>
+            <li>قسم إدارة الوصول أصبح ظاهراً في القائمة الرئيسية ولوحة البداية.</li>
           </ul>
+        </div>
+      </section>
+
+      <section className="panel">
+        <div className="panel-heading">
+          <h3>إدارة الوصول</h3>
+          <span>قسم الإدارة</span>
+        </div>
+        <div className="admin-shortcuts">
+          {adminQuickLinks.map((link) => (
+            <Link className="admin-shortcut-card" href={link.href} key={link.href}>
+              <strong>{link.label}</strong>
+              <span>{link.note}</span>
+            </Link>
+          ))}
         </div>
       </section>
     </>

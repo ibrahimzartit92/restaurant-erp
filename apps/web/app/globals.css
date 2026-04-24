@@ -119,6 +119,24 @@ a {
   padding-top: 18px;
 }
 
+.sidebar-section {
+  display: grid;
+  gap: 8px;
+}
+
+.sidebar-section-title {
+  margin: 0;
+  padding: 0 10px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.sidebar-section-links {
+  display: grid;
+  gap: 6px;
+}
+
 .sidebar-link {
   display: flex;
   align-items: center;
@@ -368,6 +386,7 @@ a {
 }
 
 .quick-actions button,
+.quick-link-button,
 .primary-button,
 .secondary-button,
 .login-form button,
@@ -386,6 +405,11 @@ a {
 }
 
 .quick-actions button {
+  background: var(--surface-soft);
+  color: var(--foreground);
+}
+
+.quick-link-button {
   background: var(--surface-soft);
   color: var(--foreground);
 }
@@ -590,6 +614,33 @@ a {
 .permission-card-meta {
   display: grid;
   gap: 8px;
+}
+
+.admin-shortcuts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.admin-shortcut-card {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: linear-gradient(180deg, #ffffff 0%, #f5faf9 100%);
+  padding: 18px;
+  box-shadow: 0 12px 30px rgba(23, 33, 43, 0.05);
+}
+
+.admin-shortcut-card strong {
+  color: var(--primary-strong);
+  font-size: 17px;
+}
+
+.admin-shortcut-card span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.8;
 }
 
 .notice.danger {
@@ -847,7 +898,8 @@ tr:last-child td {
   .content-grid,
   .login-panel,
   .form-grid,
-  .permission-grid {
+  .permission-grid,
+  .admin-shortcuts {
     grid-template-columns: 1fr;
   }
 
