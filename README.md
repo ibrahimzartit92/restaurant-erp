@@ -85,18 +85,26 @@ The first real frontend is Arabic-only and uses RTL layout.
 
 Available pages:
 
-- `/login`: ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø¯Ø®ÙˆÙ„
-- `/`: Ø§Ù„Ø±Ø¦ÙŠØ³ÙŠØ©
-- `/items`: Ø§Ù„Ù…ÙˆØ§Ø¯
-- `/suppliers`: Ø§Ù„Ù…ÙˆØ±Ø¯ÙˆÙ†
-- `/purchase-invoices`: ÙÙˆØ§ØªÙŠØ± Ø§Ù„Ø´Ø±Ø§Ø¡
-- `/supplier-payments`: Ø¯ÙØ¹Ø§Øª Ø§Ù„Ù…ÙˆØ±Ø¯ÙŠÙ†
-- `/expense-categories`: Ø£Ù†ÙˆØ§Ø¹ Ø§Ù„Ù…ØµØ§Ø±ÙŠÙ
-- `/expense-templates`: Ù‚ÙˆØ§Ù„Ø¨ Ø§Ù„Ù…ØµØ§Ø±ÙŠÙ
-- `/expenses`: Ø§Ù„Ù…ØµØ§Ø±ÙŠÙ
-- `/expenses/new`: Ø¥Ø¶Ø§ÙØ© Ù…ØµØ±ÙˆÙ
-- `/daily-sales`: Ø§Ù„Ù…Ø¨ÙŠØ¹Ø§Øª Ø§Ù„ÙŠÙˆÙ…ÙŠØ©
-- `/daily-sales/new`: Ø¥Ø¶Ø§ÙØ© Ù…Ø¨ÙŠØ¹Ø§Øª ÙŠÙˆÙ…ÙŠØ©
+- `/login`: تسجيل الدخول
+- `/`: الرئيسية
+- `/users`: قائمة المستخدمين
+- `/users/new`: صفحة إضافة مستخدم
+- `/users/:id/edit`: صفحة تعديل مستخدم
+- `/roles`: قائمة الأدوار
+- `/roles/new`: صفحة إضافة دور
+- `/roles/:id/edit`: صفحة تعديل دور
+- `/roles/:id/permissions`: صفحة ربط الصلاحيات بالدور
+- `/permissions`: قائمة الصلاحيات
+- `/items`: المواد
+- `/suppliers`: الموردون
+- `/purchase-invoices`: فواتير الشراء
+- `/supplier-payments`: دفعات الموردين
+- `/expense-categories`: أنواع المصاريف
+- `/expense-templates`: قوالب المصاريف
+- `/expenses`: المصاريف
+- `/expenses/new`: إضافة مصروف
+- `/daily-sales`: المبيعات اليومية
+- `/daily-sales/new`: إضافة مبيعات يومية
 
 
 The admin layout includes a sidebar, top header, dashboard cards, table loading behavior, empty states, and list pages connected to the available backend endpoints.
@@ -176,18 +184,27 @@ Some later business domains are still placeholders. Implemented domains use the 
 
 ## Authentication And Access Setup
 
-The first real backend foundation includes:
+The access-control foundation now includes:
 
-- `roles`: defines access levels such as admin, accountant, and branch manager.
+- `roles`: editable records with `code`, `name`, `notes`, and assigned permissions.
+- `permissions`: editable catalog entries with `code`, `name`, `module`, and `notes`.
+- `role_permissions`: links each role to its granted permissions.
 - `branches`: stores restaurant branches.
-- `users`: stores users, hashed passwords, assigned role, and optional assigned branch.
-- `auth`: handles login and returns a JWT access token.
+- `users`: stores full name, username, nullable email, hashed password, assigned role, optional branch, active state, and notes.
+- `auth`: handles login and returns a JWT access token with the resolved user access context.
 
-Branch access rules:
+Default branch access behavior:
 
-- `admin` can access all branches.
-- `accountant` can access all branches.
-- `branch_manager` must be assigned to one branch and is restricted to that branch.
+- `admin` always has full access across all branches.
+- Any non-admin user without a `branch_id` is treated as cross-branch.
+- Any non-admin user with a `branch_id` is treated as restricted to that single branch.
+- This keeps branch restriction simple and understandable: the user assignment defines branch scope, while the role defines allowed actions.
+
+Default seeded system role codes:
+
+- `admin`
+- `accountant`
+- `branch_manager`
 
 ### Run Migrations
 
@@ -203,9 +220,11 @@ In another terminal, run the backend migration inside the API service:
 docker compose run --rm api pnpm migration:run
 ```
 
-This creates the first real database tables:
+This creates the real database tables, including:
 
 - `roles`
+- `permissions`
+- `role_permissions`
 - `branches`
 - `users`
 - `item_categories`
@@ -224,19 +243,27 @@ This creates the first real database tables:
 - `expenses`
 - `daily_sales`
 
-### Seed Roles
+### Seed Access Control
 
-After migrations, seed the required roles:
+After migrations, seed the default roles, permissions catalog, and role-permission links:
+
+```bash
+docker compose run --rm api pnpm seed:access-control
+```
+
+If you only need to recreate the base roles, you can still run:
 
 ```bash
 docker compose run --rm api pnpm seed:roles
 ```
 
-This creates:
+The full seed creates:
 
 - `admin`
 - `accountant`
 - `branch_manager`
+- the permissions catalog for modules such as `users`, `roles`, `branches`, `warehouses`, `bank_accounts`, `drawers`, `items`, `suppliers`, `purchase_invoices`, `supplier_payments`, `expenses`, `daily_sales`, `reports`, and `settings`
+- the default role-permission assignments
 
 ### Create A Branch
 
@@ -429,15 +456,17 @@ Create an admin user:
 ```bash
 curl -X POST http://localhost:3001/users \
   -H "Content-Type: application/json" \
-  -d "{\"fullName\":\"System Admin\",\"email\":\"admin@example.com\",\"password\":\"password123\",\"role\":\"admin\"}"
+  -H "Authorization: Bearer ACCESS_TOKEN" \
+  -d "{\"fullName\":\"System Admin\",\"username\":\"admin\",\"email\":\"admin@example.com\",\"password\":\"password123\",\"roleId\":\"ROLE_ID_HERE\",\"isActive\":true,\"notes\":\"Main system administrator\"}"
 ```
 
-Create a branch manager user after creating a branch. Replace `BRANCH_ID_HERE` with the branch `id`:
+Create a branch-restricted manager user after creating a branch. Replace `ROLE_ID_HERE` and `BRANCH_ID_HERE` with real values:
 
 ```bash
 curl -X POST http://localhost:3001/users \
   -H "Content-Type: application/json" \
-  -d "{\"fullName\":\"Branch Manager\",\"email\":\"manager@example.com\",\"password\":\"password123\",\"role\":\"branch_manager\",\"branchId\":\"BRANCH_ID_HERE\"}"
+  -H "Authorization: Bearer ACCESS_TOKEN" \
+  -d "{\"fullName\":\"Branch Manager\",\"username\":\"manager_main\",\"email\":\"manager@example.com\",\"password\":\"password123\",\"roleId\":\"ROLE_ID_HERE\",\"branchId\":\"BRANCH_ID_HERE\",\"isActive\":true}"
 ```
 
 ### Test Login
@@ -452,7 +481,34 @@ The response includes:
 
 - `accessToken`: the JWT token used for future protected requests.
 - `user`: the logged-in user.
-- `branchAccess`: whether the user can access all branches or only one branch.
+- `user.permissions`: the resolved permission codes inherited from the role.
+- `user.branchAccess`: whether the user can access all branches or only one branch.
+
+### Protected Access Management Endpoints
+
+These access-management endpoints now use JWT plus permission checks:
+
+- `GET /auth/me`
+- `GET /users`
+- `GET /users/:id`
+- `POST /users`
+- `PATCH /users/:id`
+- `GET /roles`
+- `GET /roles/:id`
+- `POST /roles`
+- `PATCH /roles/:id`
+- `PATCH /roles/:id/permissions`
+- `GET /permissions`
+- `POST /permissions`
+- `PATCH /permissions/:id`
+
+The backend permission-ready structure is intentionally small:
+
+- `JwtAuthGuard` reads the bearer token and loads the safe user context.
+- `PermissionGuard` checks the required permission codes.
+- `RequirePermissions(...)` is the decorator used on protected routes.
+
+This keeps future module protection extendable without pushing all access logic into the frontend.
 
 ## Production Direction
 

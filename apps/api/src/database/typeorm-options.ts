@@ -12,6 +12,7 @@ import { ItemCategoryEntity } from '../modules/item-categories/entities/item-cat
 import { ItemEntity } from '../modules/items/entities/item.entity';
 import { PurchaseInvoiceItemEntity } from '../modules/purchase-invoice-items/entities/purchase-invoice-item.entity';
 import { PurchaseInvoiceEntity } from '../modules/purchase-invoices/entities/purchase-invoice.entity';
+import { PermissionEntity } from '../modules/permissions/entities/permission.entity';
 import { RoleEntity } from '../modules/roles/entities/role.entity';
 import { SupplierRepresentativeEntity } from '../modules/supplier-representatives/entities/supplier-representative.entity';
 import { SupplierPaymentEntity } from '../modules/supplier-payments/entities/supplier-payment.entity';
@@ -32,6 +33,7 @@ export const databaseEntities = [
   ExpenseTemplateEntity,
   ItemCategoryEntity,
   ItemEntity,
+  PermissionEntity,
   PurchaseInvoiceEntity,
   PurchaseInvoiceItemEntity,
   RoleEntity,

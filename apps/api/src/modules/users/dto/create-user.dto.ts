@@ -1,15 +1,15 @@
 import {
   IsBoolean,
   IsEmail,
-  IsEnum,
   IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
   MaxLength,
   MinLength,
+  ValidateIf,
+  Matches,
 } from 'class-validator';
-import { RoleName } from '../../roles/entities/role.entity';
 
 export class CreateUserDto {
   @IsString()
@@ -17,23 +17,34 @@ export class CreateUserDto {
   @MaxLength(160)
   fullName!: string;
 
-  @IsEmail()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(80)
+  @Matches(/^[a-zA-Z0-9._-]+$/)
+  username!: string;
+
+  @ValidateIf((object) => object.email !== null && object.email !== undefined && object.email !== '')
   @MaxLength(180)
-  email!: string;
+  @IsEmail()
+  email?: string | null;
 
   @IsString()
   @IsNotEmpty()
   @MinLength(8)
   password!: string;
 
-  @IsEnum(RoleName)
-  role!: RoleName;
+  @IsUUID()
+  roleId!: string;
 
   @IsUUID()
   @IsOptional()
-  branchId?: string;
+  branchId?: string | null;
 
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;
+
+  @IsOptional()
+  @IsString()
+  notes?: string | null;
 }

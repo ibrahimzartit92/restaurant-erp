@@ -8,6 +8,8 @@ const labels: Record<string, string> = {
   cash: 'نقداً',
   bank: 'بنكي',
   other: 'أخرى',
+  all_branches: 'جميع الفروع',
+  single_branch: 'فرع واحد',
   daily_cash_sales: 'مبيعات نقدية',
   supplier_payment_cash: 'دفعة مورد نقدية',
   expense_cash: 'مصروف نقدي',

@@ -1,27 +1,15 @@
 import { AppDataSource } from '../data-source';
-import { RoleEntity, RoleName } from '../../modules/roles/entities/role.entity';
+import { RoleEntity } from '../../modules/roles/entities/role.entity';
+import { roleCatalog } from './access-control-catalog';
 
-const roles: Array<Pick<RoleEntity, 'name' | 'description'>> = [
-  {
-    name: RoleName.Admin,
-    description: 'Full system access across all branches.',
-  },
-  {
-    name: RoleName.Accountant,
-    description: 'Accounting access across all branches.',
-  },
-  {
-    name: RoleName.BranchManager,
-    description: 'Management access restricted to one branch.',
-  },
-];
+const roles: Array<Pick<RoleEntity, 'code' | 'name' | 'notes'>> = roleCatalog;
 
 async function seedRoles() {
   await AppDataSource.initialize();
   const roleRepository = AppDataSource.getRepository(RoleEntity);
 
   for (const role of roles) {
-    await roleRepository.upsert(role, ['name']);
+    await roleRepository.upsert(role, ['code']);
   }
 
   await AppDataSource.destroy();

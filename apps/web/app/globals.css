@@ -39,7 +39,9 @@ body {
 }
 
 button,
-input {
+input,
+select,
+textarea {
   font: inherit;
 }
 
@@ -367,6 +369,7 @@ a {
 
 .quick-actions button,
 .primary-button,
+.secondary-button,
 .login-form button,
 .filters button,
 .form-actions button {
@@ -383,6 +386,11 @@ a {
 }
 
 .quick-actions button {
+  background: var(--surface-soft);
+  color: var(--foreground);
+}
+
+.secondary-button {
   background: var(--surface-soft);
   color: var(--foreground);
 }
@@ -467,6 +475,13 @@ a {
   resize: vertical;
 }
 
+.field-hint,
+.login-hint {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.8;
+}
+
 .checkbox-field {
   align-content: end;
   grid-template-columns: 18px 1fr;
@@ -481,6 +496,100 @@ a {
 .form-actions {
   display: flex;
   justify-content: flex-start;
+}
+
+.stacked-sections,
+.permission-groups {
+  display: grid;
+  gap: 16px;
+}
+
+.compact-form {
+  gap: 14px;
+}
+
+.permission-summary {
+  display: grid;
+  gap: 6px;
+}
+
+.permission-summary span,
+.permission-group-header span,
+.permission-card-header span,
+.permission-card-meta span,
+.permission-option small,
+.permission-option em {
+  color: var(--muted);
+}
+
+.permission-group {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  padding: 16px;
+}
+
+.permission-group-header,
+.permission-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.permission-group-header h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.permission-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.permission-option {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  align-items: start;
+  gap: 10px;
+  min-height: 84px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 12px;
+}
+
+.permission-option strong,
+.permission-card-header strong {
+  display: block;
+}
+
+.permission-option span {
+  display: grid;
+  gap: 4px;
+}
+
+.permission-option small,
+.permission-option em,
+.permission-card-header span,
+.permission-card-meta {
+  font-size: 13px;
+}
+
+.permission-option em {
+  font-style: normal;
+  line-height: 1.7;
+}
+
+.permission-card-header {
+  margin-bottom: 4px;
+}
+
+.permission-card-meta {
+  display: grid;
+  gap: 8px;
 }
 
 .notice.danger {
@@ -737,7 +846,8 @@ tr:last-child td {
 
   .content-grid,
   .login-panel,
-  .form-grid {
+  .form-grid,
+  .permission-grid {
     grid-template-columns: 1fr;
   }
 

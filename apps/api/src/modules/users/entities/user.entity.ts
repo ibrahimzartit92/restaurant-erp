@@ -18,8 +18,11 @@ export class UserEntity {
   @Column({ name: 'full_name', type: 'varchar', length: 160 })
   fullName!: string;
 
-  @Column({ type: 'varchar', length: 180, unique: true })
-  email!: string;
+  @Column({ type: 'varchar', length: 80, unique: true })
+  username!: string;
+
+  @Column({ type: 'varchar', length: 180, unique: true, nullable: true })
+  email!: string | null;
 
   @Column({ name: 'password_hash', type: 'varchar', length: 255 })
   passwordHash!: string;
@@ -40,6 +43,9 @@ export class UserEntity {
 
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive!: boolean;
+
+  @Column({ type: 'text', nullable: true })
+  notes!: string | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date;

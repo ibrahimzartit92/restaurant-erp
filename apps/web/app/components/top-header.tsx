@@ -1,4 +1,6 @@
-export function TopHeader() {
+import type { UserSummary } from '../lib/types';
+
+export function TopHeader({ currentUser }: Readonly<{ currentUser: UserSummary | null }>) {
   return (
     <header className="top-header">
       <div>
@@ -11,8 +13,8 @@ export function TopHeader() {
           <input aria-label="بحث سريع" placeholder="بحث سريع" />
         </div>
         <div className="user-chip">
-          <span className="user-avatar">إ</span>
-          <span>الإدارة</span>
+          <span className="user-avatar">{currentUser?.fullName?.slice(0, 1) ?? 'إ'}</span>
+          <span>{currentUser?.fullName ?? 'الإدارة'}</span>
         </div>
       </div>
     </header>

@@ -2,17 +2,14 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  ManyToMany,
   OneToMany,
   PrimaryGeneratedColumn,
+  JoinTable,
   UpdateDateColumn,
 } from 'typeorm';
+import { PermissionEntity } from '../../permissions/entities/permission.entity';
 import { UserEntity } from '../../users/entities/user.entity';
-
-export enum RoleName {
-  Admin = 'admin',
-  Accountant = 'accountant',
-  BranchManager = 'branch_manager',
-}
 
 @Entity('roles')
 export class RoleEntity {
@@ -20,13 +17,24 @@ export class RoleEntity {
   id!: string;
 
   @Column({ type: 'varchar', length: 80, unique: true })
-  name!: RoleName;
+  code!: string;
 
-  @Column({ type: 'varchar', length: 255, nullable: true })
-  description!: string | null;
+  @Column({ type: 'varchar', length: 120 })
+  name!: string;
+
+  @Column({ type: 'text', nullable: true })
+  notes!: string | null;
 
   @OneToMany(() => UserEntity, (user) => user.role)
   users!: UserEntity[];
+
+  @ManyToMany(() => PermissionEntity, (permission) => permission.roles, { eager: true })
+  @JoinTable({
+    name: 'role_permissions',
+    joinColumn: { name: 'role_id', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'permission_id', referencedColumnName: 'id' },
+  })
+  permissions!: PermissionEntity[];
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date;

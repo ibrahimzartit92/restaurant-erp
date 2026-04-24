@@ -1,3 +1,5 @@
+import { getAuthHeaders } from './server-auth';
+
 const apiBaseUrl = process.env.INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
 export type ApiListResult<T> = {
@@ -9,12 +11,13 @@ export async function fetchList<T>(path: string): Promise<ApiListResult<T>> {
   try {
     const response = await fetch(`${apiBaseUrl}${path}`, {
       cache: 'no-store',
+      headers: await getAuthHeaders(),
     });
 
     if (!response.ok) {
       return {
         data: [],
-        error: 'تعذر تحميل البيانات من الخادم.',
+        error: response.status === 401 || response.status === 403 ? 'غير مصرح لك بعرض هذه البيانات.' : 'تعذر تحميل البيانات من الخادم.',
       };
     }
 
@@ -33,10 +36,14 @@ export async function fetchOne<T>(path: string): Promise<{ data: T | null; error
   try {
     const response = await fetch(`${apiBaseUrl}${path}`, {
       cache: 'no-store',
+      headers: await getAuthHeaders(),
     });
 
     if (!response.ok) {
-      return { data: null, error: 'تعذر تحميل السجل المطلوب.' };
+      return {
+        data: null,
+        error: response.status === 401 || response.status === 403 ? 'غير مصرح لك بعرض هذا السجل.' : 'تعذر تحميل السجل المطلوب.',
+      };
     }
 
     return { data: (await response.json()) as T };

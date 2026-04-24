@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import { LoginForm } from '../components/login-form';
 
 export default function LoginPage() {
   return (
@@ -7,21 +7,10 @@ export default function LoginPage() {
         <div className="login-copy">
           <p className="eyebrow">إدارة المطعم</p>
           <h1>تسجيل الدخول</h1>
-          <p>ادخل إلى لوحة الإدارة لمتابعة المواد والموردين والمشتريات والمدفوعات.</p>
+          <p>ادخل إلى لوحة الإدارة لمتابعة البيانات التشغيلية وإدارة المستخدمين والأدوار والصلاحيات من نفس الواجهة.</p>
         </div>
 
-        <form className="login-form">
-          <label>
-            البريد الإلكتروني
-            <input type="email" placeholder="admin@example.com" />
-          </label>
-          <label>
-            كلمة المرور
-            <input type="password" placeholder="••••••••" />
-          </label>
-          <button type="button">دخول</button>
-          <Link href="/">الدخول إلى النسخة التجريبية بدون حساب</Link>
-        </form>
+        <LoginForm />
       </section>
     </main>
   );
