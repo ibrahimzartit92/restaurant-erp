@@ -61,7 +61,7 @@ const navigationSections: NavigationSection[] = [
       { href: '/employees', label: 'الموظفون', mark: 'ظ' },
       { href: '/employee-advances', label: 'السلف', mark: 'س' },
       { href: '/employee-penalties', label: 'العقوبات', mark: 'ع' },
-      { href: '/payroll', label: 'الرواتب', mark: 'ر' },
+      { href: '/payrolls', label: 'الرواتب', mark: 'ر' },
       { href: '/attendance-files', label: 'ملفات البصمة', mark: 'ب' },
     ],
   },

@@ -59,7 +59,7 @@ export function PayrollForm({
           netSalary: Number(computeNetSalary(payload).toFixed(2)),
         },
       );
-      router.push('/payroll');
+      router.push('/payrolls');
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'تعذر حفظ الراتب.');

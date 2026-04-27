@@ -90,7 +90,7 @@ export default async function EmployeeDetailsPage({
           <div className="quick-actions">
             <Link className="quick-link-button" href="/employee-advances/new">إضافة سلفة</Link>
             <Link className="quick-link-button" href="/employee-penalties/new">إضافة عقوبة</Link>
-            <Link className="quick-link-button" href="/payroll/new">إضافة راتب</Link>
+            <Link className="quick-link-button" href="/payrolls/new">إضافة راتب</Link>
             <Link className="quick-link-button" href="/attendance-files/new">رفع ملف بصمة</Link>
           </div>
         </div>
