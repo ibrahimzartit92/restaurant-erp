@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { getClientApiBaseUrl } from '../lib/api-url';
 import { clearAccessTokenFromDocument, writeAccessTokenToDocument } from '../lib/auth';
+import { throwIfApiError } from '../lib/client-api';
 
 const clientApiBaseUrl = getClientApiBaseUrl();
 
@@ -24,6 +25,7 @@ export function LoginForm() {
 
       const response = await fetch(`${clientApiBaseUrl}/auth/login`, {
         method: 'POST',
+        credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -33,10 +35,7 @@ export function LoginForm() {
         }),
       });
 
-      if (!response.ok) {
-        const error = await response.json().catch(() => null);
-        throw new Error(error?.message ?? 'تعذر تسجيل الدخول.');
-      }
+      await throwIfApiError(response, 'تعذر تسجيل الدخول.');
 
       const data = (await response.json()) as { accessToken: string };
       writeAccessTokenToDocument(data.accessToken);

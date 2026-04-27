@@ -4,6 +4,7 @@
 import { useMemo, useState } from 'react';
 import { getClientApiBaseUrl } from '../lib/api-url';
 import { readAccessTokenFromDocument } from '../lib/auth';
+import { throwIfApiError } from '../lib/client-api';
 import type { AttachmentEntityType, AttachmentSummary } from '../lib/types';
 
 const clientApiBaseUrl = getClientApiBaseUrl();
@@ -80,16 +81,14 @@ export function AttachmentsPanel({
       const accessToken = readAccessTokenFromDocument();
       const response = await fetch(`${clientApiBaseUrl}/attachments`, {
         method: 'POST',
+        credentials: 'same-origin',
         headers: {
           ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         },
         body: formData,
       });
 
-      if (!response.ok) {
-        const error = await response.json().catch(() => null);
-        throw new Error(error?.message ?? 'تعذر رفع المرفق.');
-      }
+      await throwIfApiError(response, 'تعذر رفع المرفق.');
 
       const attachment = (await response.json()) as AttachmentSummary;
       setAttachments((currentAttachments) => [attachment, ...currentAttachments]);
