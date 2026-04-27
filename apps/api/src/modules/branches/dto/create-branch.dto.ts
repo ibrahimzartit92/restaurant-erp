@@ -7,9 +7,9 @@ export class CreateBranchDto {
   name!: string;
 
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   @MaxLength(50)
-  code!: string;
+  code?: string;
 
   @IsBoolean()
   @IsOptional()

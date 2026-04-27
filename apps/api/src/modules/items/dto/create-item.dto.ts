@@ -12,9 +12,9 @@ import {
 
 export class CreateItemDto {
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   @MaxLength(50)
-  code!: string;
+  code?: string;
 
   @IsString()
   @IsNotEmpty()
@@ -22,10 +22,12 @@ export class CreateItemDto {
   name!: string;
 
   @IsUUID()
-  categoryId!: string;
+  @IsOptional()
+  categoryId?: string;
 
   @IsUUID()
-  unitId!: string;
+  @IsOptional()
+  unitId?: string;
 
   @Type(() => Number)
   @IsNumber()

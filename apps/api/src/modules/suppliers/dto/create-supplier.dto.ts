@@ -3,9 +3,9 @@ import { IsBoolean, IsInt, IsNotEmpty, IsOptional, IsString, MaxLength, Min } fr
 
 export class CreateSupplierDto {
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   @MaxLength(50)
-  code!: string;
+  code?: string;
 
   @IsString()
   @IsNotEmpty()

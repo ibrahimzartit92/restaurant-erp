@@ -11,22 +11,26 @@ export class CreateDailySaleDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0)
-  cashSalesAmount!: number;
+  @IsOptional()
+  cashSalesAmount?: number;
 
   @Type(() => Number)
   @IsNumber()
   @Min(0)
-  bankSalesAmount!: number;
+  @IsOptional()
+  bankSalesAmount?: number;
 
   @Type(() => Number)
   @IsNumber()
   @Min(0)
-  deliverySalesAmount!: number;
+  @IsOptional()
+  deliverySalesAmount?: number;
 
   @Type(() => Number)
   @IsNumber()
   @Min(0)
-  websiteSalesAmount!: number;
+  @IsOptional()
+  websiteSalesAmount?: number;
 
   @Type(() => Number)
   @IsNumber()

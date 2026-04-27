@@ -26,7 +26,7 @@ export class BranchesService {
   }
 
   async create(createBranchDto: CreateBranchDto) {
-    const code = createBranchDto.code.toUpperCase();
+    const code = createBranchDto.code?.trim().toUpperCase() || (await this.generateBranchCode(createBranchDto.name));
     const existingBranch = await this.findByCode(code);
 
     if (existingBranch) {
@@ -40,5 +40,24 @@ export class BranchesService {
     });
 
     return this.branchRepository.save(branch);
+  }
+
+  private async generateBranchCode(name: string) {
+    const baseCode =
+      name
+        .trim()
+        .replace(/\s+/g, '-')
+        .replace(/[^\p{L}\p{N}-]/gu, '')
+        .slice(0, 20)
+        .toUpperCase() || 'BRANCH';
+    let code = baseCode;
+    let index = 1;
+
+    while (await this.findByCode(code)) {
+      index += 1;
+      code = `${baseCode}-${index}`;
+    }
+
+    return code;
   }
 }

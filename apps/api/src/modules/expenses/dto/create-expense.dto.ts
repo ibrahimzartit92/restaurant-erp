@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsBoolean, IsDateString, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
+import { IsBoolean, IsDateString, IsEnum, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
 import { ExpensePaymentMethod } from '../expense-shared';
 
 export class CreateExpenseDto {
@@ -15,12 +15,13 @@ export class CreateExpenseDto {
   branchId!: string;
 
   @IsUUID()
-  expenseCategoryId!: string;
+  @IsOptional()
+  expenseCategoryId?: string;
 
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   @MaxLength(180)
-  title!: string;
+  title?: string;
 
   @Type(() => Number)
   @IsNumber()
@@ -28,7 +29,8 @@ export class CreateExpenseDto {
   amount!: number;
 
   @IsEnum(ExpensePaymentMethod)
-  paymentMethod!: ExpensePaymentMethod;
+  @IsOptional()
+  paymentMethod?: ExpensePaymentMethod;
 
   @IsUUID()
   @IsOptional()

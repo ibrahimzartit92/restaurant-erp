@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ILike, Repository } from 'typeorm';
 import { BankAccountEntity } from '../bank-accounts/entities/bank-account.entity';
@@ -73,16 +73,26 @@ export class ExpensesService {
 
   async create(createExpenseDto: CreateExpenseDto) {
     await this.ensureNumberIsAvailable(createExpenseDto.expenseNumber);
-    await this.validateReferences(createExpenseDto);
+    const expenseCategoryId = createExpenseDto.expenseCategoryId ?? (await this.getDefaultExpenseCategory()).id;
+    const paymentMethod = createExpenseDto.paymentMethod ?? ExpensePaymentMethod.Other;
+
+    await this.validateReferences({
+      ...createExpenseDto,
+      expenseCategoryId,
+      paymentMethod,
+    });
 
     const expenseNumber = createExpenseDto.expenseNumber?.toUpperCase() ?? (await this.generateExpenseNumber());
     const category = await this.expenseCategoryRepository.findOneOrFail({
-      where: { id: createExpenseDto.expenseCategoryId },
+      where: { id: expenseCategoryId },
     });
 
     const expense = this.expenseRepository.create({
       ...createExpenseDto,
       expenseNumber,
+      expenseCategoryId,
+      title: createExpenseDto.title?.trim() || category.name,
+      paymentMethod,
       drawerId: createExpenseDto.drawerId ?? null,
       bankAccountId: createExpenseDto.bankAccountId ?? null,
       isFixed: createExpenseDto.isFixed ?? category.isFixed,
@@ -144,11 +154,7 @@ export class ExpensesService {
       }
     }
 
-    if (data.paymentMethod === ExpensePaymentMethod.Cash) {
-      if (!data.drawerId) {
-        throw new BadRequestException('Cash expenses require drawerId.');
-      }
-
+    if (data.paymentMethod === ExpensePaymentMethod.Cash && data.drawerId) {
       const drawer = await this.drawerRepository.findOne({ where: { id: data.drawerId } });
 
       if (!drawer) {
@@ -156,11 +162,7 @@ export class ExpensesService {
       }
     }
 
-    if (data.paymentMethod === ExpensePaymentMethod.Bank) {
-      if (!data.bankAccountId) {
-        throw new BadRequestException('Bank expenses require bankAccountId.');
-      }
-
+    if (data.paymentMethod === ExpensePaymentMethod.Bank && data.bankAccountId) {
       const bankAccount = await this.bankAccountRepository.findOne({ where: { id: data.bankAccountId } });
 
       if (!bankAccount) {
@@ -189,5 +191,23 @@ export class ExpensesService {
     const count = await this.expenseRepository.count();
 
     return `EX-${yyyymmdd}-${String(count + 1).padStart(5, '0')}`;
+  }
+
+  private async getDefaultExpenseCategory() {
+    const existingCategory = await this.expenseCategoryRepository.findOne({
+      where: { name: ILike('عام') },
+    });
+
+    if (existingCategory) {
+      return existingCategory;
+    }
+
+    const category = this.expenseCategoryRepository.create({
+      name: 'عام',
+      isFixed: false,
+      notes: 'تصنيف افتراضي تم إنشاؤه تلقائياً.',
+    });
+
+    return this.expenseCategoryRepository.save(category);
   }
 }

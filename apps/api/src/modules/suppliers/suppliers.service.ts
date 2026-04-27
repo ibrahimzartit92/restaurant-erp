@@ -34,7 +34,7 @@ export class SuppliersService {
   }
 
   async create(createSupplierDto: CreateSupplierDto) {
-    const code = createSupplierDto.code.toUpperCase();
+    const code = createSupplierDto.code?.trim().toUpperCase() || (await this.generateSupplierCode(createSupplierDto.name));
     await this.ensureCodeIsAvailable(code);
 
     const supplier = this.supplierRepository.create({
@@ -84,5 +84,24 @@ export class SuppliersService {
     if (existingSupplier) {
       throw new ConflictException('A supplier with this code already exists.');
     }
+  }
+
+  private async generateSupplierCode(name: string) {
+    const baseCode =
+      name
+        .trim()
+        .replace(/\s+/g, '-')
+        .replace(/[^\p{L}\p{N}-]/gu, '')
+        .slice(0, 20)
+        .toUpperCase() || 'SUPPLIER';
+    let code = baseCode;
+    let index = 1;
+
+    while (await this.supplierRepository.findOne({ where: { code } })) {
+      index += 1;
+      code = `${baseCode}-${index}`;
+    }
+
+    return code;
   }
 }

@@ -52,6 +52,10 @@ export class DailySalesService {
 
     const dailySale = this.dailySaleRepository.create({
       ...createDailySaleDto,
+      cashSalesAmount: createDailySaleDto.cashSalesAmount ?? 0,
+      bankSalesAmount: createDailySaleDto.bankSalesAmount ?? 0,
+      deliverySalesAmount: createDailySaleDto.deliverySalesAmount ?? 0,
+      websiteSalesAmount: createDailySaleDto.websiteSalesAmount ?? 0,
       tipsAmount: createDailySaleDto.tipsAmount ?? 0,
       salesReturnAmount: createDailySaleDto.salesReturnAmount ?? 0,
       netSalesAmount: this.calculateNetSales(createDailySaleDto),
@@ -99,10 +103,10 @@ export class DailySalesService {
   }
 
   private calculateNetSales(data: {
-    cashSalesAmount: number;
-    bankSalesAmount: number;
-    deliverySalesAmount: number;
-    websiteSalesAmount: number;
+    cashSalesAmount?: number;
+    bankSalesAmount?: number;
+    deliverySalesAmount?: number;
+    websiteSalesAmount?: number;
     tipsAmount?: number;
     salesReturnAmount?: number;
   }) {

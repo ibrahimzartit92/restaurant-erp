@@ -56,8 +56,8 @@ export function ExpenseForm({
     const payload = {
       expenseDate: String(formData.get('expenseDate') ?? ''),
       branchId: String(formData.get('branchId') ?? ''),
-      expenseCategoryId: String(formData.get('expenseCategoryId') ?? ''),
-      title: String(formData.get('title') ?? ''),
+      expenseCategoryId: String(formData.get('expenseCategoryId') ?? '') || null,
+      title: String(formData.get('title') ?? '') || null,
       amount: Number(formData.get('amount') ?? 0),
       paymentMethod: String(formData.get('paymentMethod') ?? 'cash'),
       drawerId: String(formData.get('drawerId') ?? '') || null,
@@ -104,8 +104,8 @@ export function ExpenseForm({
         </label>
         <label>
           نوع المصروف
-          <select name="expenseCategoryId" defaultValue={initialExpense?.expenseCategoryId ?? ''} required>
-            <option value="">اختر النوع</option>
+          <select name="expenseCategoryId" defaultValue={initialExpense?.expenseCategoryId ?? ''}>
+            <option value="">تصنيف عام</option>
             {categories.map((category) => (
               <option key={category.id} value={category.id}>
                 {category.name}
@@ -126,7 +126,7 @@ export function ExpenseForm({
         </label>
         <label>
           العنوان
-          <input name="title" defaultValue={initialExpense?.title ?? ''} required />
+          <input name="title" defaultValue={initialExpense?.title ?? ''} placeholder="اختياري" />
         </label>
         <label>
           المبلغ

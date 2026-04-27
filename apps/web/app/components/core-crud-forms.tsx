@@ -72,7 +72,7 @@ export function BranchForm() {
       <div className="form-grid">
         <label>
           كود الفرع
-          <input name="code" maxLength={50} required />
+          <input name="code" maxLength={50} placeholder="اختياري" />
         </label>
         <label>
           اسم الفرع
@@ -176,7 +176,7 @@ export function SupplierForm() {
       <div className="form-grid">
         <label>
           كود المورد
-          <input name="code" maxLength={50} required />
+          <input name="code" maxLength={50} placeholder="اختياري" />
         </label>
         <label>
           اسم المورد
@@ -294,8 +294,8 @@ export function ItemForm({
       await submitJson('/items', 'POST', {
         code: text(formData, 'code'),
         name: text(formData, 'name'),
-        categoryId: text(formData, 'categoryId'),
-        unitId: text(formData, 'unitId'),
+        categoryId: optionalText(formData, 'categoryId'),
+        unitId: optionalText(formData, 'unitId'),
         initialPrice: numberValue(formData, 'initialPrice'),
         costPrice: numberValue(formData, 'costPrice'),
         salePrice: numberValue(formData, 'salePrice'),
@@ -326,15 +326,15 @@ export function ItemForm({
         </label>
         <label>
           التصنيف
-          <select name="categoryId" required>
-            <option value="">اختر التصنيف</option>
+          <select name="categoryId">
+            <option value="">تصنيف افتراضي</option>
             {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
           </select>
         </label>
         <label>
           الوحدة
-          <select name="unitId" required>
-            <option value="">اختر الوحدة</option>
+          <select name="unitId">
+            <option value="">وحدة افتراضية</option>
             {units.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}
           </select>
         </label>

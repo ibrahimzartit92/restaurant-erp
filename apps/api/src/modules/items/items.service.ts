@@ -42,14 +42,21 @@ export class ItemsService {
   }
 
   async create(createItemDto: CreateItemDto) {
-    const code = createItemDto.code.toUpperCase();
+    const code = createItemDto.code?.trim().toUpperCase() || (await this.generateItemCode(createItemDto.name));
+    const category = createItemDto.categoryId
+      ? await this.itemCategoriesService.findByIdOrFail(createItemDto.categoryId)
+      : await this.getDefaultCategory();
+    const unit = createItemDto.unitId
+      ? await this.unitsService.findByIdOrFail(createItemDto.unitId)
+      : await this.getDefaultUnit();
+
     await this.ensureCodeIsAvailable(code);
-    await this.itemCategoriesService.findByIdOrFail(createItemDto.categoryId);
-    await this.unitsService.findByIdOrFail(createItemDto.unitId);
 
     const item = this.itemRepository.create({
       ...createItemDto,
       code,
+      categoryId: category.id,
+      unitId: unit.id,
       initialPrice: createItemDto.initialPrice ?? 0,
       costPrice: createItemDto.costPrice ?? 0,
       salePrice: createItemDto.salePrice ?? 0,
@@ -103,5 +110,54 @@ export class ItemsService {
     if (existingItem) {
       throw new ConflictException('An item with this code already exists.');
     }
+  }
+
+  private async generateItemCode(name: string) {
+    const baseCode =
+      name
+        .trim()
+        .replace(/\s+/g, '-')
+        .replace(/[^\p{L}\p{N}-]/gu, '')
+        .slice(0, 20)
+        .toUpperCase() || 'ITEM';
+    let code = baseCode;
+    let index = 1;
+
+    while (await this.itemRepository.findOne({ where: { code } })) {
+      index += 1;
+      code = `${baseCode}-${index}`;
+    }
+
+    return code;
+  }
+
+  private async getDefaultCategory() {
+    const [category] = await this.itemCategoriesService.findAll();
+
+    if (category) {
+      return category;
+    }
+
+    return this.itemCategoriesService.create({
+      code: 'GENERAL',
+      name: 'عام',
+      isActive: true,
+      notes: 'تصنيف افتراضي تم إنشاؤه تلقائياً.',
+    });
+  }
+
+  private async getDefaultUnit() {
+    const [unit] = await this.unitsService.findAll();
+
+    if (unit) {
+      return unit;
+    }
+
+    return this.unitsService.create({
+      code: 'UNIT',
+      name: 'وحدة',
+      isActive: true,
+      notes: 'وحدة افتراضية تم إنشاؤها تلقائياً.',
+    });
   }
 }

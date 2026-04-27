@@ -86,19 +86,19 @@ export function DailySaleForm({
         </label>
         <label>
           مبيعات نقدية
-          <input name="cashSalesAmount" type="number" min="0" step="0.01" defaultValue={initialDailySale?.cashSalesAmount ?? 0} required />
+          <input name="cashSalesAmount" type="number" min="0" step="0.01" defaultValue={initialDailySale?.cashSalesAmount ?? 0} />
         </label>
         <label>
           مبيعات بنكية
-          <input name="bankSalesAmount" type="number" min="0" step="0.01" defaultValue={initialDailySale?.bankSalesAmount ?? 0} required />
+          <input name="bankSalesAmount" type="number" min="0" step="0.01" defaultValue={initialDailySale?.bankSalesAmount ?? 0} />
         </label>
         <label>
           مبيعات التوصيل
-          <input name="deliverySalesAmount" type="number" min="0" step="0.01" defaultValue={initialDailySale?.deliverySalesAmount ?? 0} required />
+          <input name="deliverySalesAmount" type="number" min="0" step="0.01" defaultValue={initialDailySale?.deliverySalesAmount ?? 0} />
         </label>
         <label>
           مبيعات الموقع
-          <input name="websiteSalesAmount" type="number" min="0" step="0.01" defaultValue={initialDailySale?.websiteSalesAmount ?? 0} required />
+          <input name="websiteSalesAmount" type="number" min="0" step="0.01" defaultValue={initialDailySale?.websiteSalesAmount ?? 0} />
         </label>
         <label>
           الإكراميات
