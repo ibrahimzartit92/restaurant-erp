@@ -1,12 +1,5 @@
 import { getAuthHeaders } from './server-auth';
-
-function getApiBaseUrls() {
-  return [
-    process.env.INTERNAL_API_URL,
-    process.env.NEXT_PUBLIC_API_URL,
-    'http://localhost:3001',
-  ].filter((url, index, urls): url is string => Boolean(url) && urls.indexOf(url) === index);
-}
+import { getServerApiBaseUrls } from './api-url';
 
 export type ApiListResult<T> = {
   data: T[];
@@ -17,7 +10,7 @@ export async function fetchList<T>(path: string): Promise<ApiListResult<T>> {
   const headers = await getAuthHeaders();
   let authorizationError: ApiListResult<T> | null = null;
 
-  for (const apiBaseUrl of getApiBaseUrls()) {
+  for (const apiBaseUrl of getServerApiBaseUrls()) {
     try {
       const response = await fetch(`${apiBaseUrl}${path}`, {
         cache: 'no-store',
@@ -53,7 +46,7 @@ export async function fetchOne<T>(path: string): Promise<{ data: T | null; error
   const headers = await getAuthHeaders();
   let authorizationError: { data: T | null; error?: string } | null = null;
 
-  for (const apiBaseUrl of getApiBaseUrls()) {
+  for (const apiBaseUrl of getServerApiBaseUrls()) {
     try {
       const response = await fetch(`${apiBaseUrl}${path}`, {
         cache: 'no-store',

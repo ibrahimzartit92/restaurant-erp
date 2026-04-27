@@ -1,8 +1,9 @@
 'use client';
 
 import { readAccessTokenFromDocument } from './auth';
+import { getClientApiBaseUrl } from './api-url';
 
-const clientApiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+const clientApiBaseUrl = getClientApiBaseUrl();
 
 export async function submitJson(path: string, method: 'POST' | 'PATCH', body: Record<string, unknown>) {
   const accessToken = readAccessTokenFromDocument();

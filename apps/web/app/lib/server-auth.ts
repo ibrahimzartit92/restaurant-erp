@@ -1,8 +1,9 @@
 import { cookies } from 'next/headers';
 import { sessionCookieName } from './auth';
+import { getServerApiBaseUrl } from './api-url';
 import type { UserSummary } from './types';
 
-const apiBaseUrl = process.env.INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+const apiBaseUrl = getServerApiBaseUrl();
 
 export async function getAccessToken() {
   const cookieStore = await cookies();

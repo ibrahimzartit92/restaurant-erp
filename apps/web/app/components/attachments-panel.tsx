@@ -2,10 +2,11 @@
 
 /* eslint-disable @next/next/no-img-element */
 import { useMemo, useState } from 'react';
+import { getClientApiBaseUrl } from '../lib/api-url';
 import { readAccessTokenFromDocument } from '../lib/auth';
 import type { AttachmentEntityType, AttachmentSummary } from '../lib/types';
 
-const clientApiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+const clientApiBaseUrl = getClientApiBaseUrl();
 
 function getAttachmentKind(fileType: string) {
   if (fileType.startsWith('image/')) {

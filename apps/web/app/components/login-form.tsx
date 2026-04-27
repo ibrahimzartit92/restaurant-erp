@@ -2,9 +2,10 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { getClientApiBaseUrl } from '../lib/api-url';
 import { clearAccessTokenFromDocument, writeAccessTokenToDocument } from '../lib/auth';
 
-const clientApiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+const clientApiBaseUrl = getClientApiBaseUrl();
 
 export function LoginForm() {
   const router = useRouter();
