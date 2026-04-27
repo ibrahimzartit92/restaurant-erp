@@ -2,12 +2,10 @@
 
 /* eslint-disable @next/next/no-img-element */
 import { useMemo, useState } from 'react';
-import { getClientApiBaseUrl } from '../lib/api-url';
+import { buildClientApiUrl } from '../lib/api-url';
 import { readAccessTokenFromDocument } from '../lib/auth';
 import { throwIfApiError } from '../lib/client-api';
 import type { AttachmentEntityType, AttachmentSummary } from '../lib/types';
-
-const clientApiBaseUrl = getClientApiBaseUrl();
 
 function getAttachmentKind(fileType: string) {
   if (fileType.startsWith('image/')) {
@@ -45,7 +43,7 @@ function formatDate(value: string) {
 }
 
 function attachmentUrl(attachment: AttachmentSummary, action: 'preview' | 'download') {
-  return `${clientApiBaseUrl}/attachments/${attachment.id}/${action}`;
+  return buildClientApiUrl(`/attachments/${attachment.id}/${action}`);
 }
 
 export function AttachmentsPanel({
@@ -79,7 +77,7 @@ export function AttachmentsPanel({
 
     try {
       const accessToken = readAccessTokenFromDocument();
-      const response = await fetch(`${clientApiBaseUrl}/attachments`, {
+      const response = await fetch(buildClientApiUrl('/attachments'), {
         method: 'POST',
         credentials: 'same-origin',
         headers: {

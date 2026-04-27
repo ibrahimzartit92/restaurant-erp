@@ -2,8 +2,28 @@ const localDevelopmentApiBaseUrl = 'http://localhost:3001';
 const dockerInternalApiBaseUrl = 'http://api:3001';
 const browserProxyApiBaseUrl = '/api';
 
-function trimTrailingSlashes(value: string) {
-  return value.replace(/\/+$/, '');
+function trimTrailingPathSlashes(value: string) {
+  return value.length > 1 ? value.replace(/\/+$/, '') : value;
+}
+
+function normalizeAbsoluteUrl(value: string, envName: string) {
+  let url: URL;
+
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error(`${envName} must be a valid http(s) URL or a same-origin path like /api.`);
+  }
+
+  if (!['http:', 'https:'].includes(url.protocol) || !url.hostname) {
+    throw new Error(`${envName} must be a valid http(s) URL.`);
+  }
+
+  url.pathname = trimTrailingPathSlashes(url.pathname);
+  url.search = '';
+  url.hash = '';
+
+  return trimTrailingPathSlashes(url.toString());
 }
 
 function stripTrailingApiPath(value: string) {
@@ -15,24 +35,17 @@ export function normalizeServerApiBaseUrl(value?: string | null) {
     return null;
   }
 
-  const trimmedValue = trimTrailingSlashes(value.trim());
+  const trimmedValue = value.trim();
 
   if (!trimmedValue || trimmedValue === '/api') {
     return null;
   }
 
-  try {
-    const url = new URL(trimmedValue);
-
-    if (url.pathname === '/api') {
-      url.pathname = '';
-      return trimTrailingSlashes(url.toString());
-    }
-  } catch {
-    // Relative API base URLs are not useful here because the backend is a separate service.
+  if (trimmedValue.startsWith('/')) {
+    return null;
   }
 
-  return stripTrailingApiPath(trimmedValue);
+  return stripTrailingApiPath(normalizeAbsoluteUrl(trimmedValue, 'API base URL'));
 }
 
 export function normalizeClientApiBaseUrl(value?: string | null) {
@@ -40,27 +53,38 @@ export function normalizeClientApiBaseUrl(value?: string | null) {
     return null;
   }
 
-  const trimmedValue = trimTrailingSlashes(value.trim());
+  const trimmedValue = value.trim();
 
   if (!trimmedValue) {
     return null;
   }
 
   if (trimmedValue.startsWith('/')) {
-    return trimmedValue;
+    return trimTrailingPathSlashes(trimmedValue);
   }
 
-  return normalizeServerApiBaseUrl(trimmedValue);
+  return normalizeAbsoluteUrl(trimmedValue, 'NEXT_PUBLIC_API_URL');
 }
 
 export function getClientApiBaseUrl() {
   const publicApiBaseUrl = normalizeClientApiBaseUrl(process.env.NEXT_PUBLIC_API_URL);
 
-  if (publicApiBaseUrl?.startsWith('/')) {
+  if (publicApiBaseUrl) {
     return publicApiBaseUrl;
   }
 
   return browserProxyApiBaseUrl;
+}
+
+export function buildClientApiUrl(path: string) {
+  const clientApiBaseUrl = getClientApiBaseUrl();
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+
+  if (clientApiBaseUrl.startsWith('/')) {
+    return `${trimTrailingPathSlashes(clientApiBaseUrl)}${normalizedPath}`;
+  }
+
+  return new URL(normalizedPath.slice(1), `${clientApiBaseUrl}/`).toString();
 }
 
 export function getServerApiBaseUrls() {

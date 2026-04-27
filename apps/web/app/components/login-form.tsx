@@ -2,11 +2,9 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { getClientApiBaseUrl } from '../lib/api-url';
+import { buildClientApiUrl } from '../lib/api-url';
 import { clearAccessTokenFromDocument, writeAccessTokenToDocument } from '../lib/auth';
 import { throwIfApiError } from '../lib/client-api';
-
-const clientApiBaseUrl = getClientApiBaseUrl();
 
 export function LoginForm() {
   const router = useRouter();
@@ -23,7 +21,7 @@ export function LoginForm() {
     try {
       clearAccessTokenFromDocument();
 
-      const response = await fetch(`${clientApiBaseUrl}/auth/login`, {
+      const response = await fetch(buildClientApiUrl('/auth/login'), {
         method: 'POST',
         credentials: 'same-origin',
         headers: {
