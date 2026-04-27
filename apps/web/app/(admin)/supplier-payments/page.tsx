@@ -37,6 +37,7 @@ export default async function SupplierPaymentsPage() {
         title="دفعات الموردين"
         description="سجل الدفعات المرتبطة بفواتير الشراء النقدية والبنكية."
         actionLabel="دفعة جديدة"
+        actionHref="/supplier-payments/new"
       />
       {result.error ? <p className="notice">{result.error}</p> : null}
       <DataTable

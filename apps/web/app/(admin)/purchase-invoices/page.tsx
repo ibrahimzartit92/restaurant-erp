@@ -54,6 +54,7 @@ export default async function PurchaseInvoicesPage() {
         title="فواتير الشراء"
         description="متابعة فواتير الموردين والفواتير المتفرقة وحالة السداد."
         actionLabel="فاتورة جديدة"
+        actionHref="/purchase-invoices/new"
       />
       {result.error ? <p className="notice">{result.error}</p> : null}
       <DataTable

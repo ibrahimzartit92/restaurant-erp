@@ -29,6 +29,7 @@ export default async function SuppliersPage() {
         title="الموردون"
         description="سجل الموردين الأساسي المستخدم في فواتير الشراء والمدفوعات."
         actionLabel="مورد جديد"
+        actionHref="/suppliers/new"
       />
       {result.error ? <p className="notice">{result.error}</p> : null}
       <DataTable

@@ -1,4 +1,5 @@
 import { DataTable, type DataColumn } from '../../components/data-table';
+import Link from 'next/link';
 import { ListFilters } from '../../components/list-filters';
 import { PageHeader } from '../../components/page-header';
 import { StatusBadge } from '../../components/status-badge';
@@ -34,7 +35,10 @@ export default async function DrawersPage({
   return (
     <>
       <PageHeader title="الأدراج" description="كل فرع يمتلك درجاً نقدياً واحداً في النسخة الأولى." />
-      <ListFilters searchPlaceholder="اسم أو كود الدرج" showBranch />
+      <div className="page-toolbar">
+        <ListFilters searchPlaceholder="اسم أو كود الدرج" showBranch />
+        <Link className="primary-button" href="/drawers/new">درج جديد</Link>
+      </div>
       {result.error ? <p className="notice">{result.error}</p> : null}
       <DataTable
         columns={columns}

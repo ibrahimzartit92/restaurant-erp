@@ -33,6 +33,7 @@ export default async function ItemsPage() {
         title="المواد"
         description="قائمة المواد المستخدمة في المشتريات والمخزون والبيع."
         actionLabel="مادة جديدة"
+        actionHref="/items/new"
       />
       {result.error ? <p className="notice">{result.error}</p> : null}
       <DataTable

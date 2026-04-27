@@ -48,6 +48,34 @@ export type ExpenseCategoryOption = {
   isFixed: boolean;
 };
 
+export type ItemCategoryOption = {
+  id: string;
+  code: string;
+  name: string;
+  isActive?: boolean;
+};
+
+export type UnitOption = {
+  id: string;
+  code: string;
+  name: string;
+  isActive?: boolean;
+};
+
+export type SupplierOption = {
+  id: string;
+  code: string;
+  name: string;
+};
+
+export type PurchaseInvoiceOption = {
+  id: string;
+  invoiceNumber: string;
+  branchId: string;
+  remainingAmount: number;
+  supplier?: SupplierOption | null;
+};
+
 export type ExpenseTemplateOption = {
   id: string;
   name: string;
