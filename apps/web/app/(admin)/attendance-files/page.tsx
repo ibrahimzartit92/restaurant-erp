@@ -8,8 +8,25 @@ const columns: DataColumn<AttendanceFileSummary>[] = [
   { key: 'employee', label: 'الموظف', render: (row) => row.employee?.fullName ?? 'غير محدد' },
   { key: 'branch', label: 'الفرع', render: (row) => row.branch?.name ?? 'غير محدد' },
   { key: 'period', label: 'الشهر/السنة', render: (row) => `${row.month}/${row.year}` },
-  { key: 'fileName', label: 'اسم الملف', render: (row) => row.fileName },
+  {
+    key: 'fileName',
+    label: 'اسم الملف',
+    render: (row) => (
+      <Link className="text-link" href={`/attendance-files/${row.id}`}>
+        {row.fileName}
+      </Link>
+    ),
+  },
   { key: 'fileType', label: 'النوع', render: (row) => row.fileType },
+  {
+    key: 'actions',
+    label: 'إجراء',
+    render: (row) => (
+      <Link className="text-link" href={`/attendance-files/${row.id}`}>
+        المرفقات
+      </Link>
+    ),
+  },
 ];
 
 export default async function AttendanceFilesPage({ searchParams }: { searchParams?: Promise<Record<string, string | undefined>> }) {
@@ -47,7 +64,7 @@ export default async function AttendanceFilesPage({ searchParams }: { searchPara
         <Link className="primary-button" href="/attendance-files/new">رفع ملف بصمة</Link>
       </div>
       {result.error ? <p className="notice">{result.error}</p> : null}
-      <DataTable columns={columns} rows={result.data} emptyTitle="لا توجد ملفات بصمة" emptyText="ارفع ملف بصمة جديدًا وسيظهر هنا." />
+      <DataTable columns={columns} rows={result.data} emptyTitle="لا توجد ملفات بصمة" emptyText="ارفع ملف بصمة جديدا وسيظهر هنا." />
     </>
   );
 }

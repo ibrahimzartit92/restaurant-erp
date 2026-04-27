@@ -1,10 +1,11 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { AttachmentsPanel } from '../../../components/attachments-panel';
 import { DataTable, type DataColumn } from '../../../components/data-table';
 import { PageHeader } from '../../../components/page-header';
 import { StatusBadge } from '../../../components/status-badge';
-import { fetchOne, formatDate, formatMoney } from '../../../lib/api';
-import type { StockCountItemSummary, StockCountSummary } from '../../../lib/types';
+import { fetchList, fetchOne, formatDate, formatMoney } from '../../../lib/api';
+import type { AttachmentSummary, StockCountItemSummary, StockCountSummary } from '../../../lib/types';
 
 const itemColumns: DataColumn<StockCountItemSummary>[] = [
   { key: 'code', label: 'كود المادة', render: (row) => row.item.code },
@@ -22,7 +23,10 @@ export default async function StockCountDetailsPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const result = await fetchOne<StockCountSummary>(`/stock-counts/${id}`);
+  const [result, attachmentsResult] = await Promise.all([
+    fetchOne<StockCountSummary>(`/stock-counts/${id}`),
+    fetchList<AttachmentSummary>(`/attachments?entity_type=stock_count&entity_id=${id}`),
+  ]);
 
   if (!result.data) {
     notFound();
@@ -106,6 +110,8 @@ export default async function StockCountDetailsPage({
         emptyTitle="لا توجد مواد داخل الجرد"
         emptyText="أضف مواد الجرد حتى تظهر هنا مع الكمية بالنظام والكمية المعدودة والفرق."
       />
+      {attachmentsResult.error ? <p className="notice">{attachmentsResult.error}</p> : null}
+      <AttachmentsPanel entityType="stock_count" entityId={stockCount.id} initialAttachments={attachmentsResult.data} />
     </>
   );
 }

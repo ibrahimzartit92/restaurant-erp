@@ -97,6 +97,10 @@ export class PurchaseInvoicesService {
     const invoice = await this.purchaseInvoiceRepository.findOne({
       where: { id },
       relations: {
+        branch: true,
+        warehouse: true,
+        supplier: true,
+        supplierRepresentative: true,
         items: { item: true },
         payments: { branch: true, drawer: true, bankAccount: true },
       },

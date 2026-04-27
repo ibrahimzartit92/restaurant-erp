@@ -224,6 +224,34 @@ Some later business domains are still placeholders. Implemented domains use the 
 - Add new frontend routes under `apps/web/app`.
 - Use `packages/shared` only when both apps truly need the same code.
 
+### Attachments And File Preview
+
+The ERP includes a reusable attachments module for linking files to business records without adding custom upload code per module.
+
+Supported entity types:
+
+- `purchase_invoice`
+- `expense`
+- `payroll`
+- `attendance_file`
+- `branch_transfer`
+- `stock_count`
+
+Supported files are images, PDF files, and Excel files (`.xls` / `.xlsx`). Files are stored locally under the API app `uploads/attachments/<entity_type>/<entity_id>` path for now. The database stores only metadata: entity type, entity id, original file name, stored file path, MIME type, size, optional uploader id, notes, and creation time. This keeps the service generic and makes it straightforward to replace local disk storage with cloud/object storage later.
+
+Backend routes:
+
+- `GET /attachments?entity_type=<type>&entity_id=<uuid>` lists attachments for a record.
+- `POST /attachments` accepts multipart form data with `file`, `entityType`, `entityId`, optional `uploadedBy`, and optional `notes`.
+- `GET /attachments/:id/preview` streams the original file inline for preview.
+- `GET /attachments/:id/download` downloads the original file.
+
+Frontend preview behavior:
+
+- Images render directly inside the admin page.
+- PDF files render in an inline preview frame when the browser supports it.
+- Excel files show file metadata with open/download actions.
+
 ## Authentication And Access Setup
 
 The access-control foundation now includes:

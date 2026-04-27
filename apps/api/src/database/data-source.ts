@@ -11,6 +11,7 @@ import { BranchTransfers1730000007000 } from './migrations/1730000007000-branch-
 import { StockCounts1730000008000 } from './migrations/1730000008000-stock-counts';
 import { EmployeesPayrollAttendance1730000009000 } from './migrations/1730000009000-employees-payroll-attendance';
 import { SystemSettings1730000010000 } from './migrations/1730000010000-system-settings';
+import { Attachments1730000011000 } from './migrations/1730000011000-attachments';
 import { databaseEntities } from './typeorm-options';
 
 export const AppDataSource = new DataSource({
@@ -29,6 +30,7 @@ export const AppDataSource = new DataSource({
     StockCounts1730000008000,
     EmployeesPayrollAttendance1730000009000,
     SystemSettings1730000010000,
+    Attachments1730000011000,
   ],
   synchronize: false,
 });

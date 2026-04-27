@@ -241,3 +241,24 @@ export type AttendanceFileSummary = {
   fileType: string;
   notes?: string | null;
 };
+
+export type AttachmentEntityType =
+  | 'purchase_invoice'
+  | 'expense'
+  | 'payroll'
+  | 'attendance_file'
+  | 'branch_transfer'
+  | 'stock_count';
+
+export type AttachmentSummary = {
+  id: string;
+  entityType: AttachmentEntityType;
+  entityId: string;
+  fileName: string;
+  filePath: string;
+  fileType: string;
+  fileSize?: number | null;
+  uploadedBy?: string | null;
+  notes?: string | null;
+  createdAt: string;
+};

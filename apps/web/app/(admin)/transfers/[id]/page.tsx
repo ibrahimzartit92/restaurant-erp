@@ -1,10 +1,11 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { AttachmentsPanel } from '../../../components/attachments-panel';
 import { DataTable, type DataColumn } from '../../../components/data-table';
 import { PageHeader } from '../../../components/page-header';
 import { StatusBadge } from '../../../components/status-badge';
-import { fetchOne, formatDate, formatMoney } from '../../../lib/api';
-import type { BranchTransferItemSummary, BranchTransferSummary } from '../../../lib/types';
+import { fetchList, fetchOne, formatDate, formatMoney } from '../../../lib/api';
+import type { AttachmentSummary, BranchTransferItemSummary, BranchTransferSummary } from '../../../lib/types';
 
 const itemColumns: DataColumn<BranchTransferItemSummary>[] = [
   { key: 'code', label: 'كود المادة', render: (row) => row.item.code },
@@ -22,7 +23,10 @@ export default async function TransferDetailsPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const result = await fetchOne<BranchTransferSummary>(`/transfers/${id}`);
+  const [result, attachmentsResult] = await Promise.all([
+    fetchOne<BranchTransferSummary>(`/transfers/${id}`),
+    fetchList<AttachmentSummary>(`/attachments?entity_type=branch_transfer&entity_id=${id}`),
+  ]);
 
   if (!result.data) {
     notFound();
@@ -104,6 +108,8 @@ export default async function TransferDetailsPage({
         emptyTitle="لا توجد مواد داخل هذا التحويل"
         emptyText="أضف مواد للتحويل حتى تظهر هنا مع الكمية وتكلفة الوحدة والإجمالي."
       />
+      {attachmentsResult.error ? <p className="notice">{attachmentsResult.error}</p> : null}
+      <AttachmentsPanel entityType="branch_transfer" entityId={transfer.id} initialAttachments={attachmentsResult.data} />
     </>
   );
 }

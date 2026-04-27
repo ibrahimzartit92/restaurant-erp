@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { DataTable, type DataColumn } from '../../components/data-table';
 import { PageHeader } from '../../components/page-header';
 import { StatusBadge } from '../../components/status-badge';
@@ -17,7 +18,15 @@ type PurchaseInvoiceRow = {
 };
 
 const columns: DataColumn<PurchaseInvoiceRow>[] = [
-  { key: 'invoiceNumber', label: 'رقم الفاتورة', render: (row) => row.invoiceNumber },
+  {
+    key: 'invoiceNumber',
+    label: 'رقم الفاتورة',
+    render: (row) => (
+      <Link className="text-link" href={`/purchase-invoices/${row.id}`}>
+        {row.invoiceNumber}
+      </Link>
+    ),
+  },
   { key: 'invoiceLabel', label: 'الوصف', render: (row) => row.invoiceLabel ?? 'بدون وصف' },
   { key: 'branch', label: 'الفرع', render: (row) => row.branch?.name ?? 'غير محدد' },
   { key: 'supplier', label: 'المورد', render: (row) => row.supplier?.name ?? 'متفرقة' },
@@ -25,6 +34,15 @@ const columns: DataColumn<PurchaseInvoiceRow>[] = [
   { key: 'totalAmount', label: 'الإجمالي', render: (row) => formatMoney(row.totalAmount) },
   { key: 'remainingAmount', label: 'المتبقي', render: (row) => formatMoney(row.remainingAmount) },
   { key: 'status', label: 'الحالة', render: (row) => <StatusBadge value={row.status} /> },
+  {
+    key: 'actions',
+    label: 'إجراء',
+    render: (row) => (
+      <Link className="text-link" href={`/purchase-invoices/${row.id}`}>
+        التفاصيل
+      </Link>
+    ),
+  },
 ];
 
 export default async function PurchaseInvoicesPage() {
@@ -42,7 +60,7 @@ export default async function PurchaseInvoicesPage() {
         columns={columns}
         rows={result.data}
         emptyTitle="لا توجد فواتير شراء"
-        emptyText="أنشئ فاتورة شراء من الواجهة الخلفية أو من النموذج القادم لاحقاً."
+        emptyText="أنشئ فاتورة شراء من الواجهة الخلفية أو من النموذج القادم لاحقا."
       />
     </>
   );

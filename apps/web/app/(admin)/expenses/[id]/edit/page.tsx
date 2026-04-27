@@ -1,7 +1,9 @@
+import { AttachmentsPanel } from '../../../../components/attachments-panel';
 import { ExpenseForm } from '../../../../components/expense-form';
 import { PageHeader } from '../../../../components/page-header';
 import { fetchList, fetchOne } from '../../../../lib/api';
 import type {
+  AttachmentSummary,
   BankAccountOption,
   BranchOption,
   DrawerOption,
@@ -32,6 +34,9 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
     fetchList<DrawerOption>('/drawers'),
     fetchList<BankAccountOption>('/bank-accounts'),
   ]);
+  const attachments = expense.data
+    ? await fetchList<AttachmentSummary>(`/attachments?entity_type=expense&entity_id=${expense.data.id}`)
+    : { data: [], error: undefined };
 
   return (
     <>
@@ -46,6 +51,12 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
         drawers={drawers.data}
         bankAccounts={bankAccounts.data}
       />
+      {expense.data ? (
+        <>
+          {attachments.error ? <p className="notice">{attachments.error}</p> : null}
+          <AttachmentsPanel entityType="expense" entityId={expense.data.id} initialAttachments={attachments.data} />
+        </>
+      ) : null}
     </>
   );
 }
