@@ -79,6 +79,15 @@ restaurant-erp/
 
 These can be changed in `.env`.
 
+## API URL Configuration
+
+The frontend uses two API origins:
+
+- `INTERNAL_API_URL`: server-side Next.js requests from the web container to the API service. In Docker this should usually be `http://api:3001`.
+- `NEXT_PUBLIC_API_URL`: browser-side requests from the user's device. Locally this can be `http://localhost:3001`; on a VPS it must be a public origin reachable from the browser, such as `https://api.example.com`, `https://example.com`, or `/api` when Nginx proxies `/api/*` to the API container.
+
+Do not set `NEXT_PUBLIC_API_URL` to `http://localhost:3001` in production unless the user's browser is running on the same machine as the API. If `NEXT_PUBLIC_API_URL` is omitted in a production browser build, the frontend falls back to same-origin `/api`, matching the included Nginx proxy.
+
 ## Frontend Admin Interface
 
 The first real frontend is Arabic-only and uses RTL layout.
