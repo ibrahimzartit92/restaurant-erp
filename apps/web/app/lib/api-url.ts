@@ -1,6 +1,6 @@
 const localDevelopmentApiBaseUrl = 'http://localhost:3001';
 const dockerInternalApiBaseUrl = 'http://api:3001';
-const productionBrowserApiBaseUrl = '/api';
+const browserProxyApiBaseUrl = '/api';
 
 function trimTrailingSlashes(value: string) {
   return value.replace(/\/+$/, '');
@@ -53,22 +53,14 @@ export function normalizeClientApiBaseUrl(value?: string | null) {
   return normalizeServerApiBaseUrl(trimmedValue);
 }
 
-function isProductionRuntime() {
-  return process.env.NODE_ENV === 'production';
-}
-
 export function getClientApiBaseUrl() {
   const publicApiBaseUrl = normalizeClientApiBaseUrl(process.env.NEXT_PUBLIC_API_URL);
 
-  if (publicApiBaseUrl) {
+  if (publicApiBaseUrl?.startsWith('/')) {
     return publicApiBaseUrl;
   }
 
-  if (isProductionRuntime()) {
-    return productionBrowserApiBaseUrl;
-  }
-
-  return localDevelopmentApiBaseUrl;
+  return browserProxyApiBaseUrl;
 }
 
 export function getServerApiBaseUrls() {
@@ -81,7 +73,7 @@ export function getServerApiBaseUrls() {
     return configuredBaseUrls;
   }
 
-  if (isProductionRuntime()) {
+  if (process.env.NODE_ENV === 'production') {
     return [dockerInternalApiBaseUrl];
   }
 

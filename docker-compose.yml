@@ -50,7 +50,7 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: development
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:${API_PORT:-3001}}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api}
       INTERNAL_API_URL: ${INTERNAL_API_URL:-http://api:3001}
     ports:
       - "${WEB_PORT:-3000}:3000"
