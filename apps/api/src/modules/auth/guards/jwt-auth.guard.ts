@@ -8,6 +8,8 @@ import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { UsersService } from '../../users/users.service';
 import { IS_PUBLIC_KEY } from '../public.decorator';
+import { REQUIRE_AUTH_KEY } from '../require-auth.decorator';
+import { REQUIRED_PERMISSIONS_KEY } from '../require-permissions.decorator';
 
 type RequestWithUser = {
   headers: {
@@ -31,6 +33,19 @@ export class JwtAuthGuard implements CanActivate {
     ]);
 
     if (isPublic) {
+      return true;
+    }
+
+    const requiresAuth = this.reflector.getAllAndOverride<boolean>(REQUIRE_AUTH_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    const requiredPermissions = this.reflector.getAllAndOverride<string[]>(REQUIRED_PERMISSIONS_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
+    if (!requiresAuth && !requiredPermissions?.length) {
       return true;
     }
 
