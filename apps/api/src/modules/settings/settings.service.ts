@@ -7,6 +7,8 @@ import { flattenSettingsRegistry, settingsRegistry, SettingFieldDefinition } fro
 
 @Injectable()
 export class SettingsService {
+  private registrySyncPromise: Promise<void> | null = null;
+
   constructor(
     @InjectRepository(SettingEntity)
     private readonly settingsRepository: Repository<SettingEntity>,
@@ -48,32 +50,53 @@ export class SettingsService {
     await this.ensureRegistryRows();
 
     const definitions = flattenSettingsRegistry();
-    const rows = await this.settingsRepository.find();
-    const rowsByGroupAndKey = new Map(rows.map((row) => [`${row.group}.${row.key}`, row]));
+    const definitionsByGroupAndKey = new Map(definitions.map((definition) => [`${definition.group.key}.${definition.field.key}`, definition]));
 
-    for (const [groupKey, groupValues] of Object.entries(updatePayload)) {
-      if (!groupValues || typeof groupValues !== 'object' || Array.isArray(groupValues)) {
-        throw new BadRequestException(`Invalid settings group payload: ${groupKey}`);
-      }
-
-      for (const [fieldKey, rawValue] of Object.entries(groupValues)) {
-        const definition = definitions.find(({ group, field }) => group.key === groupKey && field.key === fieldKey);
-
-        if (!definition) {
-          throw new BadRequestException(`Unknown setting: ${groupKey}.${fieldKey}`);
-        }
-
-        const value = this.normalizeValue(definition.field, rawValue);
-        const row = rowsByGroupAndKey.get(`${groupKey}.${fieldKey}`);
-
-        if (!row) {
-          throw new BadRequestException(`Setting row is missing: ${groupKey}.${fieldKey}`);
-        }
-
-        row.value = value;
-        await this.settingsRepository.save(row);
-      }
+    if (!updatePayload || typeof updatePayload !== 'object' || Array.isArray(updatePayload)) {
+      throw new BadRequestException('Invalid settings payload.');
     }
+
+    await this.settingsRepository.manager.transaction(async (entityManager) => {
+      const settingsRepository = entityManager.getRepository(SettingEntity);
+      const rows = await settingsRepository.find();
+      const rowsByGroupAndKey = new Map(rows.map((row) => [`${row.group}.${row.key}`, row]));
+      const rowsToSave: SettingEntity[] = [];
+
+      for (const [groupKey, groupValues] of Object.entries(updatePayload)) {
+        if (!groupValues || typeof groupValues !== 'object' || Array.isArray(groupValues)) {
+          throw new BadRequestException(`Invalid settings group payload: ${groupKey}`);
+        }
+
+        for (const [fieldKey, rawValue] of Object.entries(groupValues)) {
+          const definition = definitionsByGroupAndKey.get(`${groupKey}.${fieldKey}`);
+
+          if (!definition) {
+            throw new BadRequestException(`Unknown setting: ${groupKey}.${fieldKey}`);
+          }
+
+          const value = this.normalizeValue(definition.field, rawValue);
+          const existingRow = rowsByGroupAndKey.get(`${groupKey}.${fieldKey}`);
+          const row =
+            existingRow ??
+            settingsRepository.create({
+              group: definition.group.key,
+              key: definition.field.key,
+              label: definition.field.label,
+              type: definition.field.type,
+              note: definition.field.note ?? null,
+              options: definition.field.options ?? null,
+              sortOrder: definition.sortOrder,
+            });
+
+          row.value = value;
+          rowsToSave.push(row);
+        }
+      }
+
+      if (rowsToSave.length > 0) {
+        await settingsRepository.save(rowsToSave);
+      }
+    });
 
     return this.findAll();
   }
@@ -99,6 +122,17 @@ export class SettingsService {
   }
 
   private async ensureRegistryRows() {
+    if (!this.registrySyncPromise) {
+      this.registrySyncPromise = this.syncRegistryRows().catch((error) => {
+        this.registrySyncPromise = null;
+        throw error;
+      });
+    }
+
+    await this.registrySyncPromise;
+  }
+
+  private async syncRegistryRows() {
     await this.ensureSettingsTable();
 
     const definitions = flattenSettingsRegistry();
@@ -193,6 +227,22 @@ export class SettingsService {
 
     if (field.type === 'email' && stringValue && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(stringValue)) {
       throw new BadRequestException(`${field.label} must be a valid email.`);
+    }
+
+    if (field.type === 'url' && stringValue) {
+      const isRelativeAssetPath = stringValue.startsWith('/');
+
+      if (!isRelativeAssetPath) {
+        try {
+          const url = new URL(stringValue);
+
+          if (!['http:', 'https:'].includes(url.protocol)) {
+            throw new Error('Unsupported URL protocol.');
+          }
+        } catch {
+          throw new BadRequestException(`${field.label} must be a valid URL.`);
+        }
+      }
     }
 
     if (field.type === 'color' && !/^#[0-9a-fA-F]{6}$/.test(stringValue)) {

@@ -55,6 +55,7 @@ function formatBackupDate(value: SettingValue) {
 }
 
 export function SettingsCenterForm({ groups }: Readonly<{ groups: SettingGroup[] }>) {
+  const [settingGroups, setSettingGroups] = useState(groups);
   const [activeGroupKey, setActiveGroupKey] = useState(groups[0]?.key ?? '');
   const [values, setValues] = useState<SettingsValues>(() => buildInitialValues(groups));
   const [message, setMessage] = useState<string | null>(null);
@@ -62,8 +63,8 @@ export function SettingsCenterForm({ groups }: Readonly<{ groups: SettingGroup[]
   const [isBackingUp, setIsBackingUp] = useState(false);
 
   const activeGroup = useMemo(
-    () => groups.find((group) => group.key === activeGroupKey) ?? groups[0],
-    [activeGroupKey, groups],
+    () => settingGroups.find((group) => group.key === activeGroupKey) ?? settingGroups[0],
+    [activeGroupKey, settingGroups],
   );
 
   const maintenanceValues = values.maintenance ?? {};
@@ -73,7 +74,7 @@ export function SettingsCenterForm({ groups }: Readonly<{ groups: SettingGroup[]
       Object.values(groupValues).filter((value) => value !== null && value !== '' && value !== false).length,
     0,
   );
-  const totalSettingsCount = groups.reduce((total, group) => total + group.fields.length, 0);
+  const totalSettingsCount = settingGroups.reduce((total, group) => total + group.fields.length, 0);
 
   function updateValue(groupKey: string, fieldKey: string, value: SettingValue) {
     setValues((currentValues) => ({
@@ -94,6 +95,7 @@ export function SettingsCenterForm({ groups }: Readonly<{ groups: SettingGroup[]
 
     try {
       const response = (await submitJson('/settings', 'PATCH', { values: payloadValues })) as { groups: SettingGroup[] };
+      setSettingGroups(response.groups);
       setValues(buildInitialValues(response.groups));
       setMessage(scope === 'all' ? 'تم حفظ جميع الإعدادات بنجاح.' : `تم حفظ ${activeGroup?.title} بنجاح.`);
     } catch (error) {
@@ -197,7 +199,7 @@ export function SettingsCenterForm({ groups }: Readonly<{ groups: SettingGroup[]
     );
   }
 
-  if (groups.length === 0) {
+  if (settingGroups.length === 0) {
     return (
       <section className="empty-state">
         <div className="empty-state-icon">⚙</div>
@@ -218,7 +220,7 @@ export function SettingsCenterForm({ groups }: Readonly<{ groups: SettingGroup[]
         <div className="settings-summary-grid">
           <div>
             <span>الأقسام</span>
-            <strong>{groups.length}</strong>
+            <strong>{settingGroups.length}</strong>
           </div>
           <div>
             <span>الإعدادات</span>
@@ -235,7 +237,7 @@ export function SettingsCenterForm({ groups }: Readonly<{ groups: SettingGroup[]
 
       <div className="settings-layout">
         <aside className="settings-tabs" aria-label="أقسام الإعدادات">
-          {groups.map((group) => (
+          {settingGroups.map((group) => (
             <button
               className={group.key === activeGroup?.key ? 'active' : ''}
               key={group.key}
@@ -277,7 +279,7 @@ export function SettingsCenterForm({ groups }: Readonly<{ groups: SettingGroup[]
       </div>
 
       <div className="settings-global-actions">
-        <button className="secondary-button" disabled={isSaving} onClick={() => setValues(buildInitialValues(groups))} type="button">
+        <button className="secondary-button" disabled={isSaving} onClick={() => setValues(buildInitialValues(settingGroups))} type="button">
           استعادة آخر القيم المحملة
         </button>
         <button className="primary-button" disabled={isSaving} onClick={() => saveSettings('all')} type="button">
