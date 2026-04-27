@@ -141,6 +141,18 @@ Available pages:
 - `/payroll/:id/edit`: صفحة تعديل راتب
 - `/attendance-files`: قائمة ملفات البصمة
 - `/attendance-files/new`: صفحة رفع ملف بصمة
+- `/reports`: مركز التقارير
+- `/reports/daily-sales`: تقرير المبيعات اليومية
+- `/reports/expenses`: تقرير المصاريف
+- `/reports/purchases`: تقرير المشتريات
+- `/reports/supplier-statement`: كشف حساب المورد
+- `/reports/supplier-payments`: تقرير دفعات الموردين
+- `/reports/drawer`: تقرير الدرج / الخزنة
+- `/reports/bank-transactions`: تقرير الحركات البنكية
+- `/reports/branch-transfers`: تقرير التحويل بين الفروع
+- `/reports/stock-counts`: تقرير الجرد
+- `/reports/payroll`: تقرير الرواتب
+- `/reports/advances-penalties`: تقرير السلف والعقوبات
 
 
 The admin layout includes a sidebar, top header, dashboard cards, table loading behavior, empty states, and list pages connected to the available backend endpoints.
@@ -209,6 +221,7 @@ Current backend domain modules:
 - `items` handles inventory and sale item master data.
 - `notifications` handles system notification records.
 - `payroll` handles payroll records.
+- `reports` handles practical management reports, filtered summaries, and export output.
 - `purchase-invoice-items` handles purchase invoice line items.
 - `purchase-invoices` handles supplier and miscellaneous purchase invoices.
 - `purchases` handles supplier purchase records.
@@ -226,12 +239,39 @@ Some later business domains are still placeholders. Implemented domains use the 
 
 ## Development Notes
 
-- Most later domain modules are still placeholders. Real backend logic now exists in `auth`, `roles`, `users`, `branches`, `item-categories`, `units`, `items`, `suppliers`, `supplier-representatives`, `warehouses`, `drawers`, `bank-accounts`, `bank-account-transactions`, `purchase-invoices`, `purchase-invoice-items`, `supplier-payments`, `expense-categories`, `expense-templates`, `expenses`, `daily-sales`, `transfers`, `stock-counts`, `employees`, `employee-advances`, `employee-penalties`, `payroll`, and `attendance-files`.
+- Most later domain modules are still placeholders. Real backend logic now exists in `auth`, `roles`, `users`, `branches`, `item-categories`, `units`, `items`, `suppliers`, `supplier-representatives`, `warehouses`, `drawers`, `bank-accounts`, `bank-account-transactions`, `purchase-invoices`, `purchase-invoice-items`, `supplier-payments`, `expense-categories`, `expense-templates`, `expenses`, `daily-sales`, `transfers`, `stock-counts`, `employees`, `employee-advances`, `employee-penalties`, `payroll`, `attendance-files`, and `reports`.
 - Keep backend module names in English.
 - Keep UI text Arabic until another language is intentionally added.
 - Add new backend features under `apps/api/src`.
 - Add new frontend routes under `apps/web/app`.
 - Use `packages/shared` only when both apps truly need the same code.
+
+### Reporting And Export
+
+The ERP includes a first reporting layer for daily restaurant operations. Reports are exposed through one reusable backend module and one reusable frontend report page, so new reports can be added later without duplicating table, summary, and export UI.
+
+Implemented reports:
+
+- `daily-sales`: daily sales by branch and channel.
+- `expenses`: expenses by branch, category, payment method, and date range.
+- `purchases`: purchase invoices by branch, supplier, status, and date range.
+- `supplier-statement`: supplier ledger showing invoices, payments, and running balance. This report requires `supplier_id`.
+- `supplier-payments`: supplier payments by supplier, branch, payment method, and date range.
+- `drawer`: drawer daily sessions, balances, and differences.
+- `bank-transactions`: bank ledger movements.
+- `branch-transfers`: branch transfer cost and status report.
+- `stock-counts`: stock count quantity and cost differences.
+- `payroll`: payroll totals and deductions.
+- `advances-penalties`: employee advances and penalties.
+
+Backend routes:
+
+- `GET /reports` returns the report catalog.
+- `GET /reports/:key` returns filtered report data with columns, rows, and summary totals.
+- `GET /reports/:key/export?format=excel` exports the filtered result as UTF-8 CSV that opens in Excel.
+- `GET /reports/:key/export?format=pdf` returns a printable Arabic HTML report suitable for browser print/save-as-PDF.
+
+Common filters use query parameters such as `branch_id`, `supplier_id`, `employee_id`, `date_from`, `date_to`, `status`, `category_id`, and `payment_method`. Export links preserve the same filters used on screen.
 
 ### Attachments And File Preview
 

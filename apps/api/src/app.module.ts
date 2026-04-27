@@ -25,6 +25,7 @@ import { PermissionsModule } from './modules/permissions/permissions.module';
 import { PurchaseInvoiceItemsModule } from './modules/purchase-invoice-items/purchase-invoice-items.module';
 import { PurchaseInvoicesModule } from './modules/purchase-invoices/purchase-invoices.module';
 import { PurchasesModule } from './modules/purchases/purchases.module';
+import { ReportsModule } from './modules/reports/reports.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { StockCountsModule } from './modules/stock-counts/stock-counts.module';
@@ -63,6 +64,7 @@ import { WarehousesModule } from './modules/warehouses/warehouses.module';
     PurchaseInvoiceItemsModule,
     PurchaseInvoicesModule,
     PurchasesModule,
+    ReportsModule,
     RolesModule,
     SettingsModule,
     StockCountsModule,

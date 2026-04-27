@@ -262,3 +262,34 @@ export type AttachmentSummary = {
   notes?: string | null;
   createdAt: string;
 };
+
+export type ReportColumn = {
+  key: string;
+  label: string;
+  type?: 'text' | 'date' | 'money' | 'number' | 'status';
+};
+
+export type ReportSummary = {
+  key: string;
+  label: string;
+  value: number | string;
+  type?: 'money' | 'number' | 'text';
+};
+
+export type ReportRow = Record<string, string | number | null>;
+
+export type ReportCatalogItem = {
+  key: string;
+  title: string;
+  description: string;
+};
+
+export type ReportResult = {
+  key: string;
+  title: string;
+  description: string;
+  generatedAt: string;
+  summaries: ReportSummary[];
+  columns: ReportColumn[];
+  rows: ReportRow[];
+};
