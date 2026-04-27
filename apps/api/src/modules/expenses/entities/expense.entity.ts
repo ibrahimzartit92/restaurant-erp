@@ -1,0 +1,91 @@
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  Index,
+  JoinColumn,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
+} from 'typeorm';
+import { BankAccountEntity } from '../../bank-accounts/entities/bank-account.entity';
+import { BranchEntity } from '../../branches/entities/branch.entity';
+import { DrawerEntity } from '../../drawers/entities/drawer.entity';
+import { ExpenseCategoryEntity } from '../../expense-categories/entities/expense-category.entity';
+import { ExpenseTemplateEntity } from '../../expense-templates/entities/expense-template.entity';
+import { ExpensePaymentMethod, numericTransformer } from '../expense-shared';
+
+export { ExpensePaymentMethod, numericTransformer };
+
+@Entity('expenses')
+export class ExpenseEntity {
+  @PrimaryGeneratedColumn('uuid')
+  id!: string;
+
+  @Index()
+  @Column({ name: 'expense_number', type: 'varchar', length: 50, unique: true })
+  expenseNumber!: string;
+
+  @Index()
+  @Column({ name: 'expense_date', type: 'date' })
+  expenseDate!: string;
+
+  @Index()
+  @Column({ name: 'branch_id', type: 'uuid' })
+  branchId!: string;
+
+  @ManyToOne(() => BranchEntity, { eager: true })
+  @JoinColumn({ name: 'branch_id' })
+  branch!: BranchEntity;
+
+  @Index()
+  @Column({ name: 'expense_category_id', type: 'uuid' })
+  expenseCategoryId!: string;
+
+  @ManyToOne(() => ExpenseCategoryEntity, (category) => category.expenses, { eager: true })
+  @JoinColumn({ name: 'expense_category_id' })
+  expenseCategory!: ExpenseCategoryEntity;
+
+  @Index()
+  @Column({ type: 'varchar', length: 180 })
+  title!: string;
+
+  @Column({ type: 'numeric', precision: 12, scale: 2, transformer: numericTransformer })
+  amount!: number;
+
+  @Column({ name: 'payment_method', type: 'enum', enum: ExpensePaymentMethod })
+  paymentMethod!: ExpensePaymentMethod;
+
+  @Column({ name: 'drawer_id', type: 'uuid', nullable: true })
+  drawerId!: string | null;
+
+  @ManyToOne(() => DrawerEntity, { eager: true, nullable: true })
+  @JoinColumn({ name: 'drawer_id' })
+  drawer!: DrawerEntity | null;
+
+  @Column({ name: 'bank_account_id', type: 'uuid', nullable: true })
+  bankAccountId!: string | null;
+
+  @ManyToOne(() => BankAccountEntity, { eager: true, nullable: true })
+  @JoinColumn({ name: 'bank_account_id' })
+  bankAccount!: BankAccountEntity | null;
+
+  @Column({ name: 'is_fixed', type: 'boolean', default: false })
+  isFixed!: boolean;
+
+  @Column({ name: 'template_id', type: 'uuid', nullable: true })
+  templateId!: string | null;
+
+  @ManyToOne(() => ExpenseTemplateEntity, { eager: true, nullable: true })
+  @JoinColumn({ name: 'template_id' })
+  template!: ExpenseTemplateEntity | null;
+
+  @Column({ type: 'text', nullable: true })
+  notes!: string | null;
+
+  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
+  createdAt!: Date;
+
+  @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
+  updatedAt!: Date;
+}

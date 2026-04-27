@@ -1,0 +1,73 @@
+import { SYSTEM_ROLE_CODES } from '../../modules/roles/roles.constants';
+
+export const permissionCatalog = [
+  { code: 'view_users', name: 'عرض المستخدمين', module: 'users', notes: 'عرض قائمة المستخدمين' },
+  { code: 'create_users', name: 'إضافة مستخدم', module: 'users', notes: 'إنشاء مستخدم جديد' },
+  { code: 'edit_users', name: 'تعديل مستخدم', module: 'users', notes: 'تعديل بيانات المستخدمين' },
+  { code: 'manage_roles', name: 'إدارة الأدوار', module: 'roles', notes: 'إضافة وتعديل وربط الصلاحيات بالأدوار' },
+  { code: 'manage_permissions', name: 'إدارة الصلاحيات', module: 'permissions', notes: 'إضافة وتعديل كتالوج الصلاحيات' },
+  { code: 'view_branches', name: 'عرض الفروع', module: 'branches', notes: 'عرض بيانات الفروع' },
+  { code: 'create_branches', name: 'إضافة فرع', module: 'branches', notes: 'إنشاء فرع جديد' },
+  { code: 'edit_branches', name: 'تعديل فرع', module: 'branches', notes: 'تعديل بيانات الفروع' },
+  { code: 'view_warehouses', name: 'عرض المخازن', module: 'warehouses', notes: 'عرض بيانات المخازن' },
+  { code: 'create_warehouses', name: 'إضافة مخزن', module: 'warehouses', notes: 'إنشاء مخزن جديد' },
+  { code: 'edit_warehouses', name: 'تعديل مخزن', module: 'warehouses', notes: 'تعديل بيانات المخازن' },
+  { code: 'view_bank_accounts', name: 'عرض الحسابات البنكية', module: 'bank_accounts', notes: 'عرض الحسابات البنكية' },
+  { code: 'create_bank_accounts', name: 'إضافة حساب بنكي', module: 'bank_accounts', notes: 'إنشاء حساب بنكي' },
+  { code: 'edit_bank_accounts', name: 'تعديل حساب بنكي', module: 'bank_accounts', notes: 'تعديل الحسابات البنكية' },
+  { code: 'view_drawers', name: 'عرض الأدراج', module: 'drawers', notes: 'عرض الأدراج النقدية' },
+  { code: 'create_drawers', name: 'إضافة درج', module: 'drawers', notes: 'إنشاء درج نقدي' },
+  { code: 'edit_drawers', name: 'تعديل درج', module: 'drawers', notes: 'تعديل الأدراج النقدية' },
+  { code: 'view_items', name: 'عرض المواد', module: 'items', notes: 'عرض المواد والمخزون' },
+  { code: 'create_items', name: 'إضافة مادة', module: 'items', notes: 'إنشاء مادة جديدة' },
+  { code: 'edit_items', name: 'تعديل مادة', module: 'items', notes: 'تعديل المواد' },
+  { code: 'view_suppliers', name: 'عرض الموردين', module: 'suppliers', notes: 'عرض الموردين' },
+  { code: 'create_suppliers', name: 'إضافة مورد', module: 'suppliers', notes: 'إنشاء مورد جديد' },
+  { code: 'edit_suppliers', name: 'تعديل مورد', module: 'suppliers', notes: 'تعديل الموردين' },
+  { code: 'view_purchase_invoices', name: 'عرض فواتير الشراء', module: 'purchase_invoices', notes: 'عرض فواتير الشراء' },
+  { code: 'create_purchase_invoices', name: 'إضافة فاتورة شراء', module: 'purchase_invoices', notes: 'إنشاء فاتورة شراء' },
+  { code: 'edit_purchase_invoices', name: 'تعديل فاتورة شراء', module: 'purchase_invoices', notes: 'تعديل فواتير الشراء' },
+  { code: 'view_supplier_payments', name: 'عرض دفعات الموردين', module: 'supplier_payments', notes: 'عرض دفعات الموردين' },
+  { code: 'create_supplier_payments', name: 'إضافة دفعة مورد', module: 'supplier_payments', notes: 'إنشاء دفعة مورد' },
+  { code: 'edit_supplier_payments', name: 'تعديل دفعة مورد', module: 'supplier_payments', notes: 'تعديل دفعات الموردين' },
+  { code: 'view_expenses', name: 'عرض المصاريف', module: 'expenses', notes: 'عرض المصاريف' },
+  { code: 'create_expenses', name: 'إضافة مصروف', module: 'expenses', notes: 'إنشاء مصروف جديد' },
+  { code: 'edit_expenses', name: 'تعديل مصروف', module: 'expenses', notes: 'تعديل المصاريف' },
+  { code: 'view_daily_sales', name: 'عرض المبيعات اليومية', module: 'daily_sales', notes: 'عرض المبيعات اليومية' },
+  { code: 'create_daily_sales', name: 'إضافة مبيعات يومية', module: 'daily_sales', notes: 'إدخال مبيعات يومية' },
+  { code: 'edit_daily_sales', name: 'تعديل المبيعات اليومية', module: 'daily_sales', notes: 'تعديل المبيعات اليومية' },
+  { code: 'view_reports', name: 'عرض التقارير', module: 'reports', notes: 'عرض التقارير' },
+  { code: 'export_reports', name: 'تصدير التقارير', module: 'reports', notes: 'تصدير التقارير والبيانات' },
+  { code: 'manage_settings', name: 'إدارة الإعدادات', module: 'settings', notes: 'تعديل إعدادات النظام' },
+];
+
+export const roleCatalog = [
+  { code: SYSTEM_ROLE_CODES.admin, name: 'مدير النظام', notes: 'صلاحية كاملة على جميع الوحدات والفروع' },
+  { code: SYSTEM_ROLE_CODES.accountant, name: 'محاسب', notes: 'صلاحيات واسعة على الحسابات والتشغيل' },
+  { code: SYSTEM_ROLE_CODES.branchManager, name: 'مدير فرع', notes: 'صلاحيات تشغيلية ويمكن تقييده بفرع واحد' },
+];
+
+export const defaultRolePermissions: Record<string, string[]> = {
+  [SYSTEM_ROLE_CODES.admin]: permissionCatalog.map((permission) => permission.code),
+  [SYSTEM_ROLE_CODES.accountant]: permissionCatalog
+    .map((permission) => permission.code)
+    .filter((code) => !['manage_roles', 'manage_permissions', 'view_users', 'create_users', 'edit_users'].includes(code)),
+  [SYSTEM_ROLE_CODES.branchManager]: [
+    'view_items',
+    'view_suppliers',
+    'view_purchase_invoices',
+    'create_purchase_invoices',
+    'edit_purchase_invoices',
+    'view_supplier_payments',
+    'create_supplier_payments',
+    'edit_supplier_payments',
+    'view_expenses',
+    'create_expenses',
+    'edit_expenses',
+    'view_daily_sales',
+    'create_daily_sales',
+    'edit_daily_sales',
+    'view_drawers',
+    'view_reports',
+  ],
+};
