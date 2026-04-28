@@ -1,10 +1,9 @@
 'use client';
 
 /* eslint-disable @next/next/no-img-element */
+import type { FormEvent } from 'react';
 import { useMemo, useState } from 'react';
-import { buildClientApiUrl } from '../lib/api-url';
-import { readAccessTokenFromDocument } from '../lib/auth';
-import { throwIfApiError } from '../lib/client-api';
+import { submitFormData } from '../lib/client-api';
 import type { AttachmentEntityType, AttachmentSummary } from '../lib/types';
 
 function getAttachmentKind(fileType: string) {
@@ -43,7 +42,7 @@ function formatDate(value: string) {
 }
 
 function attachmentUrl(attachment: AttachmentSummary, action: 'preview' | 'download') {
-  return buildClientApiUrl(`/attachments/${attachment.id}/${action}`);
+  return `/api/attachments/${encodeURIComponent(attachment.id)}/${action}`;
 }
 
 export function AttachmentsPanel({
@@ -65,7 +64,7 @@ export function AttachmentsPanel({
     [attachments, selectedAttachmentId],
   );
 
-  async function handleUpload(event: React.FormEvent<HTMLFormElement>) {
+  async function handleUpload(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsUploading(true);
     setMessage(null);
@@ -76,19 +75,7 @@ export function AttachmentsPanel({
     formData.set('entityId', entityId);
 
     try {
-      const accessToken = readAccessTokenFromDocument();
-      const response = await fetch(buildClientApiUrl('/attachments'), {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-        },
-        body: formData,
-      });
-
-      await throwIfApiError(response, 'تعذر رفع المرفق.');
-
-      const attachment = (await response.json()) as AttachmentSummary;
+      const attachment = (await submitFormData('/attachments', formData)) as AttachmentSummary;
       setAttachments((currentAttachments) => [attachment, ...currentAttachments]);
       setSelectedAttachmentId(attachment.id);
       form.reset();
@@ -112,24 +99,7 @@ export function AttachmentsPanel({
 
       {message ? <p className={message.includes('تعذر') ? 'notice danger' : 'notice'}>{message}</p> : null}
 
-      <form className="attachment-upload-form" onSubmit={handleUpload}>
-        <label>
-          الملف
-          <input
-            accept="image/*,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            name="file"
-            required
-            type="file"
-          />
-        </label>
-        <label>
-          ملاحظات
-          <textarea name="notes" placeholder="اكتب ملاحظة قصيرة عن المرفق" rows={3} />
-        </label>
-        <button disabled={isUploading} type="submit">
-          {isUploading ? 'جار رفع المرفق...' : 'رفع مرفق'}
-        </button>
-      </form>
+      <AttachmentUploadForm isUploading={isUploading} onUpload={handleUpload} />
 
       {attachments.length === 0 ? (
         <div className="attachments-empty">
@@ -138,35 +108,83 @@ export function AttachmentsPanel({
         </div>
       ) : (
         <div className="attachments-layout">
-          <div className="attachments-list">
-            {attachments.map((attachment) => {
-              const kind = getAttachmentKind(attachment.fileType);
-              const isActive = selectedAttachment?.id === attachment.id;
-
-              return (
-                <button
-                  className={`attachment-list-item ${isActive ? 'active' : ''}`}
-                  key={attachment.id}
-                  onClick={() => setSelectedAttachmentId(attachment.id)}
-                  type="button"
-                >
-                  <span className={`attachment-kind ${kind}`}>{kind === 'image' ? 'ص' : kind === 'pdf' ? 'PDF' : kind === 'excel' ? 'XLS' : 'ملف'}</span>
-                  <span>
-                    <strong>{attachment.fileName}</strong>
-                    <small>
-                      {attachment.fileType} · {formatFileSize(attachment.fileSize)} · {formatDate(attachment.createdAt)}
-                    </small>
-                    {attachment.notes ? <em>{attachment.notes}</em> : null}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
+          <AttachmentList
+            attachments={attachments}
+            selectedAttachmentId={selectedAttachment?.id ?? ''}
+            onSelect={setSelectedAttachmentId}
+          />
           {selectedAttachment ? <AttachmentPreview attachment={selectedAttachment} /> : null}
         </div>
       )}
     </section>
+  );
+}
+
+function AttachmentUploadForm({
+  isUploading,
+  onUpload,
+}: Readonly<{
+  isUploading: boolean;
+  onUpload: (event: FormEvent<HTMLFormElement>) => void;
+}>) {
+  return (
+    <form className="attachment-upload-form" onSubmit={onUpload}>
+      <label>
+        الملف
+        <input
+          accept="image/*,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.xls,.xlsx"
+          name="file"
+          required
+          type="file"
+        />
+      </label>
+      <label>
+        ملاحظات
+        <textarea name="notes" placeholder="اكتب ملاحظة قصيرة عن المرفق" rows={3} />
+      </label>
+      <button disabled={isUploading} type="submit">
+        {isUploading ? 'جار رفع المرفق...' : 'رفع مرفق'}
+      </button>
+    </form>
+  );
+}
+
+function AttachmentList({
+  attachments,
+  selectedAttachmentId,
+  onSelect,
+}: Readonly<{
+  attachments: AttachmentSummary[];
+  selectedAttachmentId: string;
+  onSelect: (attachmentId: string) => void;
+}>) {
+  return (
+    <div className="attachments-list">
+      {attachments.map((attachment) => {
+        const kind = getAttachmentKind(attachment.fileType);
+        const isActive = selectedAttachmentId === attachment.id;
+
+        return (
+          <button
+            className={`attachment-list-item ${isActive ? 'active' : ''}`}
+            key={attachment.id}
+            onClick={() => onSelect(attachment.id)}
+            type="button"
+          >
+            <span className={`attachment-kind ${kind}`}>
+              {kind === 'image' ? 'ص' : kind === 'pdf' ? 'PDF' : kind === 'excel' ? 'XLS' : 'ملف'}
+            </span>
+            <span>
+              <strong>{attachment.fileName}</strong>
+              <small>
+                {attachment.fileType} · {formatFileSize(attachment.fileSize)} · {formatDate(attachment.createdAt)}
+              </small>
+              {attachment.notes ? <em>{attachment.notes}</em> : null}
+            </span>
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -185,13 +203,9 @@ function AttachmentPreview({ attachment }: Readonly<{ attachment: AttachmentSumm
         </a>
       </div>
 
-      {kind === 'image' ? (
-        <img alt={attachment.fileName} src={attachmentUrl(attachment, 'preview')} />
-      ) : null}
+      {kind === 'image' ? <img alt={attachment.fileName} src={attachmentUrl(attachment, 'preview')} /> : null}
 
-      {kind === 'pdf' ? (
-        <iframe src={attachmentUrl(attachment, 'preview')} title={attachment.fileName} />
-      ) : null}
+      {kind === 'pdf' ? <iframe src={attachmentUrl(attachment, 'preview')} title={attachment.fileName} /> : null}
 
       {kind === 'excel' || kind === 'file' ? (
         <div className="attachment-file-preview">

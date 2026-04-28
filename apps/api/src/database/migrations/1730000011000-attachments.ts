@@ -7,7 +7,7 @@ export class Attachments1730000011000 implements MigrationInterface {
     await queryRunner.query('CREATE EXTENSION IF NOT EXISTS pgcrypto');
 
     await queryRunner.query(`
-      CREATE TABLE attachments (
+      CREATE TABLE IF NOT EXISTS attachments (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         entity_type varchar(80) NOT NULL,
         entity_id uuid NOT NULL,
@@ -21,7 +21,7 @@ export class Attachments1730000011000 implements MigrationInterface {
       )
     `);
 
-    await queryRunner.query('CREATE INDEX idx_attachments_entity ON attachments(entity_type, entity_id)');
+    await queryRunner.query('CREATE INDEX IF NOT EXISTS idx_attachments_entity ON attachments(entity_type, entity_id)');
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

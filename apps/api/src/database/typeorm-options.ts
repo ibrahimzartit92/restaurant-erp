@@ -15,6 +15,7 @@ import { ExpenseEntity } from '../modules/expenses/entities/expense.entity';
 import { ItemCategoryEntity } from '../modules/item-categories/entities/item-category.entity';
 import { ItemEntity } from '../modules/items/entities/item.entity';
 import { AttendanceFileEntity } from '../modules/attendance-files/entities/attendance-file.entity';
+import { AttachmentEntity } from '../modules/attachments/entities/attachment.entity';
 import { PurchaseInvoiceItemEntity } from '../modules/purchase-invoice-items/entities/purchase-invoice-item.entity';
 import { PurchaseInvoiceEntity } from '../modules/purchase-invoices/entities/purchase-invoice.entity';
 import { PermissionEntity } from '../modules/permissions/entities/permission.entity';
@@ -36,6 +37,7 @@ export const databaseEntities = [
   BankAccountEntity,
   BankAccountTransactionEntity,
   AttendanceFileEntity,
+  AttachmentEntity,
   BranchEntity,
   DailySaleEntity,
   DrawerDailySessionEntity,

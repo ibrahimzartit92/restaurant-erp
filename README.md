@@ -297,9 +297,12 @@ Backend routes:
 
 Frontend preview behavior:
 
+- Browser uploads use the same-origin write proxy: `POST /api/write/attachments` forwards internally to `POST /attachments`.
+- Preview and download links use same-origin `/api/attachments/:id/preview` and `/api/attachments/:id/download`, so the browser does not need a direct cross-origin backend URL.
 - Images render directly inside the admin page.
 - PDF files render in an inline preview frame when the browser supports it.
 - Excel files show file metadata with open/download actions.
+- The reusable attachments panel is available on purchase invoice details, expense edit, payroll edit, attendance file details, branch transfer details, and stock count details.
 
 ## Authentication And Access Setup
 

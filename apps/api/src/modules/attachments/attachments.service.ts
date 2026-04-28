@@ -21,6 +21,8 @@ const allowedMimeTypes = new Set([
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 ]);
 
+const allowedExtensions = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.pdf', '.xls', '.xlsx']);
+
 const maxFileSizeBytes = 15 * 1024 * 1024;
 
 type UploadedAttachmentFile = {
@@ -82,7 +84,7 @@ export class AttachmentsService {
       entityId: createDto.entityId,
       fileName: file.originalname,
       filePath: storedPath,
-      fileType: file.mimetype || this.fileTypeFromName(file.originalname),
+      fileType: this.fileTypeFromName(file.originalname, file.mimetype),
       fileSize: file.size ?? file.buffer.length ?? null,
       uploadedBy: createDto.uploadedBy ?? null,
       notes: this.normalizeOptionalText(createDto.notes),
@@ -112,7 +114,9 @@ export class AttachmentsService {
   }
 
   private validateFile(file: UploadedAttachmentFile) {
-    if (!allowedMimeTypes.has(file.mimetype)) {
+    const extension = extname(file.originalname).toLowerCase();
+
+    if (!allowedMimeTypes.has(file.mimetype) && !allowedExtensions.has(extension)) {
       throw new BadRequestException('Only images, PDF, and Excel files are allowed.');
     }
 
@@ -128,8 +132,42 @@ export class AttachmentsService {
     return `${baseName}${extension.toLowerCase()}`;
   }
 
-  private fileTypeFromName(fileName: string) {
-    return extname(fileName).replace('.', '').toLowerCase() || 'application/octet-stream';
+  private fileTypeFromName(fileName: string, mimeType?: string) {
+    if (mimeType && mimeType !== 'application/octet-stream') {
+      return mimeType;
+    }
+
+    const extension = extname(fileName).toLowerCase();
+
+    if (['.jpg', '.jpeg'].includes(extension)) {
+      return 'image/jpeg';
+    }
+
+    if (extension === '.png') {
+      return 'image/png';
+    }
+
+    if (extension === '.gif') {
+      return 'image/gif';
+    }
+
+    if (extension === '.webp') {
+      return 'image/webp';
+    }
+
+    if (extension === '.pdf') {
+      return 'application/pdf';
+    }
+
+    if (extension === '.xls') {
+      return 'application/vnd.ms-excel';
+    }
+
+    if (extension === '.xlsx') {
+      return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    }
+
+    return 'application/octet-stream';
   }
 
   private normalizeOptionalText(value?: string | null) {
