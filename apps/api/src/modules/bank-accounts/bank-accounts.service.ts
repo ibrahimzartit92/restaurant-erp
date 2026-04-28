@@ -61,6 +61,8 @@ export class BankAccountsService {
       iban: this.normalizeOptionalText(createBankAccountDto.iban),
       accountNumber: this.normalizeOptionalText(createBankAccountDto.accountNumber),
       currency: createBankAccountDto.currency.trim().toUpperCase(),
+      openingBalance: Number(createBankAccountDto.openingBalance ?? 0),
+      openingBalanceDate: createBankAccountDto.openingBalanceDate ?? null,
       isActive: createBankAccountDto.isActive ?? true,
       notes: this.normalizeOptionalText(createBankAccountDto.notes),
     });
@@ -87,6 +89,14 @@ export class BankAccountsService {
           ? this.normalizeOptionalText(updateBankAccountDto.accountNumber)
           : bankAccount.accountNumber,
       currency: updateBankAccountDto.currency?.trim().toUpperCase() ?? bankAccount.currency,
+      openingBalance:
+        updateBankAccountDto.openingBalance !== undefined
+          ? Number(updateBankAccountDto.openingBalance)
+          : bankAccount.openingBalance,
+      openingBalanceDate:
+        updateBankAccountDto.openingBalanceDate !== undefined
+          ? updateBankAccountDto.openingBalanceDate
+          : bankAccount.openingBalanceDate,
       isActive: updateBankAccountDto.isActive ?? bankAccount.isActive,
       notes: updateBankAccountDto.notes !== undefined ? this.normalizeOptionalText(updateBankAccountDto.notes) : bankAccount.notes,
     });
@@ -141,7 +151,7 @@ export class BankAccountsService {
 
     return {
       ...bankAccount,
-      currentBalance: deposits - withdrawals,
+      currentBalance: Number(bankAccount.openingBalance ?? 0) + deposits - withdrawals,
       transactionTotals: {
         deposits,
         withdrawals,

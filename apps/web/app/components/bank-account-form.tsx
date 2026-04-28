@@ -29,6 +29,8 @@ export function BankAccountForm({
       iban: String(formData.get('iban') ?? '') || null,
       accountNumber: String(formData.get('accountNumber') ?? '') || null,
       currency: String(formData.get('currency') ?? ''),
+      openingBalance: Number(formData.get('openingBalance') ?? 0),
+      openingBalanceDate: String(formData.get('openingBalanceDate') ?? '') || null,
       isActive: formData.get('isActive') === 'on',
       notes: String(formData.get('notes') ?? '') || null,
     };
@@ -68,6 +70,20 @@ export function BankAccountForm({
         <label>
           العملة
           <input defaultValue={initialAccount?.currency ?? 'SAR'} maxLength={10} name="currency" required />
+        </label>
+        <label>
+          الرصيد الافتتاحي
+          <input
+            defaultValue={initialAccount?.openingBalance ?? 0}
+            min="0"
+            name="openingBalance"
+            step="0.01"
+            type="number"
+          />
+        </label>
+        <label>
+          تاريخ الرصيد الافتتاحي
+          <input defaultValue={initialAccount?.openingBalanceDate ?? ''} name="openingBalanceDate" type="date" />
         </label>
         <label>
           رقم الآيبان

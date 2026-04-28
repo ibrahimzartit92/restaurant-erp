@@ -101,6 +101,8 @@ export type BankAccountSummary = {
   iban?: string | null;
   accountNumber?: string | null;
   currency: string;
+  openingBalance?: number;
+  openingBalanceDate?: string | null;
   isActive: boolean;
   notes?: string | null;
   currentBalance?: number;

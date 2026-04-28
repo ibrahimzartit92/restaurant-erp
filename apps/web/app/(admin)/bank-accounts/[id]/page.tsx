@@ -9,7 +9,7 @@ import type { BankAccountSummary, BankAccountTransactionSummary } from '../../..
 const transactionColumns: DataColumn<BankAccountTransactionSummary>[] = [
   { key: 'date', label: 'التاريخ', render: (row) => formatDate(row.transactionDate) },
   { key: 'type', label: 'النوع', render: (row) => <StatusBadge value={row.transactionType} /> },
-  { key: 'direction', label: 'الاتجاه', render: (row) => row.direction === 'incoming' ? 'داخل' : 'خارج' },
+  { key: 'direction', label: 'الاتجاه', render: (row) => (row.direction === 'incoming' ? 'داخل' : 'خارج') },
   { key: 'amount', label: 'المبلغ', render: (row) => formatMoney(row.amount) },
   { key: 'branch', label: 'الفرع', render: (row) => row.branch?.name ?? 'بدون فرع' },
   { key: 'description', label: 'الوصف', render: (row) => row.description },
@@ -34,13 +34,18 @@ export default async function BankAccountDetailsPage({
 
   return (
     <>
-      <PageHeader title="صفحة تفاصيل الحساب البنكي" description="عرض بيانات الحساب البنكي ورصيده الحالي وملخص الحركات المرتبطة به." />
+      <PageHeader title="تفاصيل الحساب البنكي" description="عرض الرصيد الافتتاحي والحركات والرصيد الحالي للحساب." />
 
       <section className="summary-grid">
         <article className="summary-card">
           <p>الرصيد الحالي</p>
           <strong>{formatMoney(account.currentBalance ?? 0)}</strong>
           <span>{account.currency}</span>
+        </article>
+        <article className="summary-card">
+          <p>الرصيد الافتتاحي</p>
+          <strong>{formatMoney(account.openingBalance ?? 0)}</strong>
+          <span>{account.openingBalanceDate ? formatDate(account.openingBalanceDate) : 'بدون تاريخ'}</span>
         </article>
         <article className="summary-card">
           <p>الإيداعات</p>
@@ -71,6 +76,8 @@ export default async function BankAccountDetailsPage({
             <li>العملة: {account.currency}</li>
             <li>الآيبان: {account.iban ?? 'غير محدد'}</li>
             <li>رقم الحساب: {account.accountNumber ?? 'غير محدد'}</li>
+            <li>الرصيد الافتتاحي: {formatMoney(account.openingBalance ?? 0)}</li>
+            <li>تاريخ الرصيد الافتتاحي: {account.openingBalanceDate ? formatDate(account.openingBalanceDate) : 'غير محدد'}</li>
             <li>الحالة: {account.isActive ? 'نشط' : 'متوقف'}</li>
             <li>ملاحظات: {account.notes ?? 'بدون ملاحظات'}</li>
           </ul>

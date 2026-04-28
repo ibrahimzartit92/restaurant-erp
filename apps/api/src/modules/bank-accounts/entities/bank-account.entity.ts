@@ -8,6 +8,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { BankAccountTransactionEntity } from '../../bank-account-transactions/entities/bank-account-transaction.entity';
+import { numericTransformer } from '../../expenses/expense-shared';
 
 @Entity('bank_accounts')
 export class BankAccountEntity {
@@ -33,6 +34,19 @@ export class BankAccountEntity {
 
   @Column({ type: 'varchar', length: 10, default: 'SAR' })
   currency!: string;
+
+  @Column({
+    name: 'opening_balance',
+    type: 'numeric',
+    precision: 12,
+    scale: 2,
+    default: 0,
+    transformer: numericTransformer,
+  })
+  openingBalance!: number;
+
+  @Column({ name: 'opening_balance_date', type: 'date', nullable: true })
+  openingBalanceDate!: string | null;
 
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive!: boolean;
