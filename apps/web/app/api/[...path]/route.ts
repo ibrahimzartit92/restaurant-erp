@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { getServerApiBaseUrls } from '../../lib/api-url';
+import { buildServerApiUrl, getServerApiBaseUrls } from '../../lib/api-url';
 
 const hopByHopHeaders = new Set([
   'connection',
@@ -15,14 +15,41 @@ async function proxyRequest(request: NextRequest, context: { params: Promise<{ p
   const { path } = await context.params;
   const upstreamPath = `/${path.join('/')}${request.nextUrl.search}`;
   const requestHeaders = new Headers(request.headers);
+  let apiBaseUrls: string[];
 
   for (const header of hopByHopHeaders) {
     requestHeaders.delete(header);
   }
 
-  for (const apiBaseUrl of getServerApiBaseUrls()) {
+  try {
+    apiBaseUrls = getServerApiBaseUrls();
+  } catch (error) {
+    return Response.json(
+      {
+        message: 'إعداد رابط الخادم الخلفي غير صحيح.',
+        detail: error instanceof Error ? error.message : 'Invalid backend API URL.',
+      },
+      { status: 500 },
+    );
+  }
+
+  for (const apiBaseUrl of apiBaseUrls) {
+    let upstreamUrl: string;
+
     try {
-      const upstreamResponse = await fetch(`${apiBaseUrl}${upstreamPath}`, {
+      upstreamUrl = buildServerApiUrl(apiBaseUrl, upstreamPath);
+    } catch (error) {
+      return Response.json(
+        {
+          message: 'تعذر تكوين رابط الخادم الخلفي.',
+          detail: error instanceof Error ? error.message : 'Invalid backend API URL.',
+        },
+        { status: 500 },
+      );
+    }
+
+    try {
+      const upstreamResponse = await fetch(upstreamUrl, {
         method: request.method,
         headers: requestHeaders,
         body: ['GET', 'HEAD'].includes(request.method) ? undefined : await request.arrayBuffer(),

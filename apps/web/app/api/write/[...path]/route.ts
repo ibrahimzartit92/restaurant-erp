@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { sessionCookieName } from '../../../lib/auth';
-import { getServerApiBaseUrls } from '../../../lib/api-url';
+import { buildServerApiUrl, getInternalApiBaseUrls } from '../../../lib/api-url';
 
 const hopByHopHeaders = new Set([
   'connection',
@@ -37,10 +37,37 @@ async function writeProxy(request: NextRequest, context: { params: Promise<{ pat
   }
 
   const body = await request.arrayBuffer();
+  let apiBaseUrls: string[];
 
-  for (const apiBaseUrl of getServerApiBaseUrls()) {
+  try {
+    apiBaseUrls = getInternalApiBaseUrls();
+  } catch (error) {
+    return Response.json(
+      {
+        message: 'إعداد رابط الخادم الخلفي غير صحيح.',
+        detail: error instanceof Error ? error.message : 'Invalid backend API URL.',
+      },
+      { status: 500 },
+    );
+  }
+
+  for (const apiBaseUrl of apiBaseUrls) {
+    let upstreamUrl: string;
+
     try {
-      const upstreamResponse = await fetch(`${apiBaseUrl}${upstreamPath}`, {
+      upstreamUrl = buildServerApiUrl(apiBaseUrl, upstreamPath);
+    } catch (error) {
+      return Response.json(
+        {
+          message: 'تعذر تكوين رابط الخادم الخلفي للحفظ.',
+          detail: error instanceof Error ? error.message : 'Invalid backend API URL.',
+        },
+        { status: 500 },
+      );
+    }
+
+    try {
+      const upstreamResponse = await fetch(upstreamUrl, {
         method,
         headers: buildForwardHeaders(request),
         body,
@@ -58,7 +85,11 @@ async function writeProxy(request: NextRequest, context: { params: Promise<{ pat
         statusText: upstreamResponse.statusText,
         headers: responseHeaders,
       });
-    } catch {
+    } catch (error) {
+      if (error instanceof TypeError || error instanceof Error) {
+        continue;
+      }
+
       continue;
     }
   }

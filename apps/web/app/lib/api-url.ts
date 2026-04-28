@@ -87,14 +87,29 @@ export function buildClientApiUrl(path: string) {
   return new URL(normalizedPath.slice(1), `${clientApiBaseUrl}/`).toString();
 }
 
-export function getServerApiBaseUrls() {
-  const configuredBaseUrls = [
-    normalizeServerApiBaseUrl(process.env.INTERNAL_API_URL),
-    normalizeServerApiBaseUrl(process.env.NEXT_PUBLIC_API_URL),
-  ].filter((url, index, urls): url is string => Boolean(url) && urls.indexOf(url) === index);
+export function buildServerApiUrl(apiBaseUrl: string, path: string) {
+  const normalizedBaseUrl = normalizeServerApiBaseUrl(apiBaseUrl);
 
-  if (configuredBaseUrls.length > 0) {
-    return configuredBaseUrls;
+  if (!normalizedBaseUrl) {
+    throw new Error('Backend API base URL must be an absolute http(s) URL.');
+  }
+
+  const normalizedPath = path.startsWith('/') ? path.slice(1) : path;
+
+  return new URL(normalizedPath, `${normalizedBaseUrl}/`).toString();
+}
+
+export function getServerApiBaseUrls() {
+  const internalApiBaseUrl = normalizeServerApiBaseUrl(process.env.INTERNAL_API_URL);
+
+  if (internalApiBaseUrl) {
+    return [internalApiBaseUrl];
+  }
+
+  const publicApiBaseUrl = normalizeServerApiBaseUrl(process.env.NEXT_PUBLIC_API_URL);
+
+  if (publicApiBaseUrl) {
+    return [publicApiBaseUrl];
   }
 
   if (process.env.NODE_ENV === 'production') {
@@ -106,4 +121,18 @@ export function getServerApiBaseUrls() {
 
 export function getServerApiBaseUrl() {
   return getServerApiBaseUrls()[0];
+}
+
+export function getInternalApiBaseUrls() {
+  const configuredBaseUrl = normalizeServerApiBaseUrl(process.env.INTERNAL_API_URL);
+
+  if (configuredBaseUrl) {
+    return [configuredBaseUrl];
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    return [dockerInternalApiBaseUrl];
+  }
+
+  return [localDevelopmentApiBaseUrl];
 }
