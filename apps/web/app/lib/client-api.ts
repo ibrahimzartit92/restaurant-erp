@@ -69,13 +69,14 @@ async function readSuccessJson(response: Response) {
   return response.json();
 }
 
-export async function submitJson(path: string, method: 'POST' | 'PATCH', body: Record<string, unknown>) {
+export async function submitJson(path: string, method: 'POST' | 'PATCH' | 'PUT' | 'DELETE', body: Record<string, unknown>) {
   const accessToken = readAccessTokenFromDocument();
   const response = await fetch(joinUrl(path), {
-    method,
+    method: 'POST',
     credentials: 'same-origin',
     headers: {
       'Content-Type': 'application/json',
+      'x-write-method': method,
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     },
     body: JSON.stringify(body),
@@ -92,6 +93,7 @@ export async function submitFormData(path: string, formData: FormData) {
     method: 'POST',
     credentials: 'same-origin',
     headers: {
+      'x-write-method': 'POST',
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     },
     body: formData,
