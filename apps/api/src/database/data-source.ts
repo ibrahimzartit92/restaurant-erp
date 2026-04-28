@@ -12,6 +12,7 @@ import { StockCounts1730000008000 } from './migrations/1730000008000-stock-count
 import { EmployeesPayrollAttendance1730000009000 } from './migrations/1730000009000-employees-payroll-attendance';
 import { SystemSettings1730000010000 } from './migrations/1730000010000-system-settings';
 import { Attachments1730000011000 } from './migrations/1730000011000-attachments';
+import { DailySalesFinancialLinks1730000012000 } from './migrations/1730000012000-daily-sales-financial-links';
 import { databaseEntities } from './typeorm-options';
 
 export const AppDataSource = new DataSource({
@@ -31,6 +32,7 @@ export const AppDataSource = new DataSource({
     EmployeesPayrollAttendance1730000009000,
     SystemSettings1730000010000,
     Attachments1730000011000,
+    DailySalesFinancialLinks1730000012000,
   ],
   synchronize: false,
 });
