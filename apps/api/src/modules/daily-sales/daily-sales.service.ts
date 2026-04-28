@@ -66,15 +66,15 @@ export class DailySalesService {
 
   async create(createDailySaleDto: CreateDailySaleDto) {
     await this.ensureBranchExists(createDailySaleDto.branchId);
-    await this.validateFinancialReferences(createDailySaleDto);
+    const financialReferences = await this.resolveFinancialReferences(createDailySaleDto);
     await this.ensureBranchDateIsAvailable(createDailySaleDto.branchId, createDailySaleDto.salesDate);
 
     const dailySale = this.dailySaleRepository.create({
       ...createDailySaleDto,
       cashSalesAmount: createDailySaleDto.cashSalesAmount ?? 0,
-      drawerId: createDailySaleDto.drawerId ?? null,
+      drawerId: financialReferences.drawerId,
       bankSalesAmount: createDailySaleDto.bankSalesAmount ?? 0,
-      bankAccountId: createDailySaleDto.bankAccountId ?? null,
+      bankAccountId: financialReferences.bankAccountId,
       deliverySalesAmount: createDailySaleDto.deliverySalesAmount ?? 0,
       websiteSalesAmount: createDailySaleDto.websiteSalesAmount ?? 0,
       tipsAmount: createDailySaleDto.tipsAmount ?? 0,
@@ -96,10 +96,15 @@ export class DailySalesService {
     const salesDate = updateDailySaleDto.salesDate ?? dailySale.salesDate;
 
     await this.ensureBranchExists(branchId);
-    await this.validateFinancialReferences({ ...dailySale, ...updateDailySaleDto, branchId, salesDate });
+    const financialReferences = await this.resolveFinancialReferences({
+      ...dailySale,
+      ...updateDailySaleDto,
+      branchId,
+      salesDate,
+    });
     await this.ensureBranchDateIsAvailable(branchId, salesDate, id);
 
-    Object.assign(dailySale, updateDailySaleDto);
+    Object.assign(dailySale, updateDailySaleDto, financialReferences);
     dailySale.netSalesAmount = this.calculateNetSales(dailySale);
 
     return this.dataSource.transaction(async (manager) => {
@@ -119,7 +124,7 @@ export class DailySalesService {
     return { id };
   }
 
-  private async validateFinancialReferences(data: {
+  private async resolveFinancialReferences(data: {
     branchId: string;
     cashSalesAmount?: number;
     drawerId?: string | null;
@@ -127,12 +132,20 @@ export class DailySalesService {
     bankAccountId?: string | null;
     salesDate?: string;
   }) {
+    let drawerId = data.drawerId ?? null;
+    let bankAccountId = data.bankAccountId ?? null;
+
     if (Number(data.cashSalesAmount ?? 0) > 0) {
-      if (!data.drawerId) {
-        throw new BadRequestException('Cash daily sales require drawerId.');
+      if (!drawerId) {
+        const branchDrawer = await this.drawerRepository.findOne({ where: { branchId: data.branchId } });
+        drawerId = branchDrawer?.id ?? null;
       }
 
-      const drawer = await this.drawerRepository.findOne({ where: { id: data.drawerId } });
+      if (!drawerId) {
+        throw new BadRequestException('Cash daily sales require a drawer for the selected branch.');
+      }
+
+      const drawer = await this.drawerRepository.findOne({ where: { id: drawerId } });
 
       if (!drawer) {
         throw new NotFoundException('Drawer was not found.');
@@ -143,17 +156,23 @@ export class DailySalesService {
       }
     }
 
-    if (Number(data.bankSalesAmount ?? 0) > 0) {
-      if (!data.bankAccountId) {
-        throw new BadRequestException('Bank daily sales require bankAccountId.');
-      }
-
-      const bankAccount = await this.bankAccountRepository.findOne({ where: { id: data.bankAccountId } });
+    if (Number(data.bankSalesAmount ?? 0) > 0 && bankAccountId) {
+      const bankAccount = await this.bankAccountRepository.findOne({ where: { id: bankAccountId } });
 
       if (!bankAccount) {
         throw new NotFoundException('Bank account was not found.');
       }
     }
+
+    if (Number(data.cashSalesAmount ?? 0) <= 0) {
+      drawerId = null;
+    }
+
+    if (Number(data.bankSalesAmount ?? 0) <= 0) {
+      bankAccountId = null;
+    }
+
+    return { drawerId, bankAccountId };
   }
 
   private async recreateFinancialMovement(dailySale: DailySaleEntity, manager = this.dataSource.manager) {

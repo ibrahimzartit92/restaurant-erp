@@ -87,11 +87,18 @@ export class ExpensesService {
     await this.ensureNumberIsAvailable(createExpenseDto.expenseNumber);
     const expenseCategoryId = createExpenseDto.expenseCategoryId ?? (await this.getDefaultExpenseCategory()).id;
     const paymentMethod = createExpenseDto.paymentMethod ?? ExpensePaymentMethod.Other;
+    const financialReferences = await this.resolveFinancialReferences({
+      branchId: createExpenseDto.branchId,
+      paymentMethod,
+      drawerId: createExpenseDto.drawerId,
+      bankAccountId: createExpenseDto.bankAccountId,
+    });
 
     await this.validateReferences({
       ...createExpenseDto,
       expenseCategoryId,
       paymentMethod,
+      ...financialReferences,
     });
 
     const expenseNumber = createExpenseDto.expenseNumber?.toUpperCase() ?? (await this.generateExpenseNumber());
@@ -105,8 +112,8 @@ export class ExpensesService {
       expenseCategoryId,
       title: createExpenseDto.title?.trim() || category.name,
       paymentMethod,
-      drawerId: createExpenseDto.drawerId ?? null,
-      bankAccountId: createExpenseDto.bankAccountId ?? null,
+      drawerId: financialReferences.drawerId,
+      bankAccountId: financialReferences.bankAccountId,
       isFixed: createExpenseDto.isFixed ?? category.isFixed,
       templateId: createExpenseDto.templateId ?? null,
       notes: createExpenseDto.notes ?? null,
@@ -124,10 +131,13 @@ export class ExpensesService {
     await this.ensureNumberIsAvailable(updateExpenseDto.expenseNumber, id);
 
     const nextExpense = { ...expense, ...updateExpenseDto };
+    const financialReferences = await this.resolveFinancialReferences(nextExpense);
+    Object.assign(nextExpense, financialReferences);
     await this.validateReferences(nextExpense);
 
     Object.assign(expense, {
       ...updateExpenseDto,
+      ...financialReferences,
       expenseNumber: updateExpenseDto.expenseNumber?.toUpperCase() ?? expense.expenseNumber,
     });
 
@@ -242,6 +252,31 @@ export class ExpensesService {
         throw new NotFoundException('Bank account was not found.');
       }
     }
+  }
+
+  private async resolveFinancialReferences(data: {
+    branchId: string;
+    paymentMethod: ExpensePaymentMethod;
+    drawerId?: string | null;
+    bankAccountId?: string | null;
+  }) {
+    let drawerId = data.drawerId ?? null;
+    let bankAccountId = data.bankAccountId ?? null;
+
+    if (data.paymentMethod === ExpensePaymentMethod.Cash && !drawerId) {
+      const branchDrawer = await this.drawerRepository.findOne({ where: { branchId: data.branchId } });
+      drawerId = branchDrawer?.id ?? null;
+    }
+
+    if (data.paymentMethod !== ExpensePaymentMethod.Cash) {
+      drawerId = null;
+    }
+
+    if (data.paymentMethod !== ExpensePaymentMethod.Bank) {
+      bankAccountId = null;
+    }
+
+    return { drawerId, bankAccountId };
   }
 
   private async ensureNumberIsAvailable(expenseNumber?: string, currentId?: string) {

@@ -378,6 +378,15 @@ type PurchaseLineDraft = {
   notes: string;
 };
 
+type PurchasePaymentDraft = {
+  paymentMethod: 'cash' | 'bank' | 'other';
+  drawerId: string;
+  bankAccountId: string;
+  amount: string;
+  referenceNumber: string;
+  notes: string;
+};
+
 function itemLabel(item: ItemOption) {
   return `${item.code} - ${item.name}`;
 }
@@ -386,21 +395,37 @@ function emptyPurchaseLine(): PurchaseLineDraft {
   return { itemId: '', itemLabel: '', quantity: '1', unitPrice: '0', notes: '' };
 }
 
+function emptyPurchasePayment(): PurchasePaymentDraft {
+  return {
+    paymentMethod: 'cash',
+    drawerId: '',
+    bankAccountId: '',
+    amount: '',
+    referenceNumber: '',
+    notes: '',
+  };
+}
+
 export function PurchaseInvoiceForm({
   branches,
   warehouses,
   suppliers,
   items,
+  drawers,
+  bankAccounts,
 }: Readonly<{
   branches: BranchOption[];
   warehouses: WarehouseOption[];
   suppliers: SupplierOption[];
   items: ItemOption[];
+  drawers: DrawerOption[];
+  bankAccounts: BankAccountOption[];
 }>) {
   const router = useRouter();
   const [message, setMessage] = useState<MessageState>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [lines, setLines] = useState<PurchaseLineDraft[]>([emptyPurchaseLine()]);
+  const [payments, setPayments] = useState<PurchasePaymentDraft[]>([]);
   const itemOptions = useMemo(() => items.map((item) => ({ ...item, label: itemLabel(item) })), [items]);
 
   function updateLine(index: number, patch: Partial<PurchaseLineDraft>) {
@@ -414,6 +439,12 @@ export function PurchaseInvoiceForm({
       itemId: matched?.id ?? '',
       unitPrice: matched ? String(matched.costPrice ?? 0) : lines[index]?.unitPrice ?? '0',
     });
+  }
+
+  function updatePayment(index: number, patch: Partial<PurchasePaymentDraft>) {
+    setPayments((current) =>
+      current.map((payment, paymentIndex) => (paymentIndex === index ? { ...payment, ...patch } : payment)),
+    );
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -431,7 +462,7 @@ export function PurchaseInvoiceForm({
       invoiceDate: text(formData, 'invoiceDate'),
       status: text(formData, 'status') || undefined,
       discountAmount: numberValue(formData, 'discountAmount'),
-      paidAmount: numberValue(formData, 'paidAmount'),
+      paidAmount: 0,
       isMiscellaneous: !optionalText(formData, 'supplierId'),
       dueDate: optionalText(formData, 'dueDate'),
       notes: optionalText(formData, 'notes'),
@@ -444,6 +475,15 @@ export function PurchaseInvoiceForm({
     };
 
     const invalidLine = payload.items.find((line) => !line.itemId || line.quantity <= 0 || line.unitPrice < 0);
+    const subtotalAmount = payload.items.reduce((sum, line) => sum + line.quantity * line.unitPrice, 0);
+    const totalAmount = Math.max(subtotalAmount - payload.discountAmount, 0);
+    const activePayments = payments
+      .map((payment) => ({
+        ...payment,
+        amount: draftNumber(payment.amount),
+      }))
+      .filter((payment) => payment.amount > 0);
+    const totalPaid = activePayments.reduce((sum, payment) => sum + payment.amount, 0);
 
     if (invalidLine) {
       setMessage('أضف مادة واحدة على الأقل مع كمية وسعر صحيحين.');
@@ -451,8 +491,41 @@ export function PurchaseInvoiceForm({
       return;
     }
 
+    if (totalPaid > totalAmount) {
+      setMessage('إجمالي الدفعات لا يمكن أن يتجاوز إجمالي الفاتورة.');
+      setIsSaving(false);
+      return;
+    }
+
+    const invalidPayment = activePayments.find(
+      (payment) =>
+        (payment.paymentMethod === 'cash' && !payment.drawerId) ||
+        (payment.paymentMethod === 'bank' && !payment.bankAccountId),
+    );
+
+    if (invalidPayment) {
+      setMessage('اختر الدرج للدفعات النقدية والحساب البنكي للدفعات البنكية.');
+      setIsSaving(false);
+      return;
+    }
+
     try {
       const saved = (await submitJson('/purchase-invoices', 'POST', payload)) as { id?: string };
+      if (saved.id) {
+        for (const payment of activePayments) {
+          await submitJson('/supplier-payments', 'POST', {
+            purchaseInvoiceId: saved.id,
+            branchId: payload.branchId,
+            paymentDate: payload.invoiceDate,
+            paymentMethod: payment.paymentMethod,
+            drawerId: payment.paymentMethod === 'cash' ? payment.drawerId : null,
+            bankAccountId: payment.paymentMethod === 'bank' ? payment.bankAccountId : null,
+            amount: payment.amount,
+            referenceNumber: payment.referenceNumber.trim() || null,
+            notes: payment.notes.trim() || null,
+          });
+        }
+      }
       router.push(saved.id ? `/purchase-invoices/${saved.id}` : '/purchase-invoices');
       router.refresh();
     } catch (error) {
@@ -516,10 +589,6 @@ export function PurchaseInvoiceForm({
           الخصم
           <input name="discountAmount" type="number" min="0" step="0.01" defaultValue={0} />
         </label>
-        <label>
-          المدفوع عند الإنشاء
-          <input name="paidAmount" type="number" min="0" step="0.01" defaultValue={0} />
-        </label>
       </div>
       <label>
         ملاحظات
@@ -573,6 +642,116 @@ export function PurchaseInvoiceForm({
             </article>
           ))}
         </div>
+      </section>
+
+      <section className="transfer-items-section">
+        <div className="panel-heading">
+          <div>
+            <h3>دفعات الفاتورة</h3>
+            <span>يمكن تركها فارغة أو إضافة أكثر من دفعة نقدية وبنكية لنفس الفاتورة.</span>
+          </div>
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={() => setPayments((current) => [...current, emptyPurchasePayment()])}
+          >
+            إضافة دفعة
+          </button>
+        </div>
+
+        {payments.length === 0 ? (
+          <p className="field-hint">بدون دفعات الآن. ستبقى الفاتورة مفتوحة ويمكن إضافة الدفعات لاحقا.</p>
+        ) : (
+          <div className="transfer-items-list">
+            {payments.map((payment, index) => (
+              <article className="transfer-item-card" key={index}>
+                <div className="transfer-item-grid">
+                  <label>
+                    طريقة الدفع
+                    <select
+                      value={payment.paymentMethod}
+                      onChange={(event) =>
+                        updatePayment(index, {
+                          paymentMethod: event.target.value as PurchasePaymentDraft['paymentMethod'],
+                        })
+                      }
+                    >
+                      <option value="cash">نقدا</option>
+                      <option value="bank">بنكي</option>
+                      <option value="other">أخرى</option>
+                    </select>
+                  </label>
+                  <label>
+                    المبلغ
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={payment.amount}
+                      onChange={(event) => updatePayment(index, { amount: event.target.value })}
+                    />
+                  </label>
+                  <label>
+                    الدرج النقدي
+                    <select
+                      value={payment.drawerId}
+                      onChange={(event) => updatePayment(index, { drawerId: event.target.value })}
+                      disabled={payment.paymentMethod !== 'cash'}
+                    >
+                      <option value="">اختر الدرج</option>
+                      {drawers.map((drawer) => (
+                        <option key={drawer.id} value={drawer.id}>
+                          {drawer.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    الحساب البنكي
+                    <select
+                      value={payment.bankAccountId}
+                      onChange={(event) => updatePayment(index, { bankAccountId: event.target.value })}
+                      disabled={payment.paymentMethod !== 'bank'}
+                    >
+                      <option value="">اختر الحساب</option>
+                      {bankAccounts.map((account) => (
+                        <option key={account.id} value={account.id}>
+                          {account.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    المرجع
+                    <input
+                      maxLength={120}
+                      value={payment.referenceNumber}
+                      onChange={(event) => updatePayment(index, { referenceNumber: event.target.value })}
+                    />
+                  </label>
+                </div>
+                <div className="transfer-item-meta">
+                  <p className="field-hint">الدفعات النقدية تخصم من الدرج، والدفعات البنكية تخصم من الحساب البنكي.</p>
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    onClick={() => setPayments((current) => current.filter((_, paymentIndex) => paymentIndex !== index))}
+                  >
+                    حذف الدفعة
+                  </button>
+                </div>
+                <label>
+                  ملاحظات الدفعة
+                  <textarea
+                    rows={2}
+                    value={payment.notes}
+                    onChange={(event) => updatePayment(index, { notes: event.target.value })}
+                  />
+                </label>
+              </article>
+            ))}
+          </div>
+        )}
       </section>
 
       <div className="form-actions">
