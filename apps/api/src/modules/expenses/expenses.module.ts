@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BankAccountEntity } from '../bank-accounts/entities/bank-account.entity';
+import { BankAccountTransactionEntity } from '../bank-account-transactions/entities/bank-account-transaction.entity';
 import { BranchEntity } from '../branches/entities/branch.entity';
+import { DrawerTransactionEntity } from '../drawer-transactions/entities/drawer-transaction.entity';
 import { DrawerEntity } from '../drawers/entities/drawer.entity';
 import { ExpenseCategoryEntity } from '../expense-categories/entities/expense-category.entity';
 import { ExpenseTemplateEntity } from '../expense-templates/entities/expense-template.entity';
@@ -13,7 +15,9 @@ import { ExpensesService } from './expenses.service';
   imports: [
     TypeOrmModule.forFeature([
       BankAccountEntity,
+      BankAccountTransactionEntity,
       BranchEntity,
+      DrawerTransactionEntity,
       DrawerEntity,
       ExpenseCategoryEntity,
       ExpenseEntity,

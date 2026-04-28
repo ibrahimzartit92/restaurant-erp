@@ -10,6 +10,8 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { BranchEntity } from '../../branches/entities/branch.entity';
+import { BankAccountEntity } from '../../bank-accounts/entities/bank-account.entity';
+import { DrawerEntity } from '../../drawers/entities/drawer.entity';
 import { numericTransformer } from '../../expenses/expense-shared';
 
 @Entity('daily_sales')
@@ -40,6 +42,13 @@ export class DailySaleEntity {
   })
   cashSalesAmount!: number;
 
+  @Column({ name: 'drawer_id', type: 'uuid', nullable: true })
+  drawerId!: string | null;
+
+  @ManyToOne(() => DrawerEntity, { eager: true, nullable: true })
+  @JoinColumn({ name: 'drawer_id' })
+  drawer!: DrawerEntity | null;
+
   @Column({
     name: 'bank_sales_amount',
     type: 'numeric',
@@ -49,6 +58,13 @@ export class DailySaleEntity {
     transformer: numericTransformer,
   })
   bankSalesAmount!: number;
+
+  @Column({ name: 'bank_account_id', type: 'uuid', nullable: true })
+  bankAccountId!: string | null;
+
+  @ManyToOne(() => BankAccountEntity, { eager: true, nullable: true })
+  @JoinColumn({ name: 'bank_account_id' })
+  bankAccount!: BankAccountEntity | null;
 
   @Column({
     name: 'delivery_sales_amount',

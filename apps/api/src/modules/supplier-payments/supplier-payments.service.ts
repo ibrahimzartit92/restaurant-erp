@@ -2,7 +2,17 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { BankAccountEntity } from '../bank-accounts/entities/bank-account.entity';
+import {
+  BankAccountTransactionDirection,
+  BankAccountTransactionEntity,
+  BankAccountTransactionType,
+} from '../bank-account-transactions/entities/bank-account-transaction.entity';
 import { BranchEntity } from '../branches/entities/branch.entity';
+import {
+  DrawerTransactionDirection,
+  DrawerTransactionEntity,
+  DrawerTransactionType,
+} from '../drawer-transactions/entities/drawer-transaction.entity';
 import { DrawerEntity } from '../drawers/entities/drawer.entity';
 import { PurchaseInvoiceEntity, PurchaseInvoiceStatus } from '../purchase-invoices/entities/purchase-invoice.entity';
 import { CreateSupplierPaymentDto } from './dto/create-supplier-payment.dto';
@@ -81,6 +91,7 @@ export class SupplierPaymentsService {
       });
 
       const savedPayment = await paymentRepository.save(payment);
+      await this.recreateFinancialMovement(savedPayment, manager);
       await this.recalculateInvoicePaymentState(
         purchaseInvoiceId,
         invoiceRepository,
@@ -117,8 +128,17 @@ export class SupplierPaymentsService {
       paymentNumber: updateSupplierPaymentDto.paymentNumber?.toUpperCase() ?? payment.paymentNumber,
     });
 
-    const savedPayment = await this.supplierPaymentRepository.save(payment);
-    await this.recalculateInvoicePaymentState(payment.purchaseInvoiceId);
+    const savedPayment = await this.dataSource.transaction(async (manager) => {
+      const paymentRepository = manager.getRepository(SupplierPaymentEntity);
+      const saved = await paymentRepository.save(payment);
+      await this.recreateFinancialMovement(saved, manager);
+      await this.recalculateInvoicePaymentState(
+        payment.purchaseInvoiceId,
+        manager.getRepository(PurchaseInvoiceEntity),
+        paymentRepository,
+      );
+      return saved;
+    });
 
     return this.findByIdOrFail(savedPayment.id);
   }
@@ -126,10 +146,61 @@ export class SupplierPaymentsService {
   async remove(id: string) {
     const payment = await this.findByIdOrFail(id);
     const purchaseInvoiceId = payment.purchaseInvoiceId;
-    await this.supplierPaymentRepository.remove(payment);
-    await this.recalculateInvoicePaymentState(purchaseInvoiceId);
+    await this.dataSource.transaction(async (manager) => {
+      await this.deleteFinancialMovement(payment.id, manager);
+      await manager.getRepository(SupplierPaymentEntity).remove(payment);
+      await this.recalculateInvoicePaymentState(
+        purchaseInvoiceId,
+        manager.getRepository(PurchaseInvoiceEntity),
+        manager.getRepository(SupplierPaymentEntity),
+      );
+    });
 
     return { id };
+  }
+
+  private async recreateFinancialMovement(payment: SupplierPaymentEntity, manager = this.dataSource.manager) {
+    await this.deleteFinancialMovement(payment.id, manager);
+
+    if (payment.paymentMethod === SupplierPaymentMethod.Cash && payment.drawerId) {
+      await manager.getRepository(DrawerTransactionEntity).save({
+        drawerId: payment.drawerId,
+        branchId: payment.branchId,
+        transactionDate: payment.paymentDate,
+        transactionType: DrawerTransactionType.SupplierPaymentCash,
+        direction: DrawerTransactionDirection.Out,
+        amount: payment.amount,
+        sourceType: 'supplier_payment',
+        sourceId: payment.id,
+        description: `دفعة مورد ${payment.paymentNumber}`,
+        notes: payment.notes,
+      });
+    }
+
+    if (payment.paymentMethod === SupplierPaymentMethod.Bank && payment.bankAccountId) {
+      await manager.getRepository(BankAccountTransactionEntity).save({
+        bankAccountId: payment.bankAccountId,
+        transactionDate: payment.paymentDate,
+        transactionType: BankAccountTransactionType.SupplierPaymentBank,
+        direction: BankAccountTransactionDirection.Outgoing,
+        amount: payment.amount,
+        branchId: payment.branchId,
+        sourceType: 'supplier_payment',
+        sourceId: payment.id,
+        referenceNumber: payment.referenceNumber,
+        description: `دفعة مورد ${payment.paymentNumber}`,
+        notes: payment.notes,
+      });
+    }
+  }
+
+  private async deleteFinancialMovement(paymentId: string, manager = this.dataSource.manager) {
+    await Promise.all([
+      manager.getRepository(DrawerTransactionEntity).delete({ sourceType: 'supplier_payment', sourceId: paymentId }),
+      manager
+        .getRepository(BankAccountTransactionEntity)
+        .delete({ sourceType: 'supplier_payment', sourceId: paymentId }),
+    ]);
   }
 
   private async validatePaymentReferences(data: {

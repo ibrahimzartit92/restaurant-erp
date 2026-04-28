@@ -14,11 +14,19 @@ export class CreateDailySaleDto {
   @IsOptional()
   cashSalesAmount?: number;
 
+  @IsUUID()
+  @IsOptional()
+  drawerId?: string | null;
+
   @Type(() => Number)
   @IsNumber()
   @Min(0)
   @IsOptional()
   bankSalesAmount?: number;
+
+  @IsUUID()
+  @IsOptional()
+  bankAccountId?: string | null;
 
   @Type(() => Number)
   @IsNumber()

@@ -24,13 +24,17 @@ type DrawerSessionDetails = {
   differenceAmount: number;
   status: string;
   notes?: string | null;
+  movementTotals?: {
+    inflows: number;
+    outflows: number;
+  };
   transactions: DrawerTransaction[];
 };
 
 const columns: DataColumn<DrawerTransaction>[] = [
   { key: 'date', label: 'التاريخ', render: (row) => formatDate(row.transactionDate) },
   { key: 'type', label: 'نوع الحركة', render: (row) => <StatusBadge value={row.transactionType} /> },
-  { key: 'direction', label: 'الاتجاه', render: (row) => row.direction === 'in' ? 'داخل' : 'خارج' },
+  { key: 'direction', label: 'الاتجاه', render: (row) => (row.direction === 'in' ? 'داخل' : 'خارج') },
   { key: 'amount', label: 'المبلغ', render: (row) => formatMoney(row.amount) },
   { key: 'description', label: 'الوصف', render: (row) => row.description },
 ];
@@ -59,12 +63,22 @@ export default async function DrawerSessionDetailsPage({ params }: { params: Pro
         <article className="summary-card">
           <p>الرصيد الافتتاحي</p>
           <strong>{formatMoney(session.openingBalance)}</strong>
-          <span>مدخل يدوياً</span>
+          <span>مدخل يدويا</span>
+        </article>
+        <article className="summary-card">
+          <p>إجمالي الداخل</p>
+          <strong>{formatMoney(session.movementTotals?.inflows ?? 0)}</strong>
+          <span>مبيعات نقدية وتسويات داخلة</span>
+        </article>
+        <article className="summary-card">
+          <p>إجمالي الخارج</p>
+          <strong>{formatMoney(session.movementTotals?.outflows ?? 0)}</strong>
+          <span>مصروفات ودفعات مورد نقدية</span>
         </article>
         <article className="summary-card">
           <p>الرصيد المحسوب</p>
           <strong>{formatMoney(session.calculatedBalance)}</strong>
-          <span>من حركات الدرج</span>
+          <span>الافتتاحي + الداخل - الخارج</span>
         </article>
         <article className="summary-card">
           <p>الرصيد الختامي</p>
@@ -91,7 +105,7 @@ export default async function DrawerSessionDetailsPage({ params }: { params: Pro
         columns={columns}
         rows={session.transactions}
         emptyTitle="لا توجد حركات لهذه الجلسة"
-        emptyText="عند تسجيل حركات نقدية في نفس تاريخ الجلسة ستظهر هنا."
+        emptyText="عند تسجيل مبيعات نقدية أو مصروفات أو دفعات مورد نقدية في نفس تاريخ الجلسة ستظهر هنا."
       />
     </>
   );

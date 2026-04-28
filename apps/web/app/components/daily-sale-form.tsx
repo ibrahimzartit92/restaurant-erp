@@ -3,14 +3,16 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { submitJson } from '../lib/client-api';
-import type { BranchOption } from '../lib/types';
+import type { BankAccountOption, BranchOption, DrawerOption } from '../lib/types';
 
 type DailySaleRecord = {
   id?: string;
   branchId?: string;
   salesDate?: string;
   cashSalesAmount?: number;
+  drawerId?: string | null;
   bankSalesAmount?: number;
+  bankAccountId?: string | null;
   deliverySalesAmount?: number;
   websiteSalesAmount?: number;
   tipsAmount?: number;
@@ -22,10 +24,14 @@ export function DailySaleForm({
   mode,
   initialDailySale,
   branches,
+  drawers,
+  bankAccounts,
 }: Readonly<{
   mode: 'create' | 'edit';
   initialDailySale?: DailySaleRecord | null;
   branches: BranchOption[];
+  drawers: DrawerOption[];
+  bankAccounts: BankAccountOption[];
 }>) {
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
@@ -41,7 +47,9 @@ export function DailySaleForm({
       branchId: String(formData.get('branchId') ?? ''),
       salesDate: String(formData.get('salesDate') ?? ''),
       cashSalesAmount: Number(formData.get('cashSalesAmount') ?? 0),
+      drawerId: String(formData.get('drawerId') ?? '') || null,
       bankSalesAmount: Number(formData.get('bankSalesAmount') ?? 0),
+      bankAccountId: String(formData.get('bankAccountId') ?? '') || null,
       deliverySalesAmount: Number(formData.get('deliverySalesAmount') ?? 0),
       websiteSalesAmount: Number(formData.get('websiteSalesAmount') ?? 0),
       tipsAmount: Number(formData.get('tipsAmount') ?? 0),
@@ -89,8 +97,30 @@ export function DailySaleForm({
           <input name="cashSalesAmount" type="number" min="0" step="0.01" defaultValue={initialDailySale?.cashSalesAmount ?? 0} />
         </label>
         <label>
+          الدرج النقدي
+          <select name="drawerId" defaultValue={initialDailySale?.drawerId ?? ''}>
+            <option value="">اختر الدرج عند وجود مبيعات نقدية</option>
+            {drawers.map((drawer) => (
+              <option key={drawer.id} value={drawer.id}>
+                {drawer.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
           مبيعات بنكية
           <input name="bankSalesAmount" type="number" min="0" step="0.01" defaultValue={initialDailySale?.bankSalesAmount ?? 0} />
+        </label>
+        <label>
+          الحساب البنكي
+          <select name="bankAccountId" defaultValue={initialDailySale?.bankAccountId ?? ''}>
+            <option value="">اختر الحساب عند وجود مبيعات بنكية</option>
+            {bankAccounts.map((bankAccount) => (
+              <option key={bankAccount.id} value={bankAccount.id}>
+                {bankAccount.name}
+              </option>
+            ))}
+          </select>
         </label>
         <label>
           مبيعات التوصيل

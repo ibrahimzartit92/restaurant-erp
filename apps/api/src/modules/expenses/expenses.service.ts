@@ -1,8 +1,18 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { ILike, Repository } from 'typeorm';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, ILike, Repository } from 'typeorm';
 import { BankAccountEntity } from '../bank-accounts/entities/bank-account.entity';
+import {
+  BankAccountTransactionDirection,
+  BankAccountTransactionEntity,
+  BankAccountTransactionType,
+} from '../bank-account-transactions/entities/bank-account-transaction.entity';
 import { BranchEntity } from '../branches/entities/branch.entity';
+import {
+  DrawerTransactionDirection,
+  DrawerTransactionEntity,
+  DrawerTransactionType,
+} from '../drawer-transactions/entities/drawer-transaction.entity';
 import { DrawerEntity } from '../drawers/entities/drawer.entity';
 import { ExpenseCategoryEntity } from '../expense-categories/entities/expense-category.entity';
 import { ExpenseTemplateEntity } from '../expense-templates/entities/expense-template.entity';
@@ -14,6 +24,8 @@ import { ExpensePaymentMethod } from './expense-shared';
 @Injectable()
 export class ExpensesService {
   constructor(
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
     @InjectRepository(ExpenseEntity)
     private readonly expenseRepository: Repository<ExpenseEntity>,
     @InjectRepository(BranchEntity)
@@ -100,7 +112,11 @@ export class ExpensesService {
       notes: createExpenseDto.notes ?? null,
     });
 
-    return this.expenseRepository.save(expense);
+    return this.dataSource.transaction(async (manager) => {
+      const savedExpense = await manager.getRepository(ExpenseEntity).save(expense);
+      await this.recreateFinancialMovement(savedExpense, manager);
+      return savedExpense;
+    });
   }
 
   async update(id: string, updateExpenseDto: UpdateExpenseDto) {
@@ -115,14 +131,63 @@ export class ExpensesService {
       expenseNumber: updateExpenseDto.expenseNumber?.toUpperCase() ?? expense.expenseNumber,
     });
 
-    return this.expenseRepository.save(expense);
+    return this.dataSource.transaction(async (manager) => {
+      const savedExpense = await manager.getRepository(ExpenseEntity).save(expense);
+      await this.recreateFinancialMovement(savedExpense, manager);
+      return savedExpense;
+    });
   }
 
   async remove(id: string) {
     const expense = await this.findByIdOrFail(id);
-    await this.expenseRepository.remove(expense);
+    await this.dataSource.transaction(async (manager) => {
+      await this.deleteFinancialMovement(expense.id, manager);
+      await manager.getRepository(ExpenseEntity).remove(expense);
+    });
 
     return { id };
+  }
+
+  private async recreateFinancialMovement(expense: ExpenseEntity, manager = this.dataSource.manager) {
+    await this.deleteFinancialMovement(expense.id, manager);
+
+    if (expense.paymentMethod === ExpensePaymentMethod.Cash && expense.drawerId) {
+      await manager.getRepository(DrawerTransactionEntity).save({
+        drawerId: expense.drawerId,
+        branchId: expense.branchId,
+        transactionDate: expense.expenseDate,
+        transactionType: DrawerTransactionType.ExpenseCash,
+        direction: DrawerTransactionDirection.Out,
+        amount: expense.amount,
+        sourceType: 'expense',
+        sourceId: expense.id,
+        description: `مصروف ${expense.expenseNumber} - ${expense.title}`,
+        notes: expense.notes,
+      });
+    }
+
+    if (expense.paymentMethod === ExpensePaymentMethod.Bank && expense.bankAccountId) {
+      await manager.getRepository(BankAccountTransactionEntity).save({
+        bankAccountId: expense.bankAccountId,
+        transactionDate: expense.expenseDate,
+        transactionType: BankAccountTransactionType.ExpenseBank,
+        direction: BankAccountTransactionDirection.Outgoing,
+        amount: expense.amount,
+        branchId: expense.branchId,
+        sourceType: 'expense',
+        sourceId: expense.id,
+        referenceNumber: expense.expenseNumber,
+        description: `مصروف ${expense.expenseNumber} - ${expense.title}`,
+        notes: expense.notes,
+      });
+    }
+  }
+
+  private async deleteFinancialMovement(expenseId: string, manager = this.dataSource.manager) {
+    await Promise.all([
+      manager.getRepository(DrawerTransactionEntity).delete({ sourceType: 'expense', sourceId: expenseId }),
+      manager.getRepository(BankAccountTransactionEntity).delete({ sourceType: 'expense', sourceId: expenseId }),
+    ]);
   }
 
   private async validateReferences(data: {
@@ -154,7 +219,11 @@ export class ExpensesService {
       }
     }
 
-    if (data.paymentMethod === ExpensePaymentMethod.Cash && data.drawerId) {
+    if (data.paymentMethod === ExpensePaymentMethod.Cash) {
+      if (!data.drawerId) {
+        throw new BadRequestException('Cash expenses require drawerId.');
+      }
+
       const drawer = await this.drawerRepository.findOne({ where: { id: data.drawerId } });
 
       if (!drawer) {
@@ -162,7 +231,11 @@ export class ExpensesService {
       }
     }
 
-    if (data.paymentMethod === ExpensePaymentMethod.Bank && data.bankAccountId) {
+    if (data.paymentMethod === ExpensePaymentMethod.Bank) {
+      if (!data.bankAccountId) {
+        throw new BadRequestException('Bank expenses require bankAccountId.');
+      }
+
       const bankAccount = await this.bankAccountRepository.findOne({ where: { id: data.bankAccountId } });
 
       if (!bankAccount) {

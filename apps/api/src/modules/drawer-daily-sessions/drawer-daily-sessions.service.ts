@@ -66,8 +66,27 @@ export class DrawerDailySessionsService {
       where: { drawerId: session.drawerId, transactionDate: session.sessionDate },
       order: { createdAt: 'DESC' },
     });
+    const movementTotals = transactions.reduce(
+      (totals, transaction) => {
+        if (transaction.direction === 'in') {
+          totals.inflows += transaction.amount;
+        } else {
+          totals.outflows += transaction.amount;
+        }
 
-    return { ...session, transactions };
+        return totals;
+      },
+      { inflows: 0, outflows: 0 },
+    );
+
+    return {
+      ...session,
+      movementTotals: {
+        inflows: this.roundMoney(movementTotals.inflows),
+        outflows: this.roundMoney(movementTotals.outflows),
+      },
+      transactions,
+    };
   }
 
   async create(createDrawerDailySessionDto: CreateDrawerDailySessionDto) {
