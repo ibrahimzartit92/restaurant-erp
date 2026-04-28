@@ -19,6 +19,7 @@ export function CloseDrawerSessionForm({ sessionId }: Readonly<{ sessionId: stri
     try {
       await submitJson(`/drawer-daily-sessions/${sessionId}/close`, 'POST', {
         closingBalance: Number(formData.get('closingBalance') ?? 0),
+        requiredClosingFloat: Number(formData.get('requiredClosingFloat') ?? 0),
         notes: String(formData.get('notes') ?? '') || null,
       });
       router.push(`/drawer-daily-sessions/${sessionId}`);
@@ -36,6 +37,10 @@ export function CloseDrawerSessionForm({ sessionId }: Readonly<{ sessionId: stri
       <label>
         الرصيد الختامي
         <input name="closingBalance" type="number" min="0" step="0.01" required />
+      </label>
+      <label>
+        مبلغ الفكة المطلوب عند الإغلاق
+        <input name="requiredClosingFloat" type="number" min="0" step="0.01" defaultValue={0} />
       </label>
       <label>
         ملاحظات الإغلاق

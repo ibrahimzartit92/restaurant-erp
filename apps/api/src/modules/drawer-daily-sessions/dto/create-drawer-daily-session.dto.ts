@@ -14,7 +14,14 @@ export class CreateDrawerDailySessionDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0)
-  openingBalance!: number;
+  @IsOptional()
+  openingBalance?: number;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  requiredClosingFloat?: number;
 
   @IsString()
   @IsOptional()

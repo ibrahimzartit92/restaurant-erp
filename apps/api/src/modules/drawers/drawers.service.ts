@@ -50,6 +50,8 @@ export class DrawersService {
       ...createDrawerDto,
       code,
       isActive: createDrawerDto.isActive ?? true,
+      defaultOpeningBalance: Number(createDrawerDto.defaultOpeningBalance ?? 0),
+      defaultCashFloat: Number(createDrawerDto.defaultCashFloat ?? createDrawerDto.defaultOpeningBalance ?? 0),
       notes: createDrawerDto.notes ?? null,
     });
 
@@ -69,7 +71,20 @@ export class DrawersService {
       await this.ensureBranchIsAvailable(updateDrawerDto.branchId, id);
     }
 
-    Object.assign(drawer, { ...updateDrawerDto, code: code ?? drawer.code });
+    Object.assign(drawer, {
+      ...updateDrawerDto,
+      code: code ?? drawer.code,
+      defaultOpeningBalance:
+        updateDrawerDto.defaultOpeningBalance !== undefined
+          ? Number(updateDrawerDto.defaultOpeningBalance)
+          : drawer.defaultOpeningBalance,
+      defaultCashFloat:
+        updateDrawerDto.defaultCashFloat !== undefined
+          ? Number(updateDrawerDto.defaultCashFloat)
+          : updateDrawerDto.defaultOpeningBalance !== undefined
+            ? Number(updateDrawerDto.defaultOpeningBalance)
+            : drawer.defaultCashFloat,
+    });
 
     return this.drawerRepository.save(drawer);
   }

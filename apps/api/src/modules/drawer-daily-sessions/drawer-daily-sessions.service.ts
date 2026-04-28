@@ -85,6 +85,11 @@ export class DrawerDailySessionsService {
         inflows: this.roundMoney(movementTotals.inflows),
         outflows: this.roundMoney(movementTotals.outflows),
       },
+      expectedWithdrawalAmount: this.roundMoney(Math.max(session.calculatedBalance - session.requiredClosingFloat, 0)),
+      actualWithdrawalAmount:
+        session.closingBalance === null
+          ? null
+          : this.roundMoney(Math.max(session.closingBalance - session.requiredClosingFloat, 0)),
       transactions,
     };
   }
@@ -92,10 +97,17 @@ export class DrawerDailySessionsService {
   async create(createDrawerDailySessionDto: CreateDrawerDailySessionDto) {
     await this.validateReferences(createDrawerDailySessionDto.drawerId, createDrawerDailySessionDto.branchId);
     await this.ensureSessionIsAvailable(createDrawerDailySessionDto.drawerId, createDrawerDailySessionDto.sessionDate);
+    const drawer = await this.drawerRepository.findOneOrFail({ where: { id: createDrawerDailySessionDto.drawerId } });
+    const openingBalance = Number(createDrawerDailySessionDto.openingBalance ?? drawer.defaultOpeningBalance ?? 0);
+    const requiredClosingFloat = Number(
+      createDrawerDailySessionDto.requiredClosingFloat ?? drawer.defaultCashFloat ?? openingBalance,
+    );
 
     const session = this.drawerDailySessionRepository.create({
       ...createDrawerDailySessionDto,
-      calculatedBalance: createDrawerDailySessionDto.openingBalance,
+      openingBalance,
+      requiredClosingFloat,
+      calculatedBalance: openingBalance,
       differenceAmount: 0,
       status: DrawerDailySessionStatus.Open,
       notes: createDrawerDailySessionDto.notes ?? null,
@@ -128,6 +140,7 @@ export class DrawerDailySessionsService {
     const calculatedBalance = await this.calculateBalance(session);
 
     session.closingBalance = closeDrawerDailySessionDto.closingBalance;
+    session.requiredClosingFloat = Number(closeDrawerDailySessionDto.requiredClosingFloat ?? session.requiredClosingFloat);
     session.calculatedBalance = calculatedBalance;
     session.differenceAmount = this.roundMoney(closeDrawerDailySessionDto.closingBalance - calculatedBalance);
     session.status = DrawerDailySessionStatus.Closed;

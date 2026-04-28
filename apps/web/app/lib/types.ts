@@ -86,6 +86,8 @@ export type DrawerOption = {
   name: string;
   branchId?: string;
   branch?: BranchOption | null;
+  defaultOpeningBalance?: number;
+  defaultCashFloat?: number;
 };
 
 export type BankAccountOption = {

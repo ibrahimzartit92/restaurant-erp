@@ -24,7 +24,10 @@ export function DrawerSessionForm({ drawers }: Readonly<{ drawers: DrawerOption[
         drawerId,
         branchId: drawer?.branchId ?? '',
         sessionDate: String(formData.get('sessionDate') ?? ''),
-        openingBalance: Number(formData.get('openingBalance') ?? 0),
+        openingBalance: Number(formData.get('openingBalance') || drawer?.defaultOpeningBalance || 0),
+        requiredClosingFloat: Number(
+          formData.get('requiredClosingFloat') || drawer?.defaultCashFloat || drawer?.defaultOpeningBalance || 0,
+        ),
         notes: String(formData.get('notes') ?? '') || null,
       });
       router.push('/drawer-daily-sessions');
@@ -58,6 +61,10 @@ export function DrawerSessionForm({ drawers }: Readonly<{ drawers: DrawerOption[
         <label>
           الرصيد الافتتاحي
           <input name="openingBalance" type="number" min="0" step="0.01" required />
+        </label>
+        <label>
+          مبلغ الفكة المطلوب عند الإغلاق
+          <input name="requiredClosingFloat" type="number" min="0" step="0.01" />
         </label>
       </div>
       <label>

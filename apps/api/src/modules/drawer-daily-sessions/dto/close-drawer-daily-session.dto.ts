@@ -7,6 +7,12 @@ export class CloseDrawerDailySessionDto {
   @Min(0)
   closingBalance!: number;
 
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  requiredClosingFloat?: number;
+
   @IsString()
   @IsOptional()
   notes?: string;

@@ -78,6 +78,14 @@ export function BranchForm() {
           اسم الفرع
           <input name="name" maxLength={160} required />
         </label>
+        <label>
+          الرصيد الافتتاحي الافتراضي
+          <input name="defaultOpeningBalance" type="number" min="0" step="0.01" defaultValue={0} />
+        </label>
+        <label>
+          مبلغ الفكة الثابت
+          <input name="defaultCashFloat" type="number" min="0" step="0.01" defaultValue={0} />
+        </label>
         <label className="checkbox-field">
           <input name="isActive" type="checkbox" defaultChecked />
           الفرع نشط
@@ -226,6 +234,8 @@ export function DrawerForm({ branches }: Readonly<{ branches: BranchOption[] }>)
         branchId: text(formData, 'branchId'),
         code: text(formData, 'code'),
         name: text(formData, 'name'),
+        defaultOpeningBalance: numberValue(formData, 'defaultOpeningBalance'),
+        defaultCashFloat: numberValue(formData, 'defaultCashFloat', numberValue(formData, 'defaultOpeningBalance')),
         isActive: formData.get('isActive') === 'on',
         notes: optionalText(formData, 'notes'),
       });

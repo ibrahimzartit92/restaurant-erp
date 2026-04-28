@@ -14,6 +14,7 @@ import { SystemSettings1730000010000 } from './migrations/1730000010000-system-s
 import { Attachments1730000011000 } from './migrations/1730000011000-attachments';
 import { DailySalesFinancialLinks1730000012000 } from './migrations/1730000012000-daily-sales-financial-links';
 import { BankAccountOpeningBalance1730000013000 } from './migrations/1730000013000-bank-account-opening-balance';
+import { DrawerDefaultFloat1730000014000 } from './migrations/1730000014000-drawer-default-float';
 import { databaseEntities } from './typeorm-options';
 
 export const AppDataSource = new DataSource({
@@ -35,6 +36,7 @@ export const AppDataSource = new DataSource({
     Attachments1730000011000,
     DailySalesFinancialLinks1730000012000,
     BankAccountOpeningBalance1730000013000,
+    DrawerDefaultFloat1730000014000,
   ],
   synchronize: false,
 });

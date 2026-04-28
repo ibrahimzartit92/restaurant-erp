@@ -20,6 +20,7 @@ type DrawerSessionDetails = {
   sessionDate: string;
   openingBalance: number;
   calculatedBalance: number;
+  requiredClosingFloat?: number;
   closingBalance?: number | null;
   differenceAmount: number;
   status: string;
@@ -28,6 +29,8 @@ type DrawerSessionDetails = {
     inflows: number;
     outflows: number;
   };
+  expectedWithdrawalAmount?: number;
+  actualWithdrawalAmount?: number | null;
   transactions: DrawerTransaction[];
 };
 
@@ -76,6 +79,11 @@ export default async function DrawerSessionDetailsPage({ params }: { params: Pro
           <span>مصروفات ودفعات مورد نقدية</span>
         </article>
         <article className="summary-card">
+          <p>الفكة الثابتة</p>
+          <strong>{formatMoney(session.requiredClosingFloat ?? 0)}</strong>
+          <span>المطلوب تركه في الدرج</span>
+        </article>
+        <article className="summary-card">
           <p>الرصيد المحسوب</p>
           <strong>{formatMoney(session.calculatedBalance)}</strong>
           <span>الافتتاحي + الداخل - الخارج</span>
@@ -89,6 +97,11 @@ export default async function DrawerSessionDetailsPage({ params }: { params: Pro
           <p>الفرق</p>
           <strong>{formatMoney(session.differenceAmount)}</strong>
           <span>{session.status === 'open' ? 'الجلسة مفتوحة' : 'بعد الإغلاق'}</span>
+        </article>
+        <article className="summary-card">
+          <p>المبلغ للسحب</p>
+          <strong>{formatMoney(session.actualWithdrawalAmount ?? session.expectedWithdrawalAmount ?? 0)}</strong>
+          <span>ما يزيد عن الفكة الثابتة</span>
         </article>
       </section>
 

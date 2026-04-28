@@ -1,4 +1,5 @@
-import { IsBoolean, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsBoolean, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
 
 export class UpdateDrawerDto {
   @IsUUID()
@@ -18,6 +19,18 @@ export class UpdateDrawerDto {
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  defaultOpeningBalance?: number;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  defaultCashFloat?: number;
 
   @IsString()
   @IsOptional()

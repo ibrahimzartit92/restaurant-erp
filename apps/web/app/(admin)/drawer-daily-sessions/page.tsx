@@ -38,8 +38,8 @@ export default async function DrawerDailySessionsPage({
   const result = await fetchList<DrawerSessionRow>(
     `/drawer-daily-sessions${buildQuery({
       branch_id: params.branch_id,
-      date_from: params.date_from,
-      date_to: params.date_to,
+      date_from: params.date ?? params.date_from,
+      date_to: params.date ?? params.date_to,
     })}`,
   );
 
@@ -47,7 +47,7 @@ export default async function DrawerDailySessionsPage({
     <>
       <PageHeader title="جلسات الدرج اليومية" description="فتح وإغلاق الدرج ومتابعة فرق النقد اليومي." />
       <div className="page-toolbar">
-        <ListFilters showBranch showDateRange />
+        <ListFilters showBranch showDate showDateRange />
         <Link className="primary-button" href="/drawer-daily-sessions/new">فتح جلسة درج</Link>
       </div>
       {result.error ? <p className="notice">{result.error}</p> : null}

@@ -9,6 +9,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { BranchEntity } from '../../branches/entities/branch.entity';
+import { numericTransformer } from '../../expenses/expense-shared';
 
 @Entity('drawers')
 export class DrawerEntity {
@@ -33,6 +34,26 @@ export class DrawerEntity {
 
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive!: boolean;
+
+  @Column({
+    name: 'default_opening_balance',
+    type: 'numeric',
+    precision: 12,
+    scale: 2,
+    default: 0,
+    transformer: numericTransformer,
+  })
+  defaultOpeningBalance!: number;
+
+  @Column({
+    name: 'default_cash_float',
+    type: 'numeric',
+    precision: 12,
+    scale: 2,
+    default: 0,
+    transformer: numericTransformer,
+  })
+  defaultCashFloat!: number;
 
   @Column({ type: 'text', nullable: true })
   notes!: string | null;

@@ -1,10 +1,12 @@
 export function ListFilters({
   searchPlaceholder = 'بحث',
   showBranch = false,
+  showDate = false,
   showDateRange = false,
 }: Readonly<{
   searchPlaceholder?: string;
   showBranch?: boolean;
+  showDate?: boolean;
   showDateRange?: boolean;
 }>) {
   return (
@@ -17,6 +19,12 @@ export function ListFilters({
         <label>
           الفرع
           <input name="branch_id" placeholder="معرف الفرع" />
+        </label>
+      ) : null}
+      {showDate ? (
+        <label>
+          التاريخ
+          <input name="date" type="date" />
         </label>
       ) : null}
       {showDateRange ? (

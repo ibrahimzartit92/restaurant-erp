@@ -75,6 +75,16 @@ export class DrawerDailySessionEntity {
   calculatedBalance!: number;
 
   @Column({
+    name: 'required_closing_float',
+    type: 'numeric',
+    precision: 12,
+    scale: 2,
+    default: 0,
+    transformer: numericTransformer,
+  })
+  requiredClosingFloat!: number;
+
+  @Column({
     name: 'difference_amount',
     type: 'numeric',
     precision: 12,
