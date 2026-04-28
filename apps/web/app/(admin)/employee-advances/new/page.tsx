@@ -1,16 +1,20 @@
 import { EmployeeAdvanceForm } from '../../../components/employee-advance-form';
 import { PageHeader } from '../../../components/page-header';
 import { fetchList } from '../../../lib/api';
-import type { EmployeeSummary } from '../../../lib/types';
+import type { DrawerOption, EmployeeSummary } from '../../../lib/types';
 
 export default async function NewEmployeeAdvancePage() {
-  const employeesResult = await fetchList<EmployeeSummary>('/employees');
+  const [employeesResult, drawersResult] = await Promise.all([
+    fetchList<EmployeeSummary>('/employees'),
+    fetchList<DrawerOption>('/drawers'),
+  ]);
 
   return (
     <>
-      <PageHeader title="صفحة إضافة سلفة" description="سجل سلفة جديدة للموظف مع إمكانية ربطها بفترة راتب لاحقًا." />
+      <PageHeader title="إضافة سلفة" description="سجل سلفة نقدية للموظف وربطها بدرج النقد عند الحاجة." />
       {employeesResult.error ? <p className="notice">{employeesResult.error}</p> : null}
-      <EmployeeAdvanceForm employees={employeesResult.data} />
+      {drawersResult.error ? <p className="notice">{drawersResult.error}</p> : null}
+      <EmployeeAdvanceForm employees={employeesResult.data} drawers={drawersResult.data} />
     </>
   );
 }

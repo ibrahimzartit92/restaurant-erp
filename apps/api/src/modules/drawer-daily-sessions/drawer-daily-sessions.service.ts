@@ -24,7 +24,7 @@ export class DrawerDailySessionsService {
     private readonly drawerTransactionsService: DrawerTransactionsService,
   ) {}
 
-  findAll(filters: { drawerId?: string; branchId?: string; dateFrom?: string; dateTo?: string }) {
+  async findAll(filters: { drawerId?: string; branchId?: string; dateFrom?: string; dateTo?: string }) {
     const query = this.drawerDailySessionRepository
       .createQueryBuilder('session')
       .leftJoinAndSelect('session.drawer', 'drawer')
@@ -47,7 +47,8 @@ export class DrawerDailySessionsService {
       query.andWhere('session.session_date <= :dateTo', { dateTo: filters.dateTo });
     }
 
-    return query.getMany();
+    const sessions = await query.getMany();
+    return Promise.all(sessions.map((session) => this.enrichSession(session)));
   }
 
   async findByIdOrFail(id: string) {
@@ -62,34 +63,10 @@ export class DrawerDailySessionsService {
 
   async findDetails(id: string) {
     const session = await this.findByIdOrFail(id);
-    const transactions = await this.drawerTransactionRepository.find({
-      where: { drawerId: session.drawerId, transactionDate: session.sessionDate },
-      order: { createdAt: 'DESC' },
-    });
-    const movementTotals = transactions.reduce(
-      (totals, transaction) => {
-        if (transaction.direction === 'in') {
-          totals.inflows += transaction.amount;
-        } else {
-          totals.outflows += transaction.amount;
-        }
-
-        return totals;
-      },
-      { inflows: 0, outflows: 0 },
-    );
-
+    const { transactions, movementTotals } = await this.getSessionMovements(session);
+    const enrichedSession = this.buildReconciliationSummary(session, movementTotals);
     return {
-      ...session,
-      movementTotals: {
-        inflows: this.roundMoney(movementTotals.inflows),
-        outflows: this.roundMoney(movementTotals.outflows),
-      },
-      expectedWithdrawalAmount: this.roundMoney(Math.max(session.calculatedBalance - session.requiredClosingFloat, 0)),
-      actualWithdrawalAmount:
-        session.closingBalance === null
-          ? null
-          : this.roundMoney(Math.max(session.closingBalance - session.requiredClosingFloat, 0)),
+      ...enrichedSession,
       transactions,
     };
   }
@@ -164,6 +141,60 @@ export class DrawerDailySessionsService {
     }
 
     return this.drawerDailySessionRepository.save(session);
+  }
+
+  private async enrichSession(session: DrawerDailySessionEntity) {
+    const refreshedSession = await this.refreshCalculatedBalance(session);
+    const { movementTotals } = await this.getSessionMovements(refreshedSession);
+    return this.buildReconciliationSummary(refreshedSession, movementTotals);
+  }
+
+  private async getSessionMovements(session: DrawerDailySessionEntity) {
+    const transactions = await this.drawerTransactionRepository.find({
+      where: { drawerId: session.drawerId, transactionDate: session.sessionDate },
+      order: { createdAt: 'DESC' },
+    });
+    const movementTotals = transactions.reduce(
+      (totals, transaction) => {
+        if (transaction.direction === 'in') {
+          totals.inflows += transaction.amount;
+        } else {
+          totals.outflows += transaction.amount;
+        }
+
+        return totals;
+      },
+      { inflows: 0, outflows: 0 },
+    );
+
+    return { transactions, movementTotals };
+  }
+
+  private buildReconciliationSummary(
+    session: DrawerDailySessionEntity,
+    movementTotals: { inflows: number; outflows: number },
+  ) {
+    const inflows = this.roundMoney(movementTotals.inflows);
+    const outflows = this.roundMoney(movementTotals.outflows);
+    const theoreticalBalance = this.roundMoney(session.openingBalance + inflows - outflows);
+    const amountToWithdraw = this.roundMoney(
+      Math.max((session.closingBalance ?? theoreticalBalance) - session.requiredClosingFloat, 0),
+    );
+
+    return {
+      ...session,
+      calculatedBalance: theoreticalBalance,
+      theoreticalBalance,
+      movementTotals: { inflows, outflows },
+      amountToWithdraw,
+      expectedWithdrawalAmount: this.roundMoney(Math.max(theoreticalBalance - session.requiredClosingFloat, 0)),
+      actualWithdrawalAmount:
+        session.closingBalance === null
+          ? null
+          : this.roundMoney(Math.max(session.closingBalance - session.requiredClosingFloat, 0)),
+      reconciliationDifference:
+        session.closingBalance === null ? null : this.roundMoney(session.closingBalance - theoreticalBalance),
+    };
   }
 
   private async calculateBalance(session: DrawerDailySessionEntity) {

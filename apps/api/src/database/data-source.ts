@@ -15,6 +15,7 @@ import { Attachments1730000011000 } from './migrations/1730000011000-attachments
 import { DailySalesFinancialLinks1730000012000 } from './migrations/1730000012000-daily-sales-financial-links';
 import { BankAccountOpeningBalance1730000013000 } from './migrations/1730000013000-bank-account-opening-balance';
 import { DrawerDefaultFloat1730000014000 } from './migrations/1730000014000-drawer-default-float';
+import { EmployeeAdvanceDrawerLink1730000015000 } from './migrations/1730000015000-employee-advance-drawer-link';
 import { databaseEntities } from './typeorm-options';
 
 export const AppDataSource = new DataSource({
@@ -37,6 +38,7 @@ export const AppDataSource = new DataSource({
     DailySalesFinancialLinks1730000012000,
     BankAccountOpeningBalance1730000013000,
     DrawerDefaultFloat1730000014000,
+    EmployeeAdvanceDrawerLink1730000015000,
   ],
   synchronize: false,
 });

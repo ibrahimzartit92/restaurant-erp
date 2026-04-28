@@ -21,9 +21,18 @@ type DrawerWorkflowSession = {
   sessionDate: string;
   openingBalance: number;
   calculatedBalance: number;
+  theoreticalBalance?: number;
   requiredClosingFloat?: number;
   closingBalance?: number | null;
   differenceAmount: number;
+  reconciliationDifference?: number | null;
+  amountToWithdraw?: number;
+  expectedWithdrawalAmount?: number;
+  actualWithdrawalAmount?: number | null;
+  movementTotals?: {
+    inflows: number;
+    outflows: number;
+  };
   status: string;
 };
 
@@ -66,7 +75,10 @@ function DrawerWorkflowCard({
   const [message, setMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const requiredFloat = session?.requiredClosingFloat ?? drawer.defaultCashFloat ?? drawer.defaultOpeningBalance ?? 0;
-  const expectedWithdraw = Math.max((session?.calculatedBalance ?? 0) - requiredFloat, 0);
+  const theoreticalBalance = session?.theoreticalBalance ?? session?.calculatedBalance ?? 0;
+  const expectedWithdraw = session?.expectedWithdrawalAmount ?? Math.max(theoreticalBalance - requiredFloat, 0);
+  const actualWithdraw = session?.actualWithdrawalAmount ?? session?.amountToWithdraw ?? null;
+  const difference = session?.reconciliationDifference ?? session?.differenceAmount ?? 0;
 
   async function openSession(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -108,7 +120,7 @@ function DrawerWorkflowCard({
       });
       router.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'تعذر إغلاق جلسة الدرج.');
+      setMessage(error instanceof Error ? error.message : 'تعذر إتمام تسوية الدرج.');
     } finally {
       setIsSaving(false);
     }
@@ -121,16 +133,17 @@ function DrawerWorkflowCard({
           <h3>{drawer.name}</h3>
           <span>{drawer.branch?.name ?? drawer.code}</span>
         </div>
-        <span>{session ? (session.status === 'open' ? 'مفتوحة' : 'مغلقة') : 'لا توجد جلسة اليوم'}</span>
+        <span>{session ? (session.status === 'open' ? 'قيد التسوية' : 'تمت التسوية') : 'لا توجد تسوية اليوم'}</span>
       </div>
 
       {message ? <p className="notice danger">{message}</p> : null}
 
       {!session ? (
         <form className="form-panel" onSubmit={openSession}>
+          <p className="field-hint">ابدأ تسوية اليوم بالمبلغ الثابت الموجود عادة في الدرج للفكة.</p>
           <div className="form-grid">
             <label>
-              الرصيد الافتتاحي
+              الرصيد الافتتاحي / الفكة
               <input
                 name="openingBalance"
                 type="number"
@@ -141,7 +154,7 @@ function DrawerWorkflowCard({
               />
             </label>
             <label>
-              مبلغ الفكة الثابت
+              المبلغ الذي يجب أن يبقى
               <input
                 name="requiredClosingFloat"
                 type="number"
@@ -153,7 +166,7 @@ function DrawerWorkflowCard({
           </div>
           <div className="form-actions">
             <button disabled={isSaving} type="submit">
-              {isSaving ? 'جار الفتح...' : 'فتح جلسة اليوم'}
+              {isSaving ? 'جار البدء...' : 'بدء تسوية اليوم'}
             </button>
           </div>
         </form>
@@ -161,24 +174,34 @@ function DrawerWorkflowCard({
         <>
           <section className="summary-grid">
             <article className="summary-card">
-              <p>الافتتاحي</p>
-              <strong>{formatMoney(session.openingBalance)}</strong>
-              <span>بداية اليوم</span>
-            </article>
-            <article className="summary-card">
               <p>الفكة الثابتة</p>
               <strong>{formatMoney(requiredFloat)}</strong>
-              <span>المبلغ المطلوب تركه</span>
+              <span>المبلغ الذي يبقى في الدرج</span>
             </article>
             <article className="summary-card">
-              <p>المحسوب</p>
-              <strong>{formatMoney(session.calculatedBalance)}</strong>
-              <span>بعد حركات اليوم</span>
+              <p>إجمالي الداخل</p>
+              <strong>{formatMoney(session.movementTotals?.inflows ?? 0)}</strong>
+              <span>مبيعات نقدية وحركات داخلة</span>
             </article>
             <article className="summary-card">
-              <p>المبلغ المتوقع سحبه</p>
-              <strong>{formatMoney(expectedWithdraw)}</strong>
-              <span>إذا كانت الجلسة سليمة</span>
+              <p>إجمالي الخارج</p>
+              <strong>{formatMoney(session.movementTotals?.outflows ?? 0)}</strong>
+              <span>مصروفات ودفعات وسلف</span>
+            </article>
+            <article className="summary-card">
+              <p>الرصيد النظري</p>
+              <strong>{formatMoney(theoreticalBalance)}</strong>
+              <span>الافتتاحي + الداخل - الخارج</span>
+            </article>
+            <article className="summary-card">
+              <p>المبلغ المطلوب سحبه</p>
+              <strong>{formatMoney(actualWithdraw ?? expectedWithdraw)}</strong>
+              <span>ما يزيد عن الفكة الثابتة</span>
+            </article>
+            <article className="summary-card">
+              <p>الفرق</p>
+              <strong>{session.closingBalance === null ? 'لم يدخل بعد' : formatMoney(difference)}</strong>
+              <span>النقد الفعلي - الرصيد النظري</span>
             </article>
           </section>
 
@@ -186,27 +209,27 @@ function DrawerWorkflowCard({
             <form className="form-panel" onSubmit={closeSession}>
               <div className="form-grid">
                 <label>
-                  الرصيد الفعلي عند الإغلاق
+                  النقد الفعلي الموجود في الدرج
                   <input name="closingBalance" type="number" min="0" step="0.01" required />
                 </label>
                 <label>
-                  مبلغ الفكة المطلوب
+                  المبلغ الذي يجب أن يبقى
                   <input name="requiredClosingFloat" type="number" min="0" step="0.01" defaultValue={requiredFloat} />
                 </label>
               </div>
               <label>
-                ملاحظات الإغلاق
+                ملاحظات التسوية
                 <textarea name="notes" rows={3} />
               </label>
               <div className="form-actions">
                 <button disabled={isSaving} type="submit">
-                  {isSaving ? 'جار الإغلاق...' : 'إغلاق جلسة اليوم'}
+                  {isSaving ? 'جار التسوية...' : 'إتمام تسوية اليوم'}
                 </button>
               </div>
             </form>
           ) : (
             <p className="notice">
-              تم إغلاق الجلسة برصيد فعلي {formatMoney(session.closingBalance)} وفرق {formatMoney(session.differenceAmount)}.
+              تم إدخال نقد فعلي {formatMoney(session.closingBalance)}، والمبلغ المحسوب للسحب {formatMoney(actualWithdraw)}، والفرق {formatMoney(difference)}.
             </p>
           )}
         </>

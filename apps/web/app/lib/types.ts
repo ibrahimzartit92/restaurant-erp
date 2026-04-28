@@ -228,6 +228,8 @@ export type EmployeeAdvanceSummary = {
   employee: EmployeeSummary;
   advanceDate: string;
   amount: number;
+  drawerId?: string | null;
+  drawer?: DrawerOption | null;
   payrollMonth?: number | null;
   payrollYear?: number | null;
   notes?: string | null;

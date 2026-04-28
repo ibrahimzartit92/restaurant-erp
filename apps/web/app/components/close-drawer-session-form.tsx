@@ -4,7 +4,10 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { submitJson } from '../lib/client-api';
 
-export function CloseDrawerSessionForm({ sessionId }: Readonly<{ sessionId: string }>) {
+export function CloseDrawerSessionForm({
+  sessionId,
+  requiredClosingFloat = 0,
+}: Readonly<{ sessionId: string; requiredClosingFloat?: number }>) {
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -19,7 +22,7 @@ export function CloseDrawerSessionForm({ sessionId }: Readonly<{ sessionId: stri
     try {
       await submitJson(`/drawer-daily-sessions/${sessionId}/close`, 'POST', {
         closingBalance: Number(formData.get('closingBalance') ?? 0),
-        requiredClosingFloat: Number(formData.get('requiredClosingFloat') ?? 0),
+        requiredClosingFloat: Number(formData.get('requiredClosingFloat') || requiredClosingFloat),
         notes: String(formData.get('notes') ?? '') || null,
       });
       router.push(`/drawer-daily-sessions/${sessionId}`);
@@ -40,7 +43,7 @@ export function CloseDrawerSessionForm({ sessionId }: Readonly<{ sessionId: stri
       </label>
       <label>
         مبلغ الفكة المطلوب عند الإغلاق
-        <input name="requiredClosingFloat" type="number" min="0" step="0.01" defaultValue={0} />
+        <input name="requiredClosingFloat" type="number" min="0" step="0.01" defaultValue={requiredClosingFloat} />
       </label>
       <label>
         ملاحظات الإغلاق

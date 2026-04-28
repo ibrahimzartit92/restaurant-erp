@@ -8,6 +8,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { EmployeeEntity } from '../../employees/entities/employee.entity';
+import { DrawerEntity } from '../../drawers/entities/drawer.entity';
 
 const numericTransformer = {
   to: (value?: number | null) => value ?? 0,
@@ -36,6 +37,13 @@ export class EmployeeAdvanceEntity {
     transformer: numericTransformer,
   })
   amount!: number;
+
+  @Column({ name: 'drawer_id', type: 'uuid', nullable: true })
+  drawerId!: string | null;
+
+  @ManyToOne(() => DrawerEntity, { eager: true, nullable: true })
+  @JoinColumn({ name: 'drawer_id' })
+  drawer!: DrawerEntity | null;
 
   @Column({ name: 'payroll_month', type: 'int', nullable: true })
   payrollMonth!: number | null;

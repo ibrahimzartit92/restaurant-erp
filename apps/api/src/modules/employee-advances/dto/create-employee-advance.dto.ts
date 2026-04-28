@@ -22,6 +22,10 @@ export class CreateEmployeeAdvanceDto {
   amount!: number;
 
   @IsOptional()
+  @IsUUID()
+  drawerId?: string | null;
+
+  @IsOptional()
   @IsInt()
   @Min(1)
   @Max(12)

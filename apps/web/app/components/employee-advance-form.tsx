@@ -3,13 +3,15 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { submitJson } from '../lib/client-api';
-import type { EmployeeAdvanceSummary, EmployeeSummary } from '../lib/types';
+import type { DrawerOption, EmployeeAdvanceSummary, EmployeeSummary } from '../lib/types';
 
 export function EmployeeAdvanceForm({
   employees,
+  drawers = [],
   initialAdvance,
 }: Readonly<{
   employees: EmployeeSummary[];
+  drawers?: DrawerOption[];
   initialAdvance?: EmployeeAdvanceSummary | null;
 }>) {
   const router = useRouter();
@@ -26,6 +28,7 @@ export function EmployeeAdvanceForm({
       employeeId: String(formData.get('employeeId') ?? ''),
       advanceDate: String(formData.get('advanceDate') ?? ''),
       amount: Number(formData.get('amount') ?? 0),
+      drawerId: String(formData.get('drawerId') ?? '') || null,
       payrollMonth: Number(formData.get('payrollMonth') ?? 0) || null,
       payrollYear: Number(formData.get('payrollYear') ?? 0) || null,
       notes: String(formData.get('notes') ?? '') || null,
@@ -64,6 +67,17 @@ export function EmployeeAdvanceForm({
         <label>
           المبلغ
           <input defaultValue={initialAdvance?.amount ?? ''} min="0.01" name="amount" required step="0.01" type="number" />
+        </label>
+        <label>
+          الدرج النقدي
+          <select defaultValue={initialAdvance?.drawerId ?? ''} name="drawerId">
+            <option value="">تلقائي حسب فرع الموظف أو بدون درج</option>
+            {drawers.map((drawer) => (
+              <option key={drawer.id} value={drawer.id}>
+                {drawer.name} - {drawer.branch?.name ?? 'بدون فرع'}
+              </option>
+            ))}
+          </select>
         </label>
         <label>
           شهر الراتب

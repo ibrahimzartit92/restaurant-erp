@@ -21,6 +21,7 @@ export enum DrawerTransactionType {
   DailyCashSales = 'daily_cash_sales',
   SupplierPaymentCash = 'supplier_payment_cash',
   ExpenseCash = 'expense_cash',
+  EmployeeAdvanceCash = 'employee_advance_cash',
   SalesReturnCash = 'sales_return_cash',
   Deposit = 'deposit',
   Withdrawal = 'withdrawal',
