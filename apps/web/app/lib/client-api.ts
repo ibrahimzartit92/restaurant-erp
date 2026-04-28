@@ -1,7 +1,6 @@
 'use client';
 
 import { readAccessTokenFromDocument } from './auth';
-import { buildClientApiUrl } from './api-url';
 
 type ApiErrorBody = {
   message?: string | string[];
@@ -21,7 +20,7 @@ export class ApiRequestError extends Error {
 }
 
 function joinUrl(path: string) {
-  return buildClientApiUrl(path);
+  return `/api/write${path.startsWith('/') ? path : `/${path}`}`;
 }
 
 function formatBackendMessage(body: ApiErrorBody | string | null, fallbackMessage: string) {
