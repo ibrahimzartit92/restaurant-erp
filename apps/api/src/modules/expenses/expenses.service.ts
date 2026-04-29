@@ -41,7 +41,14 @@ export class ExpensesService {
     private readonly bankAccountRepository: Repository<BankAccountEntity>,
   ) {}
 
-  findAll(filters: { search?: string; branchId?: string; dateFrom?: string; dateTo?: string }) {
+  findAll(filters: {
+    search?: string;
+    branchId?: string;
+    categoryId?: string;
+    paymentMethod?: ExpensePaymentMethod;
+    dateFrom?: string;
+    dateTo?: string;
+  }) {
     const query = this.expenseRepository
       .createQueryBuilder('expense')
       .leftJoinAndSelect('expense.branch', 'branch')
@@ -53,6 +60,12 @@ export class ExpensesService {
       .addOrderBy('expense.expenseNumber', 'DESC');
 
     if (filters.branchId) query.andWhere('expense.branch_id = :branchId', { branchId: filters.branchId });
+    if (filters.categoryId) {
+      query.andWhere('expense.expense_category_id = :categoryId', { categoryId: filters.categoryId });
+    }
+    if (filters.paymentMethod) {
+      query.andWhere('expense.payment_method = :paymentMethod', { paymentMethod: filters.paymentMethod });
+    }
     if (filters.dateFrom) query.andWhere('expense.expense_date >= :dateFrom', { dateFrom: filters.dateFrom });
     if (filters.dateTo) query.andWhere('expense.expense_date <= :dateTo', { dateTo: filters.dateTo });
 

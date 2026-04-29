@@ -7,6 +7,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { BankAccountsModule } from './modules/bank-accounts/bank-accounts.module';
 import { BankAccountTransactionsModule } from './modules/bank-account-transactions/bank-account-transactions.module';
 import { BranchesModule } from './modules/branches/branches.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { DailySalesModule } from './modules/daily-sales/daily-sales.module';
 import { DrawerDailySessionsModule } from './modules/drawer-daily-sessions/drawer-daily-sessions.module';
 import { DrawerTransactionsModule } from './modules/drawer-transactions/drawer-transactions.module';
@@ -46,6 +47,7 @@ import { WarehousesModule } from './modules/warehouses/warehouses.module';
     BankAccountsModule,
     BankAccountTransactionsModule,
     BranchesModule,
+    DashboardModule,
     DailySalesModule,
     DrawerDailySessionsModule,
     DrawerTransactionsModule,

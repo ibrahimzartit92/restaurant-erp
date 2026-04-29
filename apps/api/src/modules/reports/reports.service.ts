@@ -243,6 +243,11 @@ export class ReportsService {
     if (filters.branchId) query.andWhere('expense.branch_id = :branchId', { branchId: filters.branchId });
     if (filters.categoryId) query.andWhere('expense.expense_category_id = :categoryId', { categoryId: filters.categoryId });
     if (filters.paymentMethod) query.andWhere('expense.payment_method = :paymentMethod', { paymentMethod: filters.paymentMethod });
+    if (filters.search) {
+      query.andWhere('(expense.expense_number ILIKE :search OR expense.title ILIKE :search)', {
+        search: `%${filters.search}%`,
+      });
+    }
     this.applyDateRange(query, 'expense.expense_date', filters);
 
     const rows = (await query.getMany()).map((expense) => ({
