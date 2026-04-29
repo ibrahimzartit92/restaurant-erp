@@ -28,12 +28,12 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
       vaultId?: string | null;
       paymentAllocations?: {
         paymentMethod: 'cash' | 'bank' | 'vault';
-        drawerId?: string | null;
-        bankAccountId?: string | null;
-        vaultId?: string | null;
-        amount: number;
-        referenceNumber?: string | null;
-        notes?: string | null;
+        drawerId: string;
+        bankAccountId: string;
+        vaultId: string;
+        amount: string;
+        referenceNumber: string;
+        notes: string;
       }[] | null;
       isFixed: boolean;
       templateId?: string | null;

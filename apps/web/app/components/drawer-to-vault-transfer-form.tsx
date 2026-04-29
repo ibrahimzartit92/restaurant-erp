@@ -3,13 +3,19 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { submitJson } from '../lib/client-api';
-import type { DrawerOption, VaultOption } from '../lib/types';
+import type { VaultOption } from '../lib/types';
+
+type DrawerTransferOption = {
+  id: string;
+  name: string;
+  branchId?: string | null;
+};
 
 export function DrawerToVaultTransferForm({
   drawers,
   vaults,
 }: Readonly<{
-  drawers: DrawerOption[];
+  drawers: DrawerTransferOption[];
   vaults: VaultOption[];
 }>) {
   const router = useRouter();
