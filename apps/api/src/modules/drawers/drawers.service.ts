@@ -91,9 +91,21 @@ export class DrawersService {
 
   async remove(id: string) {
     const drawer = await this.findByIdOrFail(id);
-    await this.drawerRepository.remove(drawer);
+    try {
+      await this.drawerRepository.remove(drawer);
 
-    return { id };
+      return { id, deleted: true };
+    } catch {
+      drawer.isActive = false;
+      await this.drawerRepository.save(drawer);
+
+      return {
+        id,
+        deleted: false,
+        deactivated: true,
+        message: 'Drawer has linked financial records, so it was deactivated instead of deleted.',
+      };
+    }
   }
 
   private async ensureCodeIsAvailable(code: string, currentId?: string) {

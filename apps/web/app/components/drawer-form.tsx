@@ -68,7 +68,7 @@ export function DrawerForm({
   }
 
   async function handleDelete() {
-    if (!initialDrawer || !confirm('هل تريد حذف هذا الدرج؟')) {
+    if (!initialDrawer || !confirm('سيتم حذف الدرج إن لم تكن له حركات، أو إيقافه إذا كان مرتبطا بسجلات مالية. هل تريد المتابعة؟')) {
       return;
     }
 
@@ -76,7 +76,12 @@ export function DrawerForm({
     setMessage(null);
 
     try {
-      await submitJson(`/drawers/${initialDrawer.id}`, 'DELETE', {});
+      const result = (await submitJson(`/drawers/${initialDrawer.id}`, 'DELETE', {})) as { deactivated?: boolean } | null;
+      if (result?.deactivated) {
+        setMessage('الدرج مرتبط بسجلات مالية، لذلك تم إيقافه بدلا من حذفه.');
+        router.refresh();
+        return;
+      }
       router.push('/drawers');
       router.refresh();
     } catch (error) {
@@ -88,7 +93,7 @@ export function DrawerForm({
 
   return (
     <form className="form-panel" onSubmit={handleSubmit}>
-      {message ? <p className="notice danger">{message}</p> : null}
+      {message ? <p className={message.includes('تم ') ? 'notice success' : 'notice danger'}>{message}</p> : null}
       <div className="form-grid">
         <label>
           الفرع
@@ -111,13 +116,7 @@ export function DrawerForm({
         </label>
         <label>
           العهدة الافتتاحية الافتراضية
-          <input
-            name="defaultOpeningBalance"
-            type="number"
-            min="0"
-            step="0.01"
-            defaultValue={initialDrawer?.defaultOpeningBalance ?? 0}
-          />
+          <input name="defaultOpeningBalance" type="number" min="0" step="0.01" defaultValue={initialDrawer?.defaultOpeningBalance ?? 0} />
         </label>
         <label>
           العهدة الثابتة اليومية

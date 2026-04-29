@@ -2,15 +2,17 @@ import { notFound } from 'next/navigation';
 import { AttachmentsPanel } from '../../../components/attachments-panel';
 import { DataTable, type DataColumn } from '../../../components/data-table';
 import { PageHeader } from '../../../components/page-header';
+import { PurchaseInvoicePaymentForm } from '../../../components/purchase-invoice-payment-form';
 import { StatusBadge } from '../../../components/status-badge';
 import { fetchList, fetchOne, formatDate, formatMoney } from '../../../lib/api';
-import type { AttachmentSummary } from '../../../lib/types';
+import type { AttachmentSummary, BankAccountOption, DrawerOption } from '../../../lib/types';
 
 type PurchaseInvoiceDetails = {
   id: string;
   invoiceNumber: string;
   invoiceLabel?: string | null;
   invoiceDate: string;
+  branchId: string;
   dueDate?: string | null;
   status: string;
   subtotalAmount: number;
@@ -59,9 +61,11 @@ const paymentColumns: DataColumn<PurchaseInvoiceDetails['payments'][number]>[] =
 
 export default async function PurchaseInvoiceDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [invoiceResult, attachmentsResult] = await Promise.all([
+  const [invoiceResult, attachmentsResult, drawersResult, bankAccountsResult] = await Promise.all([
     fetchOne<PurchaseInvoiceDetails>(`/purchase-invoices/${id}`),
     fetchList<AttachmentSummary>(`/attachments?entity_type=purchase_invoice&entity_id=${id}`),
+    fetchList<DrawerOption>('/drawers'),
+    fetchList<BankAccountOption>('/bank-accounts'),
   ]);
 
   if (!invoiceResult.data) {
@@ -72,7 +76,7 @@ export default async function PurchaseInvoiceDetailsPage({ params }: { params: P
 
   return (
     <>
-      <PageHeader title="تفاصيل فاتورة الشراء" description="مراجعة بيانات الفاتورة والمدفوعات والمرفقات المرتبطة بها." />
+      <PageHeader title="تفاصيل فاتورة الشراء" description="مراجعة الفاتورة، المدفوعات، وتسديد المتبقي عند الحاجة." />
 
       <section className="summary-grid">
         <article className="summary-card">
@@ -81,14 +85,14 @@ export default async function PurchaseInvoiceDetailsPage({ params }: { params: P
           <span>{invoice.invoiceLabel ?? 'بدون وصف'}</span>
         </article>
         <article className="summary-card">
-          <p>التاريخ</p>
-          <strong>{formatDate(invoice.invoiceDate)}</strong>
-          <span>{invoice.dueDate ? `استحقاق ${formatDate(invoice.dueDate)}` : 'بدون تاريخ استحقاق'}</span>
-        </article>
-        <article className="summary-card">
           <p>الإجمالي</p>
           <strong>{formatMoney(invoice.totalAmount)}</strong>
-          <span>المدفوع {formatMoney(invoice.paidAmount)}</span>
+          <span>بعد خصم {formatMoney(invoice.discountAmount)}</span>
+        </article>
+        <article className="summary-card">
+          <p>المدفوع</p>
+          <strong>{formatMoney(invoice.paidAmount)}</strong>
+          <span>{invoice.payments.length} دفعة مسجلة</span>
         </article>
         <article className="summary-card">
           <p>المتبقي</p>
@@ -104,10 +108,11 @@ export default async function PurchaseInvoiceDetailsPage({ params }: { params: P
             <StatusBadge value={invoice.status} />
           </div>
           <ul className="timeline-list">
+            <li>التاريخ: {formatDate(invoice.invoiceDate)}</li>
+            <li>{invoice.dueDate ? `الاستحقاق: ${formatDate(invoice.dueDate)}` : 'بدون تاريخ استحقاق'}</li>
             <li>الفرع: {invoice.branch?.name ?? 'غير محدد'}</li>
             <li>المخزن: {invoice.warehouse?.name ?? 'غير محدد'}</li>
             <li>المورد: {invoice.supplier?.name ?? 'متفرقة'}</li>
-            <li>الخصم: {formatMoney(invoice.discountAmount)}</li>
             <li>ملاحظات: {invoice.notes ?? 'بدون ملاحظات'}</li>
           </ul>
         </div>
@@ -116,6 +121,21 @@ export default async function PurchaseInvoiceDetailsPage({ params }: { params: P
       {invoiceResult.error ? <p className="notice">{invoiceResult.error}</p> : null}
       <DataTable columns={itemColumns} rows={invoice.items} emptyTitle="لا توجد مواد" emptyText="لا توجد مواد مرتبطة بهذه الفاتورة." />
       <DataTable columns={paymentColumns} rows={invoice.payments} emptyTitle="لا توجد دفعات" emptyText="لا توجد دفعات مسجلة على هذه الفاتورة." />
+
+      {invoice.remainingAmount > 0 && invoice.status !== 'cancelled' ? (
+        <>
+          {drawersResult.error ? <p className="notice">{drawersResult.error}</p> : null}
+          {bankAccountsResult.error ? <p className="notice">{bankAccountsResult.error}</p> : null}
+          <PurchaseInvoicePaymentForm
+            invoiceId={invoice.id}
+            branchId={invoice.branchId}
+            remainingAmount={invoice.remainingAmount}
+            drawers={drawersResult.data}
+            bankAccounts={bankAccountsResult.data}
+          />
+        </>
+      ) : null}
+
       {attachmentsResult.error ? <p className="notice">{attachmentsResult.error}</p> : null}
       <AttachmentsPanel entityType="purchase_invoice" entityId={invoice.id} initialAttachments={attachmentsResult.data} />
     </>

@@ -116,28 +116,50 @@ export class SupplierPaymentsService {
       throw new BadRequestException('Payment amount cannot be greater than the invoice remaining amount.');
     }
 
-    const payments = [];
+    const normalizedPayments = createSupplierPaymentBatchDto.payments.map((payment) => ({
+      purchaseInvoiceId: createSupplierPaymentBatchDto.purchaseInvoiceId,
+      branchId: createSupplierPaymentBatchDto.branchId,
+      paymentDate: createSupplierPaymentBatchDto.paymentDate,
+      paymentMethod:
+        payment.paymentMethod === FinancialPaymentMethod.Cash ? SupplierPaymentMethod.Cash : SupplierPaymentMethod.Bank,
+      drawerId: payment.drawerId ?? null,
+      bankAccountId: payment.bankAccountId ?? null,
+      amount: payment.amount,
+      referenceNumber: payment.referenceNumber ?? null,
+      notes: payment.notes ?? createSupplierPaymentBatchDto.notes ?? null,
+    }));
 
-    for (const payment of createSupplierPaymentBatchDto.payments) {
-      payments.push(
-        await this.create({
-          purchaseInvoiceId: createSupplierPaymentBatchDto.purchaseInvoiceId,
-          branchId: createSupplierPaymentBatchDto.branchId,
-          paymentDate: createSupplierPaymentBatchDto.paymentDate,
-          paymentMethod:
-            payment.paymentMethod === FinancialPaymentMethod.Cash
-              ? SupplierPaymentMethod.Cash
-              : SupplierPaymentMethod.Bank,
-          drawerId: payment.drawerId ?? null,
-          bankAccountId: payment.bankAccountId ?? null,
-          amount: payment.amount,
-          referenceNumber: payment.referenceNumber ?? null,
-          notes: payment.notes ?? createSupplierPaymentBatchDto.notes ?? undefined,
-        }),
-      );
+    for (const payment of normalizedPayments) {
+      await this.validatePaymentReferences(payment);
     }
 
-    return payments;
+    return this.dataSource.transaction(async (manager) => {
+      const paymentRepository = manager.getRepository(SupplierPaymentEntity);
+      const invoiceRepository = manager.getRepository(PurchaseInvoiceEntity);
+      const savedPayments: SupplierPaymentEntity[] = [];
+
+      for (const payment of normalizedPayments) {
+        const savedPayment = await paymentRepository.save(
+          paymentRepository.create({
+            ...payment,
+            paymentNumber: await this.generatePaymentNumber(paymentRepository),
+          }),
+        );
+        await this.recreateFinancialMovement(savedPayment, manager);
+        savedPayments.push(savedPayment);
+      }
+
+      await this.recalculateInvoicePaymentState(
+        createSupplierPaymentBatchDto.purchaseInvoiceId,
+        invoiceRepository,
+        paymentRepository,
+      );
+
+      return paymentRepository.find({
+        where: savedPayments.map((payment) => ({ id: payment.id })),
+        order: { paymentDate: 'DESC', paymentNumber: 'DESC' },
+      });
+    });
   }
 
   async update(id: string, updateSupplierPaymentDto: UpdateSupplierPaymentDto) {
@@ -371,10 +393,10 @@ export class SupplierPaymentsService {
     }
   }
 
-  private async generatePaymentNumber() {
+  private async generatePaymentNumber(repository = this.supplierPaymentRepository) {
     const today = new Date();
     const yyyymmdd = today.toISOString().slice(0, 10).replace(/-/g, '');
-    const count = await this.supplierPaymentRepository.count();
+    const count = await repository.count();
 
     return `SP-${yyyymmdd}-${String(count + 1).padStart(5, '0')}`;
   }
