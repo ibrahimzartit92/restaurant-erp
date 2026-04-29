@@ -9,6 +9,7 @@ import { ExpenseEntity } from '../expenses/entities/expense.entity';
 import { PayrollRecordEntity } from '../payroll/entities/payroll-record.entity';
 import { PurchaseInvoiceEntity } from '../purchase-invoices/entities/purchase-invoice.entity';
 import { StockCountEntity } from '../stock-counts/entities/stock-count.entity';
+import { SettingsModule } from '../settings/settings.module';
 import { SupplierPaymentEntity } from '../supplier-payments/entities/supplier-payment.entity';
 import { TransferEntity } from '../transfers/entities/transfer.entity';
 import { ReportsController } from './reports.controller';
@@ -16,6 +17,7 @@ import { ReportsService } from './reports.service';
 
 @Module({
   imports: [
+    SettingsModule,
     TypeOrmModule.forFeature([
       BankAccountTransactionEntity,
       DailySaleEntity,

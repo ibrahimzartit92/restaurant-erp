@@ -8,11 +8,11 @@ import type { BankAccountOption, DrawerOption } from '../lib/types';
 type PaymentMode = 'add' | 'settle' | null;
 type PaymentMethod = 'cash' | 'bank';
 
-function formatMoney(value: number) {
+function formatMoney(value: number, currencySymbol: string, decimalPlaces: number) {
   return new Intl.NumberFormat('ar', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
+    minimumFractionDigits: decimalPlaces,
+    maximumFractionDigits: decimalPlaces,
+  }).format(value) + ` ${currencySymbol}`;
 }
 
 export function PurchaseInvoicePaymentPanel({
@@ -21,12 +21,16 @@ export function PurchaseInvoicePaymentPanel({
   remainingAmount,
   drawers,
   bankAccounts,
+  currencySymbol = 'ر.س',
+  decimalPlaces = 2,
 }: Readonly<{
   invoiceId: string;
   branchId: string;
   remainingAmount: number;
   drawers: DrawerOption[];
   bankAccounts: BankAccountOption[];
+  currencySymbol?: string;
+  decimalPlaces?: number;
 }>) {
   const router = useRouter();
   const [mode, setMode] = useState<PaymentMode>(null);
@@ -112,7 +116,7 @@ export function PurchaseInvoicePaymentPanel({
           <h3>إجراءات الدفع</h3>
           <span>الدفعات هنا تُضاف إلى هذه الفاتورة فقط ولا تنشئ فاتورة جديدة.</span>
         </div>
-        <strong>المتبقي {formatMoney(remainingAmount)}</strong>
+        <strong>المتبقي {formatMoney(remainingAmount, currencySymbol, decimalPlaces)}</strong>
       </div>
 
       <div className="form-actions">

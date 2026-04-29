@@ -5,7 +5,7 @@ import { PageHeader } from '../../../components/page-header';
 import { PurchaseInvoiceActions } from '../../../components/purchase-invoice-actions';
 import { PurchaseInvoicePaymentPanel } from '../../../components/purchase-invoice-payment-panel';
 import { StatusBadge } from '../../../components/status-badge';
-import { fetchList, fetchOne, formatDate, formatMoney } from '../../../lib/api';
+import { fetchList, fetchOne, formatDate, formatMoney, getCurrencySettings } from '../../../lib/api';
 import type { AttachmentSummary, BankAccountOption, DrawerOption } from '../../../lib/types';
 
 type PurchaseInvoiceDetails = {
@@ -66,11 +66,12 @@ const paymentColumns: DataColumn<PurchaseInvoiceDetails['payments'][number]>[] =
 
 export default async function PurchaseInvoiceDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [invoiceResult, attachmentsResult, drawersResult, bankAccountsResult] = await Promise.all([
+  const [invoiceResult, attachmentsResult, drawersResult, bankAccountsResult, currencySettings] = await Promise.all([
     fetchOne<PurchaseInvoiceDetails>(`/purchase-invoices/${id}`),
     fetchList<AttachmentSummary>(`/attachments?entity_type=purchase_invoice&entity_id=${id}`),
     fetchList<DrawerOption>('/drawers'),
     fetchList<BankAccountOption>('/bank-accounts'),
+    getCurrencySettings(),
   ]);
 
   if (!invoiceResult.data) {
@@ -169,6 +170,8 @@ export default async function PurchaseInvoiceDetailsPage({ params }: { params: P
             remainingAmount={invoice.remainingAmount}
             drawers={drawersResult.data}
             bankAccounts={bankAccountsResult.data}
+            currencySymbol={currencySettings.currencySymbol}
+            decimalPlaces={currencySettings.decimalPlaces}
           />
         </>
       ) : null}

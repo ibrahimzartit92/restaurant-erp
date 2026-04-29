@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { fetchList, formatDate, formatMoney } from '../lib/api';
+import { fetchList, formatDate, getMoneyFormatter } from '../lib/api';
 import { getCurrentUser } from '../lib/server-auth';
 import type {
   AttendanceFileSummary,
@@ -201,6 +201,7 @@ export default async function DashboardPage({
     penalties,
     payrolls,
     attendanceFiles,
+    formatMoney,
   ] = await Promise.all([
     getCurrentUser(),
     fetchList<BranchOption>('/branches'),
@@ -220,6 +221,7 @@ export default async function DashboardPage({
     fetchList<EmployeePenaltySummary>('/employee-penalties'),
     fetchList<PayrollSummary>('/payrolls'),
     fetchList<AttendanceFileSummary>('/attendance-files'),
+    getMoneyFormatter(),
   ]);
 
   const roleView = getRoleView(currentUser?.role.code);

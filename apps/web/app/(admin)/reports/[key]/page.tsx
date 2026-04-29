@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { PageHeader } from '../../../components/page-header';
 import { StatusBadge } from '../../../components/status-badge';
-import { buildQuery, fetchOne, formatDate, formatMoney } from '../../../lib/api';
+import { buildQuery, fetchOne, formatDate, getMoneyFormatter } from '../../../lib/api';
 import type { ReportColumn, ReportResult, ReportRow, ReportSummary } from '../../../lib/types';
 
 type ReportPageProps = {
@@ -35,7 +35,7 @@ function reportQuery(params: Record<string, string | undefined>, format?: 'excel
   });
 }
 
-function renderValue(row: ReportRow, column: ReportColumn) {
+function renderValue(row: ReportRow, column: ReportColumn, formatMoney: (value?: number | string | null) => string) {
   const value = row[column.key];
 
   if (column.type === 'money') {
@@ -53,7 +53,7 @@ function renderValue(row: ReportRow, column: ReportColumn) {
   return value ?? 'غير محدد';
 }
 
-function renderSummaryValue(summary: ReportSummary) {
+function renderSummaryValue(summary: ReportSummary, formatMoney: (value?: number | string | null) => string) {
   if (summary.type === 'money') {
     return formatMoney(summary.value);
   }
@@ -65,7 +65,10 @@ export default async function ReportDetailsPage({ params, searchParams }: Report
   const { key } = await params;
   const currentParams = (await searchParams) ?? {};
   const query = reportQuery(currentParams);
-  const result = await fetchOne<ReportResult>(`/reports/${key}${query}`);
+  const [result, formatMoney] = await Promise.all([
+    fetchOne<ReportResult>(`/reports/${key}${query}`),
+    getMoneyFormatter(),
+  ]);
   const report = result.data;
   const hints = reportFilterHints[key] ?? {};
 
@@ -150,7 +153,7 @@ export default async function ReportDetailsPage({ params, searchParams }: Report
         {report.summaries.map((summary) => (
           <div className="summary-card" key={summary.key}>
             <p>{summary.label}</p>
-            <strong>{renderSummaryValue(summary)}</strong>
+            <strong>{renderSummaryValue(summary, formatMoney)}</strong>
             <span>حسب الفلاتر الحالية</span>
           </div>
         ))}
@@ -176,7 +179,7 @@ export default async function ReportDetailsPage({ params, searchParams }: Report
               {report.rows.map((row, index) => (
                 <tr key={index}>
                   {report.columns.map((column) => (
-                    <td key={column.key}>{renderValue(row, column)}</td>
+                <td key={column.key}>{renderValue(row, column, formatMoney)}</td>
                   ))}
                 </tr>
               ))}

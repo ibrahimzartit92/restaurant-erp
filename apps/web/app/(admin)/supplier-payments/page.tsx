@@ -3,7 +3,7 @@ import { DataTable, type DataColumn } from '../../components/data-table';
 import { DeleteFinancialRecordButton } from '../../components/delete-financial-record-button';
 import { PageHeader } from '../../components/page-header';
 import { StatusBadge } from '../../components/status-badge';
-import { buildQuery, fetchList, formatDate, formatMoney } from '../../lib/api';
+import { buildQuery, fetchList, formatDate, getMoneyFormatter } from '../../lib/api';
 import type { BranchOption, SupplierOption } from '../../lib/types';
 
 type SupplierPaymentsPageProps = {
@@ -57,10 +57,11 @@ function supplierPaymentExportQuery(params: Record<string, string | undefined>, 
 export default async function SupplierPaymentsPage({ searchParams }: SupplierPaymentsPageProps) {
   const currentParams = (await searchParams) ?? {};
   const query = supplierPaymentQuery(currentParams);
-  const [result, branchesResult, suppliersResult] = await Promise.all([
+  const [result, branchesResult, suppliersResult, formatMoney] = await Promise.all([
     fetchList<SupplierPaymentRow>(`/supplier-payments${query}`),
     fetchList<BranchOption>('/branches'),
     fetchList<SupplierOption>('/suppliers'),
+    getMoneyFormatter(),
   ]);
 
   const columns: DataColumn<SupplierPaymentRow>[] = [

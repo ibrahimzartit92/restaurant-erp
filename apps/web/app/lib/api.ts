@@ -93,12 +93,53 @@ export function buildQuery(params: Record<string, string | undefined>) {
 }
 
 export function formatMoney(value?: number | string | null) {
-  const numericValue = Number(value ?? 0);
+  return formatMoneyWithCurrency(value);
+}
 
-  return new Intl.NumberFormat('ar', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+export function formatMoneyWithCurrency(
+  value?: number | string | null,
+  currencySymbol = 'ر.س',
+  decimalPlaces = 2,
+) {
+  const numericValue = Number(value ?? 0);
+  const safeDecimalPlaces = Math.min(Math.max(Math.trunc(decimalPlaces), 0), 4);
+  const formattedValue = new Intl.NumberFormat('ar', {
+    minimumFractionDigits: safeDecimalPlaces,
+    maximumFractionDigits: safeDecimalPlaces,
   }).format(Number.isFinite(numericValue) ? numericValue : 0);
+
+  return `${formattedValue} ${currencySymbol}`.trim();
+}
+
+type SettingsResponse = {
+  groups: {
+    key: string;
+    fields: {
+      key: string;
+      value: string | number | boolean | null;
+      defaultValue?: string | number | boolean | null;
+    }[];
+  }[];
+};
+
+export async function getCurrencySettings() {
+  const result = await fetchOne<SettingsResponse>('/settings');
+  const financeGroup = result.data?.groups.find((group) => group.key === 'finance');
+  const currencySymbolField = financeGroup?.fields.find((field) => field.key === 'currencySymbol');
+  const decimalPlacesField = financeGroup?.fields.find((field) => field.key === 'decimalPlaces');
+  const currencySymbol = String(currencySymbolField?.value ?? currencySymbolField?.defaultValue ?? 'ر.س').trim() || 'ر.س';
+  const decimalPlaces = Number(decimalPlacesField?.value ?? decimalPlacesField?.defaultValue ?? 2);
+
+  return {
+    currencySymbol,
+    decimalPlaces: Number.isFinite(decimalPlaces) ? decimalPlaces : 2,
+  };
+}
+
+export async function getMoneyFormatter() {
+  const { currencySymbol, decimalPlaces } = await getCurrencySettings();
+
+  return (value?: number | string | null) => formatMoneyWithCurrency(value, currencySymbol, decimalPlaces);
 }
 
 export function formatDate(value?: string | null) {

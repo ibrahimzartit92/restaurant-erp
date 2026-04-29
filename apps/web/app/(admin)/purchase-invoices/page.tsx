@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { DataTable, type DataColumn } from '../../components/data-table';
 import { PageHeader } from '../../components/page-header';
 import { StatusBadge } from '../../components/status-badge';
-import { buildQuery, fetchList, formatDate, formatMoney } from '../../lib/api';
+import { buildQuery, fetchList, formatDate, getMoneyFormatter } from '../../lib/api';
 import type { BranchOption, SupplierOption } from '../../lib/types';
 
 type PurchaseInvoicesPageProps = {
@@ -56,10 +56,11 @@ function purchaseInvoiceExportQuery(params: Record<string, string | undefined>, 
 export default async function PurchaseInvoicesPage({ searchParams }: PurchaseInvoicesPageProps) {
   const currentParams = (await searchParams) ?? {};
   const query = purchaseInvoiceQuery(currentParams);
-  const [result, branchesResult, suppliersResult] = await Promise.all([
+  const [result, branchesResult, suppliersResult, formatMoney] = await Promise.all([
     fetchList<PurchaseInvoiceRow>(`/purchase-invoices${query}`),
     fetchList<BranchOption>('/branches'),
     fetchList<SupplierOption>('/suppliers'),
+    getMoneyFormatter(),
   ]);
 
   const columns: DataColumn<PurchaseInvoiceRow>[] = [

@@ -9,6 +9,7 @@ import { EmployeePenaltyEntity } from '../employee-penalties/entities/employee-p
 import { ExpenseEntity } from '../expenses/entities/expense.entity';
 import { PayrollRecordEntity } from '../payroll/entities/payroll-record.entity';
 import { PurchaseInvoiceEntity } from '../purchase-invoices/entities/purchase-invoice.entity';
+import { SettingsService } from '../settings/settings.service';
 import { StockCountEntity } from '../stock-counts/entities/stock-count.entity';
 import { SupplierPaymentEntity } from '../supplier-payments/entities/supplier-payment.entity';
 import { TransferEntity } from '../transfers/entities/transfer.entity';
@@ -55,6 +56,7 @@ export class ReportsService {
     private readonly advancesRepository: Repository<EmployeeAdvanceEntity>,
     @InjectRepository(EmployeePenaltyEntity)
     private readonly penaltiesRepository: Repository<EmployeePenaltyEntity>,
+    private readonly settingsService: SettingsService,
   ) {}
 
   getCatalog() {
@@ -85,17 +87,18 @@ export class ReportsService {
 
   async exportReport(key: string, filters: ReportFilters, format: 'excel' | 'pdf') {
     const report = await this.getReport(key, filters);
+    const currencySettings = await this.getCurrencySettings();
 
     if (format === 'excel') {
       return {
-        body: this.toCsv(report),
+        body: this.toCsv(report, currencySettings),
         contentType: 'text/csv; charset=utf-8',
         filename: `${report.key}-${new Date().toISOString().slice(0, 10)}.csv`,
       };
     }
 
     return {
-      body: this.toPrintableHtml(report),
+      body: this.toPrintableHtml(report, currencySettings),
       contentType: 'text/html; charset=utf-8',
       filename: `${report.key}-${new Date().toISOString().slice(0, 10)}.html`,
     };
@@ -152,6 +155,35 @@ export class ReportsService {
 
   private round(value: number) {
     return Math.round((value + Number.EPSILON) * 100) / 100;
+  }
+
+  private async getCurrencySettings() {
+    const settings = await this.settingsService.findAll();
+    const financeGroup = settings.groups.find((group) => group.key === 'finance');
+    const currencySymbolField = financeGroup?.fields.find((field) => field.key === 'currencySymbol');
+    const decimalPlacesField = financeGroup?.fields.find((field) => field.key === 'decimalPlaces');
+    const currencySymbol =
+      String(currencySymbolField?.value ?? currencySymbolField?.defaultValue ?? 'ر.س').trim() || 'ر.س';
+    const decimalPlaces = Number(decimalPlacesField?.value ?? decimalPlacesField?.defaultValue ?? 2);
+
+    return {
+      currencySymbol,
+      decimalPlaces: Number.isFinite(decimalPlaces) ? decimalPlaces : 2,
+    };
+  }
+
+  private formatMoneyForExport(
+    value: string | number | null,
+    currencySettings: { currencySymbol: string; decimalPlaces: number },
+  ) {
+    const numericValue = Number(value ?? 0);
+    const decimalPlaces = Math.min(Math.max(Math.trunc(currencySettings.decimalPlaces), 0), 4);
+    const formattedValue = new Intl.NumberFormat('ar', {
+      minimumFractionDigits: decimalPlaces,
+      maximumFractionDigits: decimalPlaces,
+    }).format(Number.isFinite(numericValue) ? numericValue : 0);
+
+    return `${formattedValue} ${currencySettings.currencySymbol}`.trim();
   }
 
   private async dailySales(filters: ReportFilters) {
@@ -696,15 +728,21 @@ export class ReportsService {
     );
   }
 
-  private toCsv(report: ReportResult) {
+  private toCsv(report: ReportResult, currencySettings: { currencySymbol: string; decimalPlaces: number }) {
     const escape = (value: string | number | null) => `"${String(value ?? '').replace(/"/g, '""')}"`;
     const header = report.columns.map((column) => escape(column.label)).join(',');
-    const rows = report.rows.map((row) => report.columns.map((column) => escape(row[column.key])).join(','));
+    const rows = report.rows.map((row) =>
+      report.columns
+        .map((column) =>
+          escape(column.type === 'money' ? this.formatMoneyForExport(row[column.key], currencySettings) : row[column.key]),
+        )
+        .join(','),
+    );
 
     return `\uFEFF${header}\n${rows.join('\n')}`;
   }
 
-  private toPrintableHtml(report: ReportResult) {
+  private toPrintableHtml(report: ReportResult, currencySettings: { currencySymbol: string; decimalPlaces: number }) {
     const escape = (value: unknown) =>
       String(value ?? '')
         .replace(/&/g, '&amp;')
@@ -729,10 +767,10 @@ export class ReportsService {
 <body>
   <h1>${escape(report.title)}</h1>
   <p>${escape(report.description)} - ${escape(new Date(report.generatedAt).toLocaleString('ar'))}</p>
-  <section class="summary">${report.summaries.map((item) => `<div><span>${escape(item.label)}</span><strong>${escape(item.value)}</strong></div>`).join('')}</section>
+  <section class="summary">${report.summaries.map((item) => `<div><span>${escape(item.label)}</span><strong>${escape(item.type === 'money' ? this.formatMoneyForExport(item.value, currencySettings) : item.value)}</strong></div>`).join('')}</section>
   <table>
     <thead><tr>${report.columns.map((column) => `<th>${escape(column.label)}</th>`).join('')}</tr></thead>
-    <tbody>${report.rows.map((row) => `<tr>${report.columns.map((column) => `<td>${escape(row[column.key])}</td>`).join('')}</tr>`).join('')}</tbody>
+    <tbody>${report.rows.map((row) => `<tr>${report.columns.map((column) => `<td>${escape(column.type === 'money' ? this.formatMoneyForExport(row[column.key], currencySettings) : row[column.key])}</td>`).join('')}</tr>`).join('')}</tbody>
   </table>
 </body>
 </html>`;
