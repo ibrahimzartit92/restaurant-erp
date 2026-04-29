@@ -32,6 +32,8 @@ import { UserEntity } from '../modules/users/entities/user.entity';
 import { WarehouseEntity } from '../modules/warehouses/entities/warehouse.entity';
 import { BranchTransferItemEntity } from '../modules/transfers/entities/transfer-item.entity';
 import { TransferEntity } from '../modules/transfers/entities/transfer.entity';
+import { VaultTransactionEntity } from '../modules/vaults/entities/vault-transaction.entity';
+import { VaultEntity } from '../modules/vaults/entities/vault.entity';
 
 export const databaseEntities = [
   BankAccountEntity,
@@ -66,6 +68,8 @@ export const databaseEntities = [
   BranchTransferItemEntity,
   UnitEntity,
   UserEntity,
+  VaultEntity,
+  VaultTransactionEntity,
   WarehouseEntity,
 ];
 

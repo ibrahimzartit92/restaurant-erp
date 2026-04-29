@@ -12,10 +12,12 @@ import { BankAccountEntity } from '../../bank-accounts/entities/bank-account.ent
 import { BranchEntity } from '../../branches/entities/branch.entity';
 import { DrawerEntity } from '../../drawers/entities/drawer.entity';
 import { PurchaseInvoiceEntity } from '../../purchase-invoices/entities/purchase-invoice.entity';
+import { VaultEntity } from '../../vaults/entities/vault.entity';
 
 export enum SupplierPaymentMethod {
   Cash = 'cash',
   Bank = 'bank',
+  Vault = 'vault',
   Other = 'other',
 }
 
@@ -69,6 +71,13 @@ export class SupplierPaymentEntity {
   @ManyToOne(() => BankAccountEntity, { eager: true, nullable: true })
   @JoinColumn({ name: 'bank_account_id' })
   bankAccount!: BankAccountEntity | null;
+
+  @Column({ name: 'vault_id', type: 'uuid', nullable: true })
+  vaultId!: string | null;
+
+  @ManyToOne(() => VaultEntity, { eager: true, nullable: true })
+  @JoinColumn({ name: 'vault_id' })
+  vault!: VaultEntity | null;
 
   @Column({ type: 'numeric', precision: 12, scale: 2, transformer: numericTransformer })
   amount!: number;

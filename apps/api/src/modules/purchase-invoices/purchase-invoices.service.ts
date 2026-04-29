@@ -104,7 +104,7 @@ export class PurchaseInvoicesService {
         supplier: true,
         supplierRepresentative: true,
         items: { item: true },
-        payments: { branch: true, drawer: true, bankAccount: true },
+        payments: { branch: true, drawer: true, bankAccount: true, vault: true },
       },
     });
 
@@ -183,7 +183,7 @@ export class PurchaseInvoicesService {
         where: { id: savedInvoice.id },
         relations: {
           items: { item: true },
-          payments: { branch: true, drawer: true, bankAccount: true },
+          payments: { branch: true, drawer: true, bankAccount: true, vault: true },
         },
       });
     });

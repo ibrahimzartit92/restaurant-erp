@@ -6,7 +6,7 @@ import { PurchaseInvoiceActions } from '../../../components/purchase-invoice-act
 import { PurchaseInvoicePaymentPanel } from '../../../components/purchase-invoice-payment-panel';
 import { StatusBadge } from '../../../components/status-badge';
 import { fetchList, fetchOne, formatDate, formatMoney, getCurrencySettings } from '../../../lib/api';
-import type { AttachmentSummary, BankAccountOption, DrawerOption } from '../../../lib/types';
+import type { AttachmentSummary, BankAccountOption, DrawerOption, VaultOption } from '../../../lib/types';
 
 type PurchaseInvoiceDetails = {
   id: string;
@@ -41,6 +41,7 @@ type PurchaseInvoiceDetails = {
     paymentMethod: string;
     drawer?: { name: string } | null;
     bankAccount?: { name: string } | null;
+    vault?: { name: string } | null;
     referenceNumber?: string | null;
     notes?: string | null;
   }[];
@@ -60,17 +61,18 @@ const paymentColumns: DataColumn<PurchaseInvoiceDetails['payments'][number]>[] =
   { key: 'paymentDate', label: 'التاريخ', render: (row) => formatDate(row.paymentDate) },
   { key: 'amount', label: 'المبلغ', render: (row) => formatMoney(row.amount) },
   { key: 'paymentMethod', label: 'الطريقة', render: (row) => <StatusBadge value={row.paymentMethod} /> },
-  { key: 'source', label: 'المصدر', render: (row) => row.drawer?.name ?? row.bankAccount?.name ?? 'غير محدد' },
+  { key: 'source', label: 'المصدر', render: (row) => row.drawer?.name ?? row.bankAccount?.name ?? row.vault?.name ?? 'غير محدد' },
   { key: 'referenceNumber', label: 'المرجع', render: (row) => row.referenceNumber ?? 'غير محدد' },
 ];
 
 export default async function PurchaseInvoiceDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [invoiceResult, attachmentsResult, drawersResult, bankAccountsResult, currencySettings] = await Promise.all([
+  const [invoiceResult, attachmentsResult, drawersResult, bankAccountsResult, vaultsResult, currencySettings] = await Promise.all([
     fetchOne<PurchaseInvoiceDetails>(`/purchase-invoices/${id}`),
     fetchList<AttachmentSummary>(`/attachments?entity_type=purchase_invoice&entity_id=${id}`),
     fetchList<DrawerOption>('/drawers'),
     fetchList<BankAccountOption>('/bank-accounts'),
+    fetchList<VaultOption>('/vaults'),
     getCurrencySettings(),
   ]);
 
@@ -164,12 +166,14 @@ export default async function PurchaseInvoiceDetailsPage({ params }: { params: P
         <>
           {drawersResult.error ? <p className="notice">{drawersResult.error}</p> : null}
           {bankAccountsResult.error ? <p className="notice">{bankAccountsResult.error}</p> : null}
+          {vaultsResult.error ? <p className="notice">{vaultsResult.error}</p> : null}
           <PurchaseInvoicePaymentPanel
             invoiceId={invoice.id}
             branchId={invoice.branchId}
             remainingAmount={invoice.remainingAmount}
             drawers={drawersResult.data}
             bankAccounts={bankAccountsResult.data}
+            vaults={vaultsResult.data}
             currencySymbol={currencySettings.currencySymbol}
             decimalPlaces={currencySettings.decimalPlaces}
           />

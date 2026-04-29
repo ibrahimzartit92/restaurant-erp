@@ -95,6 +95,15 @@ export type BankAccountOption = {
   name: string;
 };
 
+export type VaultOption = {
+  id: string;
+  code: string;
+  name: string;
+  openingBalance?: number;
+  currentBalance?: number;
+  isActive?: boolean;
+};
+
 export type BankAccountSummary = {
   id: string;
   code: string;

@@ -17,6 +17,8 @@ import { DrawerEntity } from '../drawers/entities/drawer.entity';
 import { ExpenseCategoryEntity } from '../expense-categories/entities/expense-category.entity';
 import { ExpenseTemplateEntity } from '../expense-templates/entities/expense-template.entity';
 import { FinancialPaymentMethod, PaymentAllocationDto } from '../shared/payment-allocation.dto';
+import { VaultTransactionDirection, VaultTransactionType } from '../vaults/entities/vault-transaction.entity';
+import { VaultsService } from '../vaults/vaults.service';
 import { CreateExpenseDto } from './dto/create-expense.dto';
 import { UpdateExpenseDto } from './dto/update-expense.dto';
 import { ExpenseEntity, ExpensePaymentAllocation } from './entities/expense.entity';
@@ -39,6 +41,7 @@ export class ExpensesService {
     private readonly drawerRepository: Repository<DrawerEntity>,
     @InjectRepository(BankAccountEntity)
     private readonly bankAccountRepository: Repository<BankAccountEntity>,
+    private readonly vaultsService: VaultsService,
   ) {}
 
   findAll(filters: {
@@ -115,6 +118,7 @@ export class ExpensesService {
       paymentMethod,
       drawerId: primaryAllocation?.drawerId ?? null,
       bankAccountId: primaryAllocation?.bankAccountId ?? null,
+      vaultId: primaryAllocation?.vaultId ?? null,
       paymentAllocations,
       isFixed: createExpenseDto.isFixed ?? category.isFixed,
       templateId: createExpenseDto.templateId ?? null,
@@ -153,6 +157,7 @@ export class ExpensesService {
       paymentMethod,
       drawerId: primaryAllocation?.drawerId ?? null,
       bankAccountId: primaryAllocation?.bankAccountId ?? null,
+      vaultId: primaryAllocation?.vaultId ?? null,
       paymentAllocations,
       expenseNumber: updateExpenseDto.expenseNumber?.toUpperCase() ?? expense.expenseNumber,
     });
@@ -212,6 +217,24 @@ export class ExpensesService {
           notes: allocation.notes ?? expense.notes,
         });
       }
+      if (allocation.paymentMethod === FinancialPaymentMethod.Vault && allocation.vaultId) {
+        await this.vaultsService.recordTransaction(
+          {
+            vaultId: allocation.vaultId,
+            transactionDate: expense.expenseDate,
+            transactionType: VaultTransactionType.ExpensePayment,
+            direction: VaultTransactionDirection.Out,
+            amount: allocation.amount,
+            branchId: expense.branchId,
+            sourceType: 'expense',
+            sourceId: expense.id,
+            referenceNumber: allocation.referenceNumber ?? expense.expenseNumber,
+            description: `مصروف ${expense.expenseNumber} - ${expense.title}`,
+            notes: allocation.notes ?? expense.notes,
+          },
+          manager,
+        );
+      }
     }
   }
 
@@ -250,6 +273,24 @@ export class ExpensesService {
           notes: allocation.notes ?? expense.notes,
         });
       }
+      if (allocation.paymentMethod === FinancialPaymentMethod.Vault && allocation.vaultId) {
+        await this.vaultsService.recordTransaction(
+          {
+            vaultId: allocation.vaultId,
+            transactionDate: today,
+            transactionType: VaultTransactionType.ExpensePayment,
+            direction: VaultTransactionDirection.In,
+            amount: allocation.amount,
+            branchId: expense.branchId,
+            sourceType: 'expense_reversal',
+            sourceId: expense.id,
+            referenceNumber: allocation.referenceNumber ?? expense.expenseNumber,
+            description: `عكس مصروف ${expense.expenseNumber} - ${expense.title}`,
+            notes: allocation.notes ?? expense.notes,
+          },
+          manager,
+        );
+      }
     }
   }
 
@@ -257,6 +298,7 @@ export class ExpensesService {
     await Promise.all([
       manager.getRepository(DrawerTransactionEntity).delete({ sourceType: 'expense', sourceId: expenseId }),
       manager.getRepository(BankAccountTransactionEntity).delete({ sourceType: 'expense', sourceId: expenseId }),
+      this.vaultsService.deleteFinancialMovement('expense', expenseId, manager),
     ]);
   }
 
@@ -309,6 +351,7 @@ export class ExpensesService {
         paymentMethod: payment.paymentMethod,
         drawerId: payment.paymentMethod === FinancialPaymentMethod.Cash ? payment.drawerId ?? null : null,
         bankAccountId: payment.paymentMethod === FinancialPaymentMethod.Bank ? payment.bankAccountId ?? null : null,
+        vaultId: payment.paymentMethod === FinancialPaymentMethod.Vault ? payment.vaultId ?? null : null,
         amount: this.roundMoney(Number(payment.amount ?? 0)),
         referenceNumber: payment.referenceNumber ?? null,
         notes: payment.notes ?? null,
@@ -338,8 +381,11 @@ export class ExpensesService {
     if (allocations.length === 0) return fallback ?? ExpensePaymentMethod.Other;
     const hasCash = allocations.some((allocation) => allocation.paymentMethod === FinancialPaymentMethod.Cash);
     const hasBank = allocations.some((allocation) => allocation.paymentMethod === FinancialPaymentMethod.Bank);
-    if (hasCash && hasBank) return ExpensePaymentMethod.Other;
-    return hasCash ? ExpensePaymentMethod.Cash : ExpensePaymentMethod.Bank;
+    const hasVault = allocations.some((allocation) => allocation.paymentMethod === FinancialPaymentMethod.Vault);
+    if ([hasCash, hasBank, hasVault].filter(Boolean).length > 1) return ExpensePaymentMethod.Other;
+    if (hasCash) return ExpensePaymentMethod.Cash;
+    if (hasBank) return ExpensePaymentMethod.Bank;
+    return ExpensePaymentMethod.Vault;
   }
 
   private async validatePaymentAllocations(branchId: string, allocations: ExpensePaymentAllocation[]) {
@@ -356,6 +402,10 @@ export class ExpensesService {
         const bankAccount = await this.bankAccountRepository.findOne({ where: { id: allocation.bankAccountId } });
         if (!bankAccount) throw new NotFoundException('Bank account was not found.');
       }
+      if (allocation.paymentMethod === FinancialPaymentMethod.Vault) {
+        if (!allocation.vaultId) throw new BadRequestException('Vault expense payment rows require vaultId.');
+        await this.vaultsService.findEntityByIdOrFail(allocation.vaultId);
+      }
     }
   }
 
@@ -366,6 +416,10 @@ export class ExpensesService {
 
     if (expense.paymentMethod === ExpensePaymentMethod.Bank && expense.bankAccountId) {
       return [{ paymentMethod: FinancialPaymentMethod.Bank, bankAccountId: expense.bankAccountId, amount: expense.amount }];
+    }
+
+    if (expense.paymentMethod === ExpensePaymentMethod.Vault && expense.vaultId) {
+      return [{ paymentMethod: FinancialPaymentMethod.Vault, vaultId: expense.vaultId, amount: expense.amount }];
     }
 
     return [];

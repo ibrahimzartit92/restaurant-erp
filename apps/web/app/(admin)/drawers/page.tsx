@@ -1,10 +1,12 @@
 import Link from 'next/link';
 import { DataTable, type DataColumn } from '../../components/data-table';
 import { DrawerDailyWorkflow } from '../../components/drawer-daily-workflow';
+import { DrawerToVaultTransferForm } from '../../components/drawer-to-vault-transfer-form';
 import { ListFilters } from '../../components/list-filters';
 import { PageHeader } from '../../components/page-header';
 import { StatusBadge } from '../../components/status-badge';
 import { buildQuery, fetchList, formatMoney } from '../../lib/api';
+import type { VaultOption } from '../../lib/types';
 
 type DrawerRow = {
   id: string;
@@ -67,7 +69,7 @@ export default async function DrawersPage({
 }) {
   const params = (await searchParams) ?? {};
   const today = new Date().toISOString().slice(0, 10);
-  const [drawers, todaySummaries] = await Promise.all([
+  const [drawers, todaySummaries, vaults] = await Promise.all([
     fetchList<DrawerRow>(`/drawers${buildQuery({ search: params.search, branch_id: params.branch_id })}`),
     fetchList<DrawerReconciliationRow>(
       `/drawer-daily-sessions/summary${buildQuery({
@@ -75,6 +77,7 @@ export default async function DrawersPage({
         date: today,
       })}`,
     ),
+    fetchList<VaultOption>('/vaults'),
   ]);
 
   return (
@@ -90,9 +93,13 @@ export default async function DrawersPage({
 
       {drawers.error ? <p className="notice">{drawers.error}</p> : null}
       {todaySummaries.error ? <p className="notice">{todaySummaries.error}</p> : null}
+      {vaults.error ? <p className="notice">{vaults.error}</p> : null}
 
       {drawers.data.length > 0 ? (
-        <DrawerDailyWorkflow drawers={drawers.data} today={today} summaries={todaySummaries.data} />
+        <>
+          <DrawerDailyWorkflow drawers={drawers.data} today={today} summaries={todaySummaries.data} />
+          <DrawerToVaultTransferForm drawers={drawers.data} vaults={vaults.data} />
+        </>
       ) : null}
 
       <DataTable

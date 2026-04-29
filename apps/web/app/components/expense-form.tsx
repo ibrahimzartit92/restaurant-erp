@@ -9,12 +9,14 @@ import type {
   DrawerOption,
   ExpenseCategoryOption,
   ExpenseTemplateOption,
+  VaultOption,
 } from '../lib/types';
 
 type ExpensePaymentRow = {
-  paymentMethod: 'cash' | 'bank';
+  paymentMethod: 'cash' | 'bank' | 'vault';
   drawerId: string;
   bankAccountId: string;
+  vaultId: string;
   amount: string;
   referenceNumber: string;
   notes: string;
@@ -30,6 +32,7 @@ type ExpenseFormRecord = {
   paymentMethod?: string;
   drawerId?: string | null;
   bankAccountId?: string | null;
+  vaultId?: string | null;
   paymentAllocations?: ExpensePaymentRow[] | null;
   isFixed?: boolean;
   templateId?: string | null;
@@ -37,7 +40,7 @@ type ExpenseFormRecord = {
 };
 
 function emptyPaymentRow(): ExpensePaymentRow {
-  return { paymentMethod: 'cash', drawerId: '', bankAccountId: '', amount: '', referenceNumber: '', notes: '' };
+  return { paymentMethod: 'cash', drawerId: '', bankAccountId: '', vaultId: '', amount: '', referenceNumber: '', notes: '' };
 }
 
 function asNumber(value: string) {
@@ -53,6 +56,7 @@ export function ExpenseForm({
   templates,
   drawers,
   bankAccounts,
+  vaults,
 }: Readonly<{
   mode: 'create' | 'edit';
   initialExpense?: ExpenseFormRecord | null;
@@ -61,6 +65,7 @@ export function ExpenseForm({
   templates: ExpenseTemplateOption[];
   drawers: DrawerOption[];
   bankAccounts: BankAccountOption[];
+  vaults: VaultOption[];
 }>) {
   const router = useRouter();
   const initialRows =
@@ -69,6 +74,7 @@ export function ExpenseForm({
           paymentMethod: row.paymentMethod,
           drawerId: row.drawerId ?? '',
           bankAccountId: row.bankAccountId ?? '',
+          vaultId: row.vaultId ?? '',
           amount: String(row.amount ?? ''),
           referenceNumber: row.referenceNumber ?? '',
           notes: row.notes ?? '',
@@ -76,9 +82,15 @@ export function ExpenseForm({
       : [
           {
             ...emptyPaymentRow(),
-            paymentMethod: initialExpense?.paymentMethod === 'bank' ? 'bank' : 'cash',
+            paymentMethod:
+              initialExpense?.paymentMethod === 'bank'
+                ? 'bank'
+                : initialExpense?.paymentMethod === 'vault'
+                  ? 'vault'
+                  : 'cash',
             drawerId: initialExpense?.drawerId ?? '',
             bankAccountId: initialExpense?.bankAccountId ?? '',
+            vaultId: initialExpense?.vaultId ?? '',
             amount: initialExpense?.amount ? String(initialExpense.amount) : '',
           } as ExpensePaymentRow,
         ];
@@ -99,7 +111,10 @@ export function ExpenseForm({
     const amount = Number(formData.get('amount') ?? 0);
     const activeRows = paymentRows.filter((row) => asNumber(row.amount) > 0);
     const invalidRow = activeRows.find(
-      (row) => (row.paymentMethod === 'cash' && !row.drawerId) || (row.paymentMethod === 'bank' && !row.bankAccountId),
+      (row) =>
+        (row.paymentMethod === 'cash' && !row.drawerId) ||
+        (row.paymentMethod === 'bank' && !row.bankAccountId) ||
+        (row.paymentMethod === 'vault' && !row.vaultId),
     );
 
     if (Math.round((paidTotal + Number.EPSILON) * 100) / 100 !== Math.round((amount + Number.EPSILON) * 100) / 100) {
@@ -109,7 +124,7 @@ export function ExpenseForm({
     }
 
     if (invalidRow) {
-      setMessage('اختر الدرج للدفعات النقدية والحساب البنكي للدفعات البنكية.');
+      setMessage('اختر الدرج للدفع النقدي، الحساب البنكي للدفع البنكي، أو الخزنة للدفع من الخزنة.');
       setIsSaving(false);
       return;
     }
@@ -124,6 +139,7 @@ export function ExpenseForm({
         paymentMethod: row.paymentMethod,
         drawerId: row.paymentMethod === 'cash' ? row.drawerId : null,
         bankAccountId: row.paymentMethod === 'bank' ? row.bankAccountId : null,
+        vaultId: row.paymentMethod === 'vault' ? row.vaultId : null,
         amount: asNumber(row.amount),
         referenceNumber: row.referenceNumber.trim() || null,
         notes: row.notes.trim() || null,
@@ -150,10 +166,7 @@ export function ExpenseForm({
 
   async function handleDelete(reverseFinancialEffect: boolean) {
     if (!initialExpense?.id) return;
-    const messageText = reverseFinancialEffect
-      ? 'سيتم حذف المصروف وتسجيل حركات عكسية لإرجاع المبالغ. هل تريد المتابعة؟'
-      : 'سيتم حذف المصروف وحركاته المالية الأصلية. هل تريد المتابعة؟';
-    if (!confirm(messageText)) return;
+    if (!confirm(reverseFinancialEffect ? 'سيتم حذف المصروف وتسجيل حركة عكسية. هل تريد المتابعة؟' : 'سيتم حذف المصروف. هل تريد المتابعة؟')) return;
 
     setIsSaving(true);
     setMessage(null);
@@ -220,7 +233,7 @@ export function ExpenseForm({
         <div className="panel-heading">
           <div>
             <h3>مصادر الدفع</h3>
-            <span>قسّم المصروف بين الدرج النقدي والحساب البنكي عند الحاجة.</span>
+            <span>قسّم المصروف بين الدرج النقدي، الحساب البنكي، أو الخزنة.</span>
           </div>
           <button className="secondary-button" type="button" onClick={() => setPaymentRows((current) => [...current, emptyPaymentRow()])}>
             إضافة دفعة جديدة
@@ -235,6 +248,7 @@ export function ExpenseForm({
                   <select value={row.paymentMethod} onChange={(event) => updatePaymentRow(index, { paymentMethod: event.target.value as ExpensePaymentRow['paymentMethod'] })}>
                     <option value="cash">نقدا</option>
                     <option value="bank">بنكي</option>
+                    <option value="vault">الخزنة</option>
                   </select>
                 </label>
                 <label>
@@ -253,6 +267,13 @@ export function ExpenseForm({
                   <select value={row.bankAccountId} disabled={row.paymentMethod !== 'bank'} onChange={(event) => updatePaymentRow(index, { bankAccountId: event.target.value })}>
                     <option value="">اختر الحساب</option>
                     {bankAccounts.map((bankAccount) => <option key={bankAccount.id} value={bankAccount.id}>{bankAccount.name}</option>)}
+                  </select>
+                </label>
+                <label>
+                  الخزنة
+                  <select value={row.vaultId} disabled={row.paymentMethod !== 'vault'} onChange={(event) => updatePaymentRow(index, { vaultId: event.target.value })}>
+                    <option value="">اختر الخزنة</option>
+                    {vaults.map((vault) => <option key={vault.id} value={vault.id}>{vault.name}</option>)}
                   </select>
                 </label>
                 <label>

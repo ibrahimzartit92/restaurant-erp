@@ -29,6 +29,10 @@ export class CreateSupplierPaymentDto {
   @IsOptional()
   bankAccountId?: string | null;
 
+  @IsUUID()
+  @IsOptional()
+  vaultId?: string | null;
+
   @Type(() => Number)
   @IsNumber()
   @Min(0.01)

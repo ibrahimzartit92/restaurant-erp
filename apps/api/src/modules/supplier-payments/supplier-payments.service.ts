@@ -15,6 +15,12 @@ import {
 } from '../drawer-transactions/entities/drawer-transaction.entity';
 import { DrawerEntity } from '../drawers/entities/drawer.entity';
 import { FinancialPaymentMethod } from '../shared/payment-allocation.dto';
+import {
+  VaultTransactionDirection,
+  VaultTransactionEntity,
+  VaultTransactionType,
+} from '../vaults/entities/vault-transaction.entity';
+import { VaultsService } from '../vaults/vaults.service';
 import { CreateSupplierPaymentBatchDto } from './dto/create-supplier-payment-batch.dto';
 import { PurchaseInvoiceEntity, PurchaseInvoiceStatus } from '../purchase-invoices/entities/purchase-invoice.entity';
 import { CreateSupplierPaymentDto } from './dto/create-supplier-payment.dto';
@@ -46,6 +52,7 @@ export class SupplierPaymentsService {
     private readonly drawerRepository: Repository<DrawerEntity>,
     @InjectRepository(BankAccountEntity)
     private readonly bankAccountRepository: Repository<BankAccountEntity>,
+    private readonly vaultsService: VaultsService,
   ) {}
 
   findAll(filters: SupplierPaymentFilters = {}) {
@@ -132,6 +139,7 @@ export class SupplierPaymentsService {
         paymentMethod: createSupplierPaymentDto.paymentMethod,
         drawerId: createSupplierPaymentDto.drawerId ?? null,
         bankAccountId: createSupplierPaymentDto.bankAccountId ?? null,
+        vaultId: createSupplierPaymentDto.vaultId ?? null,
         amount: createSupplierPaymentDto.amount,
         referenceNumber: createSupplierPaymentDto.referenceNumber ?? null,
         notes: createSupplierPaymentDto.notes ?? null,
@@ -172,9 +180,14 @@ export class SupplierPaymentsService {
       branchId: createSupplierPaymentBatchDto.branchId,
       paymentDate: createSupplierPaymentBatchDto.paymentDate,
       paymentMethod:
-        payment.paymentMethod === FinancialPaymentMethod.Cash ? SupplierPaymentMethod.Cash : SupplierPaymentMethod.Bank,
+        payment.paymentMethod === FinancialPaymentMethod.Cash
+          ? SupplierPaymentMethod.Cash
+          : payment.paymentMethod === FinancialPaymentMethod.Bank
+            ? SupplierPaymentMethod.Bank
+            : SupplierPaymentMethod.Vault,
       drawerId: payment.drawerId ?? null,
       bankAccountId: payment.bankAccountId ?? null,
+      vaultId: payment.vaultId ?? null,
       amount: payment.amount,
       referenceNumber: payment.referenceNumber ?? null,
       notes: payment.notes ?? createSupplierPaymentBatchDto.notes ?? null,
@@ -317,6 +330,24 @@ export class SupplierPaymentsService {
         notes: payment.notes,
       });
     }
+    if (payment.paymentMethod === SupplierPaymentMethod.Vault && payment.vaultId) {
+      await this.vaultsService.recordTransaction(
+        {
+          vaultId: payment.vaultId,
+          transactionDate: payment.paymentDate,
+          transactionType: VaultTransactionType.SupplierPayment,
+          direction: VaultTransactionDirection.Out,
+          amount: payment.amount,
+          branchId: payment.branchId,
+          sourceType: 'supplier_payment',
+          sourceId: payment.id,
+          referenceNumber: payment.referenceNumber,
+          description: `دفعة مورد ${payment.paymentNumber}`,
+          notes: payment.notes,
+        },
+        manager,
+      );
+    }
   }
 
   private async recordFinancialReversal(payment: SupplierPaymentEntity, manager = this.dataSource.manager) {
@@ -366,6 +397,30 @@ export class SupplierPaymentsService {
         notes: payment.notes,
       });
     }
+    if (payment.paymentMethod === SupplierPaymentMethod.Vault && payment.vaultId) {
+      const existingReversal = await manager.getRepository(VaultTransactionEntity).findOne({
+        where: { sourceType: 'supplier_payment_reversal', sourceId: payment.id },
+      });
+      if (existingReversal) {
+        return;
+      }
+      await this.vaultsService.recordTransaction(
+        {
+          vaultId: payment.vaultId,
+          transactionDate: today,
+          transactionType: VaultTransactionType.SupplierPayment,
+          direction: VaultTransactionDirection.In,
+          amount: payment.amount,
+          branchId: payment.branchId,
+          sourceType: 'supplier_payment_reversal',
+          sourceId: payment.id,
+          referenceNumber: payment.referenceNumber,
+          description: `عكس دفعة مورد ${payment.paymentNumber}`,
+          notes: payment.notes,
+        },
+        manager,
+      );
+    }
   }
 
   private async deleteFinancialMovement(paymentId: string, manager = this.dataSource.manager) {
@@ -374,6 +429,7 @@ export class SupplierPaymentsService {
       manager
         .getRepository(BankAccountTransactionEntity)
         .delete({ sourceType: 'supplier_payment', sourceId: paymentId }),
+      this.vaultsService.deleteFinancialMovement('supplier_payment', paymentId, manager),
     ]);
   }
 
@@ -383,6 +439,7 @@ export class SupplierPaymentsService {
     paymentMethod: SupplierPaymentMethod;
     drawerId?: string | null;
     bankAccountId?: string | null;
+    vaultId?: string | null;
   }) {
     const invoice = await this.purchaseInvoiceRepository.findOne({ where: { id: data.purchaseInvoiceId } });
 
@@ -426,6 +483,13 @@ export class SupplierPaymentsService {
       if (!bankAccount) {
         throw new NotFoundException('Bank account was not found.');
       }
+    }
+
+    if (data.paymentMethod === SupplierPaymentMethod.Vault) {
+      if (!(data as { vaultId?: string | null }).vaultId) {
+        throw new BadRequestException('Vault supplier payments require vaultId.');
+      }
+      await this.vaultsService.findEntityByIdOrFail((data as { vaultId: string }).vaultId);
     }
 
     return invoice;

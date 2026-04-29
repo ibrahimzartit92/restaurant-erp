@@ -1,21 +1,22 @@
 'use client';
 
-import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import { submitJson } from '../lib/client-api';
-import type { BankAccountOption, BranchOption, DrawerOption, PurchaseInvoiceOption } from '../lib/types';
+import type { BankAccountOption, BranchOption, DrawerOption, PurchaseInvoiceOption, VaultOption } from '../lib/types';
 
 type PaymentRow = {
-  paymentMethod: 'cash' | 'bank';
+  paymentMethod: 'cash' | 'bank' | 'vault';
   drawerId: string;
   bankAccountId: string;
+  vaultId: string;
   amount: string;
   referenceNumber: string;
   notes: string;
 };
 
 function emptyPayment(): PaymentRow {
-  return { paymentMethod: 'cash', drawerId: '', bankAccountId: '', amount: '', referenceNumber: '', notes: '' };
+  return { paymentMethod: 'cash', drawerId: '', bankAccountId: '', vaultId: '', amount: '', referenceNumber: '', notes: '' };
 }
 
 function asNumber(value: string) {
@@ -28,11 +29,13 @@ export function SupplierPaymentBatchForm({
   branches,
   drawers,
   bankAccounts,
+  vaults,
 }: Readonly<{
   invoices: PurchaseInvoiceOption[];
   branches: BranchOption[];
   drawers: DrawerOption[];
   bankAccounts: BankAccountOption[];
+  vaults: VaultOption[];
 }>) {
   const router = useRouter();
   const [rows, setRows] = useState<PaymentRow[]>([emptyPayment()]);
@@ -51,11 +54,14 @@ export function SupplierPaymentBatchForm({
     const formData = new FormData(event.currentTarget);
     const activeRows = rows.filter((row) => asNumber(row.amount) > 0);
     const invalidRow = activeRows.find(
-      (row) => (row.paymentMethod === 'cash' && !row.drawerId) || (row.paymentMethod === 'bank' && !row.bankAccountId),
+      (row) =>
+        (row.paymentMethod === 'cash' && !row.drawerId) ||
+        (row.paymentMethod === 'bank' && !row.bankAccountId) ||
+        (row.paymentMethod === 'vault' && !row.vaultId),
     );
 
     if (activeRows.length === 0 || invalidRow) {
-      setMessage('أضف دفعة واحدة على الأقل، واختر الدرج للدفع النقدي أو الحساب البنكي للدفع البنكي.');
+      setMessage('أضف دفعة واحدة على الأقل واختر مصدر الدفع المناسب.');
       setIsSaving(false);
       return;
     }
@@ -70,6 +76,7 @@ export function SupplierPaymentBatchForm({
           paymentMethod: row.paymentMethod,
           drawerId: row.paymentMethod === 'cash' ? row.drawerId : null,
           bankAccountId: row.paymentMethod === 'bank' ? row.bankAccountId : null,
+          vaultId: row.paymentMethod === 'vault' ? row.vaultId : null,
           amount: asNumber(row.amount),
           referenceNumber: row.referenceNumber.trim() || null,
           notes: row.notes.trim() || null,
@@ -103,11 +110,7 @@ export function SupplierPaymentBatchForm({
           الفرع
           <select name="branchId" required>
             <option value="">اختر الفرع المطابق للفاتورة</option>
-            {branches.map((branch) => (
-              <option key={branch.id} value={branch.id}>
-                {branch.name}
-              </option>
-            ))}
+            {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
           </select>
         </label>
         <label>
@@ -124,7 +127,7 @@ export function SupplierPaymentBatchForm({
         <div className="panel-heading">
           <div>
             <h3>دفعات المورد</h3>
-            <span>يمكن تقسيم الدفع بين نقدي وبنكي أو تسجيل أكثر من قسط.</span>
+            <span>يمكن تقسيم الدفع بين الدرج، البنك، والخزنة.</span>
           </div>
           <button className="secondary-button" type="button" onClick={() => setRows((current) => [...current, emptyPayment()])}>
             إضافة دفعة جديدة
@@ -136,12 +139,10 @@ export function SupplierPaymentBatchForm({
               <div className="transfer-item-grid">
                 <label>
                   الطريقة
-                  <select
-                    value={row.paymentMethod}
-                    onChange={(event) => updateRow(index, { paymentMethod: event.target.value as PaymentRow['paymentMethod'] })}
-                  >
+                  <select value={row.paymentMethod} onChange={(event) => updateRow(index, { paymentMethod: event.target.value as PaymentRow['paymentMethod'] })}>
                     <option value="cash">نقدا</option>
                     <option value="bank">بنكي</option>
+                    <option value="vault">الخزنة</option>
                   </select>
                 </label>
                 <label>
@@ -160,6 +161,13 @@ export function SupplierPaymentBatchForm({
                   <select value={row.bankAccountId} disabled={row.paymentMethod !== 'bank'} onChange={(event) => updateRow(index, { bankAccountId: event.target.value })}>
                     <option value="">اختر الحساب</option>
                     {bankAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+                  </select>
+                </label>
+                <label>
+                  الخزنة
+                  <select value={row.vaultId} disabled={row.paymentMethod !== 'vault'} onChange={(event) => updateRow(index, { vaultId: event.target.value })}>
+                    <option value="">اختر الخزنة</option>
+                    {vaults.map((vault) => <option key={vault.id} value={vault.id}>{vault.name}</option>)}
                   </select>
                 </label>
                 <label>

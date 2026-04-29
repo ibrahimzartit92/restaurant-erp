@@ -29,6 +29,7 @@ export enum DrawerTransactionType {
   Withdrawal = 'withdrawal',
   Settlement = 'settlement',
   Transfer = 'transfer',
+  TransferToVault = 'transfer_to_vault',
 }
 
 @Entity('drawer_transactions')

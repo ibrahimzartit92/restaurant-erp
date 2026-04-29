@@ -9,11 +9,12 @@ import type {
   DrawerOption,
   ExpenseCategoryOption,
   ExpenseTemplateOption,
+  VaultOption,
 } from '../../../../lib/types';
 
 export default async function EditExpensePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [expense, branches, categories, templates, drawers, bankAccounts] = await Promise.all([
+  const [expense, branches, categories, templates, drawers, bankAccounts, vaults] = await Promise.all([
     fetchOne<{
       id: string;
       expenseDate: string;
@@ -24,6 +25,16 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
       paymentMethod: string;
       drawerId?: string | null;
       bankAccountId?: string | null;
+      vaultId?: string | null;
+      paymentAllocations?: {
+        paymentMethod: 'cash' | 'bank' | 'vault';
+        drawerId?: string | null;
+        bankAccountId?: string | null;
+        vaultId?: string | null;
+        amount: number;
+        referenceNumber?: string | null;
+        notes?: string | null;
+      }[] | null;
       isFixed: boolean;
       templateId?: string | null;
       notes?: string | null;
@@ -33,6 +44,7 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
     fetchList<ExpenseTemplateOption>('/expense-templates'),
     fetchList<DrawerOption>('/drawers'),
     fetchList<BankAccountOption>('/bank-accounts'),
+    fetchList<VaultOption>('/vaults'),
   ]);
   const attachments = expense.data
     ? await fetchList<AttachmentSummary>(`/attachments?entity_type=expense&entity_id=${expense.data.id}`)
@@ -50,6 +62,7 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
         templates={templates.data}
         drawers={drawers.data}
         bankAccounts={bankAccounts.data}
+        vaults={vaults.data}
       />
       {expense.data ? (
         <>

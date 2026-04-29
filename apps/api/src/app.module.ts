@@ -36,6 +36,7 @@ import { SuppliersModule } from './modules/suppliers/suppliers.module';
 import { TransfersModule } from './modules/transfers/transfers.module';
 import { UnitsModule } from './modules/units/units.module';
 import { UsersModule } from './modules/users/users.module';
+import { VaultsModule } from './modules/vaults/vaults.module';
 import { WarehousesModule } from './modules/warehouses/warehouses.module';
 
 @Module({
@@ -76,6 +77,7 @@ import { WarehousesModule } from './modules/warehouses/warehouses.module';
     TransfersModule,
     UnitsModule,
     UsersModule,
+    VaultsModule,
     WarehousesModule,
   ],
   controllers: [HealthController],

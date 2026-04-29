@@ -6,12 +6,14 @@ import { BranchEntity } from '../branches/entities/branch.entity';
 import { DrawerTransactionEntity } from '../drawer-transactions/entities/drawer-transaction.entity';
 import { DrawerEntity } from '../drawers/entities/drawer.entity';
 import { PurchaseInvoiceEntity } from '../purchase-invoices/entities/purchase-invoice.entity';
+import { VaultsModule } from '../vaults/vaults.module';
 import { SupplierPaymentEntity } from './entities/supplier-payment.entity';
 import { SupplierPaymentsController } from './supplier-payments.controller';
 import { SupplierPaymentsService } from './supplier-payments.service';
 
 @Module({
   imports: [
+    VaultsModule,
     TypeOrmModule.forFeature([
       BankAccountEntity,
       BankAccountTransactionEntity,

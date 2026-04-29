@@ -3,16 +3,18 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { submitJson } from '../lib/client-api';
-import type { BankAccountOption, DrawerOption } from '../lib/types';
+import type { BankAccountOption, DrawerOption, VaultOption } from '../lib/types';
 
 type PaymentMode = 'add' | 'settle' | null;
-type PaymentMethod = 'cash' | 'bank';
+type PaymentMethod = 'cash' | 'bank' | 'vault';
 
 function formatMoney(value: number, currencySymbol: string, decimalPlaces: number) {
-  return new Intl.NumberFormat('ar', {
-    minimumFractionDigits: decimalPlaces,
-    maximumFractionDigits: decimalPlaces,
-  }).format(value) + ` ${currencySymbol}`;
+  return (
+    new Intl.NumberFormat('ar', {
+      minimumFractionDigits: decimalPlaces,
+      maximumFractionDigits: decimalPlaces,
+    }).format(value) + ` ${currencySymbol}`
+  );
 }
 
 export function PurchaseInvoicePaymentPanel({
@@ -21,6 +23,7 @@ export function PurchaseInvoicePaymentPanel({
   remainingAmount,
   drawers,
   bankAccounts,
+  vaults,
   currencySymbol = 'ر.س',
   decimalPlaces = 2,
 }: Readonly<{
@@ -29,6 +32,7 @@ export function PurchaseInvoicePaymentPanel({
   remainingAmount: number;
   drawers: DrawerOption[];
   bankAccounts: BankAccountOption[];
+  vaults: VaultOption[];
   currencySymbol?: string;
   decimalPlaces?: number;
 }>) {
@@ -55,10 +59,12 @@ export function PurchaseInvoicePaymentPanel({
     event.preventDefault();
     setIsSaving(true);
     setMessage(null);
+
     const formData = new FormData(event.currentTarget);
     const numericAmount = Number(amount);
     const drawerId = String(formData.get('drawerId') ?? '') || null;
     const bankAccountId = String(formData.get('bankAccountId') ?? '') || null;
+    const vaultId = String(formData.get('vaultId') ?? '') || null;
 
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
       setMessage('أدخل مبلغ دفعة صحيح.');
@@ -73,13 +79,19 @@ export function PurchaseInvoicePaymentPanel({
     }
 
     if (paymentMethod === 'cash' && !drawerId) {
-      setMessage('اختر الدرج النقدي للدفعة النقدية.');
+      setMessage('اختر الدرج للدفعة النقدية.');
       setIsSaving(false);
       return;
     }
 
     if (paymentMethod === 'bank' && !bankAccountId) {
       setMessage('اختر الحساب البنكي للدفعة البنكية.');
+      setIsSaving(false);
+      return;
+    }
+
+    if (paymentMethod === 'vault' && !vaultId) {
+      setMessage('اختر الخزنة التي سيتم الدفع منها.');
       setIsSaving(false);
       return;
     }
@@ -91,6 +103,7 @@ export function PurchaseInvoicePaymentPanel({
         paymentMethod,
         drawerId: paymentMethod === 'cash' ? drawerId : null,
         bankAccountId: paymentMethod === 'bank' ? bankAccountId : null,
+        vaultId: paymentMethod === 'vault' ? vaultId : null,
         amount: numericAmount,
         referenceNumber: String(formData.get('referenceNumber') ?? '') || null,
         notes: String(formData.get('notes') ?? '') || null,
@@ -114,7 +127,7 @@ export function PurchaseInvoicePaymentPanel({
       <div className="panel-heading">
         <div>
           <h3>إجراءات الدفع</h3>
-          <span>الدفعات هنا تُضاف إلى هذه الفاتورة فقط ولا تنشئ فاتورة جديدة.</span>
+          <span>الدفعات هنا تضاف إلى هذه الفاتورة فقط ولا تنشئ فاتورة جديدة.</span>
         </div>
         <strong>المتبقي {formatMoney(remainingAmount, currencySymbol, decimalPlaces)}</strong>
       </div>
@@ -132,9 +145,12 @@ export function PurchaseInvoicePaymentPanel({
         <form className="form-panel" onSubmit={handleSubmit}>
           {message ? <p className="notice danger">{message}</p> : null}
           <div className="panel-heading">
-            <h3>{mode === 'settle' ? 'تسديد المتبقي' : 'إضافة دفعة جديدة'}</h3>
-            <span>اختر مصدر الدفع ثم احفظ الدفعة على الفاتورة الحالية.</span>
+            <div>
+              <h3>{mode === 'settle' ? 'تسديد المتبقي' : 'إضافة دفعة جديدة'}</h3>
+              <span>اختر مصدر الدفع ثم احفظ الدفعة على الفاتورة الحالية.</span>
+            </div>
           </div>
+
           <div className="form-grid">
             <label>
               تاريخ الدفع
@@ -143,8 +159,9 @@ export function PurchaseInvoicePaymentPanel({
             <label>
               طريقة الدفع
               <select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as PaymentMethod)}>
-                <option value="cash">نقدا</option>
-                <option value="bank">بنكي</option>
+                <option value="cash">نقدا من درج</option>
+                <option value="bank">من حساب بنكي</option>
+                <option value="vault">من الخزنة</option>
               </select>
             </label>
             <label>
@@ -159,7 +176,7 @@ export function PurchaseInvoicePaymentPanel({
               />
             </label>
             <label>
-              الدرج النقدي
+              الدرج
               <select disabled={paymentMethod !== 'cash'} name="drawerId">
                 <option value="">اختر الدرج</option>
                 {drawers.map((drawer) => (
@@ -181,14 +198,27 @@ export function PurchaseInvoicePaymentPanel({
               </select>
             </label>
             <label>
+              الخزنة
+              <select disabled={paymentMethod !== 'vault'} name="vaultId">
+                <option value="">اختر الخزنة</option>
+                {vaults.map((vault) => (
+                  <option key={vault.id} value={vault.id}>
+                    {vault.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
               رقم المرجع
               <input maxLength={120} name="referenceNumber" placeholder="اختياري" />
             </label>
           </div>
+
           <label>
             ملاحظات
             <textarea name="notes" rows={3} />
           </label>
+
           <div className="form-actions">
             <button disabled={isSaving} type="submit">
               {isSaving ? 'جاري حفظ الدفعة...' : 'حفظ الدفعة'}

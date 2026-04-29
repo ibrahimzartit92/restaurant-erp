@@ -22,6 +22,8 @@ export enum BankAccountTransactionType {
   ExpenseBankReversal = 'expense_bank_reversal',
   SalesReceiptBank = 'sales_receipt_bank',
   RefundBank = 'refund_bank',
+  DepositFromVault = 'deposit_from_vault',
+  WithdrawalToVault = 'withdrawal_to_vault',
 }
 
 export enum BankAccountTransactionDirection {

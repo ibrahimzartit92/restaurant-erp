@@ -7,15 +7,17 @@ import type {
   DrawerOption,
   ExpenseCategoryOption,
   ExpenseTemplateOption,
+  VaultOption,
 } from '../../../lib/types';
 
 export default async function NewExpensePage() {
-  const [branches, categories, templates, drawers, bankAccounts] = await Promise.all([
+  const [branches, categories, templates, drawers, bankAccounts, vaults] = await Promise.all([
     fetchList<BranchOption>('/branches'),
     fetchList<ExpenseCategoryOption>('/expense-categories'),
     fetchList<ExpenseTemplateOption>('/expense-templates'),
     fetchList<DrawerOption>('/drawers'),
     fetchList<BankAccountOption>('/bank-accounts'),
+    fetchList<VaultOption>('/vaults'),
   ]);
 
   return (
@@ -28,6 +30,7 @@ export default async function NewExpensePage() {
         templates={templates.data}
         drawers={drawers.data}
         bankAccounts={bankAccounts.data}
+        vaults={vaults.data}
       />
     </>
   );

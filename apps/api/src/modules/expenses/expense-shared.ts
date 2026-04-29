@@ -1,6 +1,7 @@
 export enum ExpensePaymentMethod {
   Cash = 'cash',
   Bank = 'bank',
+  Vault = 'vault',
   Other = 'other',
 }
 

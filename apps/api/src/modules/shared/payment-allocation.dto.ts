@@ -4,6 +4,7 @@ import { IsEnum, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min } from '
 export enum FinancialPaymentMethod {
   Cash = 'cash',
   Bank = 'bank',
+  Vault = 'vault',
 }
 
 export class PaymentAllocationDto {
@@ -17,6 +18,10 @@ export class PaymentAllocationDto {
   @IsUUID()
   @IsOptional()
   bankAccountId?: string | null;
+
+  @IsUUID()
+  @IsOptional()
+  vaultId?: string | null;
 
   @Type(() => Number)
   @IsNumber()

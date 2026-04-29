@@ -22,6 +22,7 @@ export type ExpensePaymentAllocation = {
   paymentMethod: FinancialPaymentMethod;
   drawerId?: string | null;
   bankAccountId?: string | null;
+  vaultId?: string | null;
   amount: number;
   referenceNumber?: string | null;
   notes?: string | null;
@@ -79,6 +80,9 @@ export class ExpenseEntity {
   @ManyToOne(() => BankAccountEntity, { eager: true, nullable: true })
   @JoinColumn({ name: 'bank_account_id' })
   bankAccount!: BankAccountEntity | null;
+
+  @Column({ name: 'vault_id', type: 'uuid', nullable: true })
+  vaultId!: string | null;
 
   @Column({ name: 'payment_allocations', type: 'jsonb', nullable: true })
   paymentAllocations!: ExpensePaymentAllocation[] | null;

@@ -7,12 +7,14 @@ import { DrawerTransactionEntity } from '../drawer-transactions/entities/drawer-
 import { DrawerEntity } from '../drawers/entities/drawer.entity';
 import { ExpenseCategoryEntity } from '../expense-categories/entities/expense-category.entity';
 import { ExpenseTemplateEntity } from '../expense-templates/entities/expense-template.entity';
+import { VaultsModule } from '../vaults/vaults.module';
 import { ExpenseEntity } from './entities/expense.entity';
 import { ExpensesController } from './expenses.controller';
 import { ExpensesService } from './expenses.service';
 
 @Module({
   imports: [
+    VaultsModule,
     TypeOrmModule.forFeature([
       BankAccountEntity,
       BankAccountTransactionEntity,
