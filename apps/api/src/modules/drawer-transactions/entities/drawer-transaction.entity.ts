@@ -20,7 +20,9 @@ export enum DrawerTransactionDirection {
 export enum DrawerTransactionType {
   DailyCashSales = 'daily_cash_sales',
   SupplierPaymentCash = 'supplier_payment_cash',
+  SupplierPaymentCashReversal = 'supplier_payment_cash_reversal',
   ExpenseCash = 'expense_cash',
+  ExpenseCashReversal = 'expense_cash_reversal',
   EmployeeAdvanceCash = 'employee_advance_cash',
   SalesReturnCash = 'sales_return_cash',
   Deposit = 'deposit',

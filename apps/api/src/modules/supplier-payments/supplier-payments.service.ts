@@ -14,6 +14,8 @@ import {
   DrawerTransactionType,
 } from '../drawer-transactions/entities/drawer-transaction.entity';
 import { DrawerEntity } from '../drawers/entities/drawer.entity';
+import { FinancialPaymentMethod } from '../shared/payment-allocation.dto';
+import { CreateSupplierPaymentBatchDto } from './dto/create-supplier-payment-batch.dto';
 import { PurchaseInvoiceEntity, PurchaseInvoiceStatus } from '../purchase-invoices/entities/purchase-invoice.entity';
 import { CreateSupplierPaymentDto } from './dto/create-supplier-payment.dto';
 import { UpdateSupplierPaymentDto } from './dto/update-supplier-payment.dto';
@@ -102,6 +104,42 @@ export class SupplierPaymentsService {
     });
   }
 
+  async createBatch(createSupplierPaymentBatchDto: CreateSupplierPaymentBatchDto) {
+    const invoice = await this.purchaseInvoiceRepository.findOne({
+      where: { id: createSupplierPaymentBatchDto.purchaseInvoiceId },
+    });
+    if (!invoice) {
+      throw new NotFoundException('Purchase invoice was not found.');
+    }
+    const total = createSupplierPaymentBatchDto.payments.reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0);
+    if (this.roundMoney(total) > invoice.remainingAmount) {
+      throw new BadRequestException('Payment amount cannot be greater than the invoice remaining amount.');
+    }
+
+    const payments = [];
+
+    for (const payment of createSupplierPaymentBatchDto.payments) {
+      payments.push(
+        await this.create({
+          purchaseInvoiceId: createSupplierPaymentBatchDto.purchaseInvoiceId,
+          branchId: createSupplierPaymentBatchDto.branchId,
+          paymentDate: createSupplierPaymentBatchDto.paymentDate,
+          paymentMethod:
+            payment.paymentMethod === FinancialPaymentMethod.Cash
+              ? SupplierPaymentMethod.Cash
+              : SupplierPaymentMethod.Bank,
+          drawerId: payment.drawerId ?? null,
+          bankAccountId: payment.bankAccountId ?? null,
+          amount: payment.amount,
+          referenceNumber: payment.referenceNumber ?? null,
+          notes: payment.notes ?? createSupplierPaymentBatchDto.notes ?? undefined,
+        }),
+      );
+    }
+
+    return payments;
+  }
+
   async update(id: string, updateSupplierPaymentDto: UpdateSupplierPaymentDto) {
     const payment = await this.findByIdOrFail(id);
 
@@ -143,11 +181,15 @@ export class SupplierPaymentsService {
     return this.findByIdOrFail(savedPayment.id);
   }
 
-  async remove(id: string) {
+  async remove(id: string, reverseFinancialEffect = false) {
     const payment = await this.findByIdOrFail(id);
     const purchaseInvoiceId = payment.purchaseInvoiceId;
     await this.dataSource.transaction(async (manager) => {
-      await this.deleteFinancialMovement(payment.id, manager);
+      if (reverseFinancialEffect) {
+        await this.recordFinancialReversal(payment, manager);
+      } else {
+        await this.deleteFinancialMovement(payment.id, manager);
+      }
       await manager.getRepository(SupplierPaymentEntity).remove(payment);
       await this.recalculateInvoicePaymentState(
         purchaseInvoiceId,
@@ -189,6 +231,41 @@ export class SupplierPaymentsService {
         sourceId: payment.id,
         referenceNumber: payment.referenceNumber,
         description: `دفعة مورد ${payment.paymentNumber}`,
+        notes: payment.notes,
+      });
+    }
+  }
+
+  private async recordFinancialReversal(payment: SupplierPaymentEntity, manager = this.dataSource.manager) {
+    const today = new Date().toISOString().slice(0, 10);
+
+    if (payment.paymentMethod === SupplierPaymentMethod.Cash && payment.drawerId) {
+      await manager.getRepository(DrawerTransactionEntity).save({
+        drawerId: payment.drawerId,
+        branchId: payment.branchId,
+        transactionDate: today,
+        transactionType: DrawerTransactionType.SupplierPaymentCashReversal,
+        direction: DrawerTransactionDirection.In,
+        amount: payment.amount,
+        sourceType: 'supplier_payment_reversal',
+        sourceId: payment.id,
+        description: `عكس دفعة مورد ${payment.paymentNumber}`,
+        notes: payment.notes,
+      });
+    }
+
+    if (payment.paymentMethod === SupplierPaymentMethod.Bank && payment.bankAccountId) {
+      await manager.getRepository(BankAccountTransactionEntity).save({
+        bankAccountId: payment.bankAccountId,
+        transactionDate: today,
+        transactionType: BankAccountTransactionType.SupplierPaymentBankReversal,
+        direction: BankAccountTransactionDirection.Incoming,
+        amount: payment.amount,
+        branchId: payment.branchId,
+        sourceType: 'supplier_payment_reversal',
+        sourceId: payment.id,
+        referenceNumber: payment.referenceNumber,
+        description: `عكس دفعة مورد ${payment.paymentNumber}`,
         notes: payment.notes,
       });
     }

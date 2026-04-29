@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { CreateSupplierPaymentBatchDto } from '../supplier-payments/dto/create-supplier-payment-batch.dto';
 import { CreateSupplierPaymentDto } from '../supplier-payments/dto/create-supplier-payment.dto';
 import { SupplierPaymentsService } from '../supplier-payments/supplier-payments.service';
 import { CreatePurchaseInvoiceDto } from './dto/create-purchase-invoice.dto';
@@ -46,6 +47,14 @@ export class PurchaseInvoicesController {
   addPayment(@Param('id') id: string, @Body() createSupplierPaymentDto: CreateSupplierPaymentDto) {
     return this.supplierPaymentsService.create({
       ...createSupplierPaymentDto,
+      purchaseInvoiceId: id,
+    });
+  }
+
+  @Post(':id/payments/batch')
+  addPaymentBatch(@Param('id') id: string, @Body() createSupplierPaymentBatchDto: CreateSupplierPaymentBatchDto) {
+    return this.supplierPaymentsService.createBatch({
+      ...createSupplierPaymentBatchDto,
       purchaseInvoiceId: id,
     });
   }

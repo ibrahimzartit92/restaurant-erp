@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { CreateSupplierPaymentBatchDto } from './dto/create-supplier-payment-batch.dto';
 import { CreateSupplierPaymentDto } from './dto/create-supplier-payment.dto';
 import { UpdateSupplierPaymentDto } from './dto/update-supplier-payment.dto';
 import { SupplierPaymentsService } from './supplier-payments.service';
@@ -25,13 +26,18 @@ export class SupplierPaymentsController {
     return this.supplierPaymentsService.create(createSupplierPaymentDto);
   }
 
+  @Post('batch')
+  createBatch(@Body() createSupplierPaymentBatchDto: CreateSupplierPaymentBatchDto) {
+    return this.supplierPaymentsService.createBatch(createSupplierPaymentBatchDto);
+  }
+
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateSupplierPaymentDto: UpdateSupplierPaymentDto) {
     return this.supplierPaymentsService.update(id, updateSupplierPaymentDto);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.supplierPaymentsService.remove(id);
+  remove(@Param('id') id: string, @Query('reverse_financial_effect') reverseFinancialEffect?: string) {
+    return this.supplierPaymentsService.remove(id, reverseFinancialEffect === 'true');
   }
 }

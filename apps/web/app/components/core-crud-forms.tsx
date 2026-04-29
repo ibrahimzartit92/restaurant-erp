@@ -509,6 +509,7 @@ export function PurchaseInvoiceForm({
 
     const invalidPayment = activePayments.find(
       (payment) =>
+        !['cash', 'bank'].includes(payment.paymentMethod) ||
         (payment.paymentMethod === 'cash' && !payment.drawerId) ||
         (payment.paymentMethod === 'bank' && !payment.bankAccountId),
     );
@@ -522,19 +523,19 @@ export function PurchaseInvoiceForm({
     try {
       const saved = (await submitJson('/purchase-invoices', 'POST', payload)) as { id?: string };
       if (saved.id) {
-        for (const payment of activePayments) {
-          await submitJson('/supplier-payments', 'POST', {
-            purchaseInvoiceId: saved.id,
-            branchId: payload.branchId,
-            paymentDate: payload.invoiceDate,
+        await submitJson('/supplier-payments/batch', 'POST', {
+          purchaseInvoiceId: saved.id,
+          branchId: payload.branchId,
+          paymentDate: payload.invoiceDate,
+          payments: activePayments.map((payment) => ({
             paymentMethod: payment.paymentMethod,
             drawerId: payment.paymentMethod === 'cash' ? payment.drawerId : null,
             bankAccountId: payment.paymentMethod === 'bank' ? payment.bankAccountId : null,
             amount: payment.amount,
             referenceNumber: payment.referenceNumber.trim() || null,
             notes: payment.notes.trim() || null,
-          });
-        }
+          })),
+        });
       }
       router.push(saved.id ? `/purchase-invoices/${saved.id}` : '/purchase-invoices');
       router.refresh();

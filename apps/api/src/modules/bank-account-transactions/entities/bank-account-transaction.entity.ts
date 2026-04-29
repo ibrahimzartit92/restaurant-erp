@@ -17,7 +17,9 @@ export enum BankAccountTransactionType {
   Transfer = 'transfer',
   Settlement = 'settlement',
   SupplierPaymentBank = 'supplier_payment_bank',
+  SupplierPaymentBankReversal = 'supplier_payment_bank_reversal',
   ExpenseBank = 'expense_bank',
+  ExpenseBankReversal = 'expense_bank_reversal',
   SalesReceiptBank = 'sales_receipt_bank',
   RefundBank = 'refund_bank',
 }

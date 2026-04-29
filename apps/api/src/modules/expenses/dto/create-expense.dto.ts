@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
-import { IsBoolean, IsDateString, IsEnum, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
+import { IsArray, IsBoolean, IsDateString, IsEnum, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min, ValidateNested } from 'class-validator';
+import { PaymentAllocationDto } from '../../shared/payment-allocation.dto';
 import { ExpensePaymentMethod } from '../expense-shared';
 
 export class CreateExpenseDto {
@@ -39,6 +40,12 @@ export class CreateExpenseDto {
   @IsUUID()
   @IsOptional()
   bankAccountId?: string | null;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PaymentAllocationDto)
+  @IsOptional()
+  payments?: PaymentAllocationDto[];
 
   @IsBoolean()
   @IsOptional()

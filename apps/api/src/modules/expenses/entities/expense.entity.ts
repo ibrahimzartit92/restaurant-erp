@@ -14,8 +14,18 @@ import { DrawerEntity } from '../../drawers/entities/drawer.entity';
 import { ExpenseCategoryEntity } from '../../expense-categories/entities/expense-category.entity';
 import { ExpenseTemplateEntity } from '../../expense-templates/entities/expense-template.entity';
 import { ExpensePaymentMethod, numericTransformer } from '../expense-shared';
+import { FinancialPaymentMethod } from '../../shared/payment-allocation.dto';
 
 export { ExpensePaymentMethod, numericTransformer };
+
+export type ExpensePaymentAllocation = {
+  paymentMethod: FinancialPaymentMethod;
+  drawerId?: string | null;
+  bankAccountId?: string | null;
+  amount: number;
+  referenceNumber?: string | null;
+  notes?: string | null;
+};
 
 @Entity('expenses')
 export class ExpenseEntity {
@@ -69,6 +79,9 @@ export class ExpenseEntity {
   @ManyToOne(() => BankAccountEntity, { eager: true, nullable: true })
   @JoinColumn({ name: 'bank_account_id' })
   bankAccount!: BankAccountEntity | null;
+
+  @Column({ name: 'payment_allocations', type: 'jsonb', nullable: true })
+  paymentAllocations!: ExpensePaymentAllocation[] | null;
 
   @Column({ name: 'is_fixed', type: 'boolean', default: false })
   isFixed!: boolean;

@@ -33,7 +33,7 @@ export class ExpensesController {
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.expensesService.remove(id);
+  remove(@Param('id') id: string, @Query('reverse_financial_effect') reverseFinancialEffect?: string) {
+    return this.expensesService.remove(id, reverseFinancialEffect === 'true');
   }
 }
