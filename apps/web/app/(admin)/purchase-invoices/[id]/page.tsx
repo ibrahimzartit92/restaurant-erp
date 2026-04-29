@@ -3,7 +3,7 @@ import { AttachmentsPanel } from '../../../components/attachments-panel';
 import { DataTable, type DataColumn } from '../../../components/data-table';
 import { PageHeader } from '../../../components/page-header';
 import { PurchaseInvoiceActions } from '../../../components/purchase-invoice-actions';
-import { PurchaseInvoicePaymentForm } from '../../../components/purchase-invoice-payment-form';
+import { PurchaseInvoicePaymentPanel } from '../../../components/purchase-invoice-payment-panel';
 import { StatusBadge } from '../../../components/status-badge';
 import { fetchList, fetchOne, formatDate, formatMoney } from '../../../lib/api';
 import type { AttachmentSummary, BankAccountOption, DrawerOption } from '../../../lib/types';
@@ -39,7 +39,10 @@ type PurchaseInvoiceDetails = {
     paymentDate: string;
     amount: number;
     paymentMethod: string;
+    drawer?: { name: string } | null;
+    bankAccount?: { name: string } | null;
     referenceNumber?: string | null;
+    notes?: string | null;
   }[];
 };
 
@@ -57,6 +60,7 @@ const paymentColumns: DataColumn<PurchaseInvoiceDetails['payments'][number]>[] =
   { key: 'paymentDate', label: 'التاريخ', render: (row) => formatDate(row.paymentDate) },
   { key: 'amount', label: 'المبلغ', render: (row) => formatMoney(row.amount) },
   { key: 'paymentMethod', label: 'الطريقة', render: (row) => <StatusBadge value={row.paymentMethod} /> },
+  { key: 'source', label: 'المصدر', render: (row) => row.drawer?.name ?? row.bankAccount?.name ?? 'غير محدد' },
   { key: 'referenceNumber', label: 'المرجع', render: (row) => row.referenceNumber ?? 'غير محدد' },
 ];
 
@@ -74,60 +78,92 @@ export default async function PurchaseInvoiceDetailsPage({ params }: { params: P
   }
 
   const invoice = invoiceResult.data;
+  const isCancelled = invoice.status === 'cancelled';
 
   return (
     <>
-      <PageHeader title="تفاصيل فاتورة الشراء" description="مراجعة الفاتورة، المدفوعات، وتسديد المتبقي عند الحاجة." />
+      <PageHeader title="تفاصيل فاتورة الشراء" description="صفحة واضحة لمراجعة الفاتورة، الدفعات، وتسديد المتبقي." />
 
       <section className="summary-grid">
         <article className="summary-card">
-          <p>رقم الفاتورة</p>
-          <strong>{invoice.invoiceNumber}</strong>
-          <span>{invoice.invoiceLabel ?? 'بدون وصف'}</span>
-        </article>
-        <article className="summary-card">
-          <p>الإجمالي</p>
+          <p>إجمالي الفاتورة</p>
           <strong>{formatMoney(invoice.totalAmount)}</strong>
-          <span>بعد خصم {formatMoney(invoice.discountAmount)}</span>
+          <span>قبل الخصم {formatMoney(invoice.subtotalAmount)} - الخصم {formatMoney(invoice.discountAmount)}</span>
         </article>
         <article className="summary-card">
-          <p>المدفوع</p>
+          <p>إجمالي المدفوع</p>
           <strong>{formatMoney(invoice.paidAmount)}</strong>
           <span>{invoice.payments.length} دفعة مسجلة</span>
         </article>
         <article className="summary-card">
           <p>المتبقي</p>
           <strong>{formatMoney(invoice.remainingAmount)}</strong>
-          <StatusBadge value={invoice.status} />
+          <span>{invoice.remainingAmount > 0 ? 'يمكن إضافة دفعة' : 'مسددة بالكامل'}</span>
+        </article>
+        <article className="summary-card">
+          <p>حالة الفاتورة</p>
+          <strong>
+            <StatusBadge value={invoice.status} />
+          </strong>
+          <span>{invoice.invoiceNumber}</span>
         </article>
       </section>
 
       <section className="content-grid">
-        <div className="panel">
+        <article className="panel">
           <div className="panel-heading">
-            <h3>بيانات الفاتورة</h3>
+            <div>
+              <h3>بيانات الفاتورة</h3>
+              <span>{invoice.invoiceLabel ?? 'بدون وصف'}</span>
+            </div>
             <StatusBadge value={invoice.status} />
           </div>
           <ul className="timeline-list">
-            <li>التاريخ: {formatDate(invoice.invoiceDate)}</li>
-            <li>{invoice.dueDate ? `الاستحقاق: ${formatDate(invoice.dueDate)}` : 'بدون تاريخ استحقاق'}</li>
+            <li>تاريخ الفاتورة: {formatDate(invoice.invoiceDate)}</li>
+            <li>{invoice.dueDate ? `تاريخ الاستحقاق: ${formatDate(invoice.dueDate)}` : 'بدون تاريخ استحقاق'}</li>
             <li>الفرع: {invoice.branch?.name ?? 'غير محدد'}</li>
             <li>المخزن: {invoice.warehouse?.name ?? 'غير محدد'}</li>
             <li>المورد: {invoice.supplier?.name ?? 'متفرقة'}</li>
             <li>ملاحظات: {invoice.notes ?? 'بدون ملاحظات'}</li>
           </ul>
-        </div>
+        </article>
+
+        <article className="panel">
+          <div className="panel-heading">
+            <div>
+              <h3>الإجراءات</h3>
+              <span>إجراءات الفاتورة منفصلة عن إجراءات الدفع.</span>
+            </div>
+          </div>
+          <PurchaseInvoiceActions
+            invoiceId={invoice.id}
+            hasPayments={invoice.payments.length > 0 || Number(invoice.paidAmount) > 0}
+            isCancelled={isCancelled}
+          />
+        </article>
       </section>
 
-      {invoiceResult.error ? <p className="notice">{invoiceResult.error}</p> : null}
-      <DataTable columns={itemColumns} rows={invoice.items} emptyTitle="لا توجد مواد" emptyText="لا توجد مواد مرتبطة بهذه الفاتورة." />
-      <DataTable columns={paymentColumns} rows={invoice.payments} emptyTitle="لا توجد دفعات" emptyText="لا توجد دفعات مسجلة على هذه الفاتورة." />
+      <section className="panel">
+        <div className="panel-heading">
+          <h3>مواد الفاتورة</h3>
+          <span>{invoice.items.length} مادة</span>
+        </div>
+        <DataTable columns={itemColumns} rows={invoice.items} emptyTitle="لا توجد مواد" emptyText="لا توجد مواد مرتبطة بهذه الفاتورة." />
+      </section>
 
-      {invoice.remainingAmount > 0 && invoice.status !== 'cancelled' ? (
+      <section className="panel">
+        <div className="panel-heading">
+          <h3>دفعات الفاتورة</h3>
+          <span>كل دفعة هنا مرتبطة بهذه الفاتورة فقط.</span>
+        </div>
+        <DataTable columns={paymentColumns} rows={invoice.payments} emptyTitle="لا توجد دفعات" emptyText="لا توجد دفعات مسجلة على هذه الفاتورة." />
+      </section>
+
+      {!isCancelled ? (
         <>
           {drawersResult.error ? <p className="notice">{drawersResult.error}</p> : null}
           {bankAccountsResult.error ? <p className="notice">{bankAccountsResult.error}</p> : null}
-          <PurchaseInvoicePaymentForm
+          <PurchaseInvoicePaymentPanel
             invoiceId={invoice.id}
             branchId={invoice.branchId}
             remainingAmount={invoice.remainingAmount}
@@ -136,12 +172,6 @@ export default async function PurchaseInvoiceDetailsPage({ params }: { params: P
           />
         </>
       ) : null}
-
-      <PurchaseInvoiceActions
-        invoiceId={invoice.id}
-        hasPayments={invoice.payments.length > 0 || Number(invoice.paidAmount) > 0}
-        isCancelled={invoice.status === 'cancelled'}
-      />
 
       {attachmentsResult.error ? <p className="notice">{attachmentsResult.error}</p> : null}
       <AttachmentsPanel entityType="purchase_invoice" entityId={invoice.id} initialAttachments={attachmentsResult.data} />
