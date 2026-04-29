@@ -5,6 +5,7 @@ import { BranchEntity } from '../branches/entities/branch.entity';
 import { ItemEntity } from '../items/entities/item.entity';
 import { PurchaseInvoiceItemEntity } from '../purchase-invoice-items/entities/purchase-invoice-item.entity';
 import { SupplierRepresentativeEntity } from '../supplier-representatives/entities/supplier-representative.entity';
+import { SupplierPaymentsService } from '../supplier-payments/supplier-payments.service';
 import { SupplierEntity } from '../suppliers/entities/supplier.entity';
 import { WarehouseEntity } from '../warehouses/entities/warehouse.entity';
 import { CreatePurchaseInvoiceDto } from './dto/create-purchase-invoice.dto';
@@ -37,6 +38,7 @@ export class PurchaseInvoicesService {
     private readonly supplierRepresentativeRepository: Repository<SupplierRepresentativeEntity>,
     @InjectRepository(ItemEntity)
     private readonly itemRepository: Repository<ItemEntity>,
+    private readonly supplierPaymentsService: SupplierPaymentsService,
   ) {}
 
   findAll(filters: PurchaseInvoiceFilters) {
@@ -235,10 +237,42 @@ export class PurchaseInvoicesService {
   }
 
   async remove(id: string) {
-    const invoice = await this.findByIdOrFail(id);
+    const invoice = await this.findDetails(id);
+
+    if (invoice.payments.length > 0 || invoice.paidAmount > 0) {
+      throw new BadRequestException('Paid purchase invoices must be cancelled with financial reversal instead of deleted.');
+    }
+
     await this.purchaseInvoiceRepository.remove(invoice);
 
     return { id };
+  }
+
+  async cancel(id: string) {
+    return this.dataSource.transaction(async (manager) => {
+      const invoiceRepository = manager.getRepository(PurchaseInvoiceEntity);
+      const invoice = await invoiceRepository.findOne({
+        where: { id },
+        relations: { payments: true },
+      });
+
+      if (!invoice) {
+        throw new NotFoundException('Purchase invoice was not found.');
+      }
+
+      if (invoice.status === PurchaseInvoiceStatus.Cancelled) {
+        return invoice;
+      }
+
+      if (invoice.payments.length > 0 || invoice.paidAmount > 0) {
+        await this.supplierPaymentsService.reversePaymentsForInvoice(invoice.id, manager);
+      }
+
+      invoice.status = PurchaseInvoiceStatus.Cancelled;
+      invoice.remainingAmount = 0;
+
+      return invoiceRepository.save(invoice);
+    });
   }
 
   private async validateHeaderReferences(data: {

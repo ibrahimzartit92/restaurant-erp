@@ -64,6 +64,11 @@ export class PurchaseInvoicesController {
     return this.purchaseInvoicesService.update(id, updatePurchaseInvoiceDto);
   }
 
+  @Post(':id/cancel')
+  cancel(@Param('id') id: string) {
+    return this.purchaseInvoicesService.cancel(id);
+  }
+
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.purchaseInvoicesService.remove(id);

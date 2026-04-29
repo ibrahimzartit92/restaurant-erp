@@ -223,6 +223,16 @@ export class SupplierPaymentsService {
     return { id };
   }
 
+  async reversePaymentsForInvoice(purchaseInvoiceId: string, manager = this.dataSource.manager) {
+    const payments = await manager.getRepository(SupplierPaymentEntity).find({ where: { purchaseInvoiceId } });
+
+    for (const payment of payments) {
+      await this.recordFinancialReversal(payment, manager);
+    }
+
+    return payments;
+  }
+
   private async recreateFinancialMovement(payment: SupplierPaymentEntity, manager = this.dataSource.manager) {
     await this.deleteFinancialMovement(payment.id, manager);
 
@@ -262,6 +272,13 @@ export class SupplierPaymentsService {
     const today = new Date().toISOString().slice(0, 10);
 
     if (payment.paymentMethod === SupplierPaymentMethod.Cash && payment.drawerId) {
+      const existingReversal = await manager.getRepository(DrawerTransactionEntity).findOne({
+        where: { sourceType: 'supplier_payment_reversal', sourceId: payment.id },
+      });
+      if (existingReversal) {
+        return;
+      }
+
       await manager.getRepository(DrawerTransactionEntity).save({
         drawerId: payment.drawerId,
         branchId: payment.branchId,
@@ -277,6 +294,13 @@ export class SupplierPaymentsService {
     }
 
     if (payment.paymentMethod === SupplierPaymentMethod.Bank && payment.bankAccountId) {
+      const existingReversal = await manager.getRepository(BankAccountTransactionEntity).findOne({
+        where: { sourceType: 'supplier_payment_reversal', sourceId: payment.id },
+      });
+      if (existingReversal) {
+        return;
+      }
+
       await manager.getRepository(BankAccountTransactionEntity).save({
         bankAccountId: payment.bankAccountId,
         transactionDate: today,

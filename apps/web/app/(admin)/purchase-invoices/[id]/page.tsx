@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { AttachmentsPanel } from '../../../components/attachments-panel';
 import { DataTable, type DataColumn } from '../../../components/data-table';
 import { PageHeader } from '../../../components/page-header';
+import { PurchaseInvoiceActions } from '../../../components/purchase-invoice-actions';
 import { PurchaseInvoicePaymentForm } from '../../../components/purchase-invoice-payment-form';
 import { StatusBadge } from '../../../components/status-badge';
 import { fetchList, fetchOne, formatDate, formatMoney } from '../../../lib/api';
@@ -135,6 +136,12 @@ export default async function PurchaseInvoiceDetailsPage({ params }: { params: P
           />
         </>
       ) : null}
+
+      <PurchaseInvoiceActions
+        invoiceId={invoice.id}
+        hasPayments={invoice.payments.length > 0 || Number(invoice.paidAmount) > 0}
+        isCancelled={invoice.status === 'cancelled'}
+      />
 
       {attachmentsResult.error ? <p className="notice">{attachmentsResult.error}</p> : null}
       <AttachmentsPanel entityType="purchase_invoice" entityId={invoice.id} initialAttachments={attachmentsResult.data} />
