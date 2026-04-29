@@ -23,11 +23,12 @@ export class ReportsController {
     @Query('status') status: string | undefined,
     @Query('category_id') categoryId: string | undefined,
     @Query('payment_method') paymentMethod: string | undefined,
+    @Query('search') search: string | undefined,
     @Res() response: any,
   ) {
     const exportFile = await this.reportsService.exportReport(
       key,
-      { branchId, supplierId, employeeId, dateFrom, dateTo, status, categoryId, paymentMethod },
+      { branchId, supplierId, employeeId, dateFrom, dateTo, status, categoryId, paymentMethod, search },
       format === 'pdf' ? 'pdf' : 'excel',
     );
 
@@ -47,6 +48,7 @@ export class ReportsController {
     @Query('status') status?: string,
     @Query('category_id') categoryId?: string,
     @Query('payment_method') paymentMethod?: string,
+    @Query('search') search?: string,
   ) {
     const filters: ReportFilters = {
       branchId,
@@ -57,6 +59,7 @@ export class ReportsController {
       status,
       categoryId,
       paymentMethod,
+      search,
     };
 
     return this.reportsService.getReport(key, filters);

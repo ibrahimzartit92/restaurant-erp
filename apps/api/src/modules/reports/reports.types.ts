@@ -20,6 +20,7 @@ export type ReportFilters = {
   status?: string;
   categoryId?: string;
   paymentMethod?: string;
+  search?: string;
 };
 
 export type ReportColumn = {

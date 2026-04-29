@@ -21,6 +21,16 @@ import { CreateSupplierPaymentDto } from './dto/create-supplier-payment.dto';
 import { UpdateSupplierPaymentDto } from './dto/update-supplier-payment.dto';
 import { SupplierPaymentEntity, SupplierPaymentMethod } from './entities/supplier-payment.entity';
 
+type SupplierPaymentFilters = {
+  purchaseInvoiceId?: string;
+  branchId?: string;
+  supplierId?: string;
+  paymentMethod?: SupplierPaymentMethod;
+  dateFrom?: string;
+  dateTo?: string;
+  search?: string;
+};
+
 @Injectable()
 export class SupplierPaymentsService {
   constructor(
@@ -38,15 +48,50 @@ export class SupplierPaymentsService {
     private readonly bankAccountRepository: Repository<BankAccountEntity>,
   ) {}
 
-  findAll(purchaseInvoiceId?: string, branchId?: string) {
-    return this.supplierPaymentRepository.find({
-      where: {
-        ...(purchaseInvoiceId ? { purchaseInvoiceId } : {}),
-        ...(branchId ? { branchId } : {}),
-      },
-      relations: { purchaseInvoice: true },
-      order: { paymentDate: 'DESC', paymentNumber: 'DESC' },
-    });
+  findAll(filters: SupplierPaymentFilters = {}) {
+    const query = this.supplierPaymentRepository
+      .createQueryBuilder('payment')
+      .leftJoinAndSelect('payment.branch', 'branch')
+      .leftJoinAndSelect('payment.purchaseInvoice', 'invoice')
+      .leftJoinAndSelect('invoice.supplier', 'supplier')
+      .orderBy('payment.paymentDate', 'DESC')
+      .addOrderBy('payment.paymentNumber', 'DESC');
+
+    if (filters.purchaseInvoiceId) {
+      query.andWhere('payment.purchase_invoice_id = :purchaseInvoiceId', {
+        purchaseInvoiceId: filters.purchaseInvoiceId,
+      });
+    }
+
+    if (filters.branchId) {
+      query.andWhere('payment.branch_id = :branchId', { branchId: filters.branchId });
+    }
+
+    if (filters.supplierId) {
+      query.andWhere('invoice.supplier_id = :supplierId', { supplierId: filters.supplierId });
+    }
+
+    if (filters.paymentMethod) {
+      query.andWhere('payment.payment_method = :paymentMethod', { paymentMethod: filters.paymentMethod });
+    }
+
+    if (filters.dateFrom) {
+      query.andWhere('payment.payment_date >= :dateFrom', { dateFrom: filters.dateFrom });
+    }
+
+    if (filters.dateTo) {
+      query.andWhere('payment.payment_date <= :dateTo', { dateTo: filters.dateTo });
+    }
+
+    const search = filters.search?.trim();
+    if (search) {
+      query.andWhere(
+        '(payment.payment_number ILIKE :search OR payment.reference_number ILIKE :search OR invoice.invoice_number ILIKE :search)',
+        { search: `%${search}%` },
+      );
+    }
+
+    return query.getMany();
   }
 
   async findByIdOrFail(id: string) {

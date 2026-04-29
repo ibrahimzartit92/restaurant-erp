@@ -30,6 +30,7 @@ function reportQuery(params: Record<string, string | undefined>, format?: 'excel
     status: params.status,
     category_id: params.category_id,
     payment_method: params.payment_method,
+    search: params.search,
     format,
   });
 }

@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestj
 import { CreateSupplierPaymentBatchDto } from './dto/create-supplier-payment-batch.dto';
 import { CreateSupplierPaymentDto } from './dto/create-supplier-payment.dto';
 import { UpdateSupplierPaymentDto } from './dto/update-supplier-payment.dto';
+import { SupplierPaymentMethod } from './entities/supplier-payment.entity';
 import { SupplierPaymentsService } from './supplier-payments.service';
 
 @Controller('supplier-payments')
@@ -12,8 +13,21 @@ export class SupplierPaymentsController {
   findAll(
     @Query('purchase_invoice_id') purchaseInvoiceId?: string,
     @Query('branch_id') branchId?: string,
+    @Query('supplier_id') supplierId?: string,
+    @Query('payment_method') paymentMethod?: SupplierPaymentMethod,
+    @Query('date_from') dateFrom?: string,
+    @Query('date_to') dateTo?: string,
+    @Query('search') search?: string,
   ) {
-    return this.supplierPaymentsService.findAll(purchaseInvoiceId, branchId);
+    return this.supplierPaymentsService.findAll({
+      purchaseInvoiceId,
+      branchId,
+      supplierId,
+      paymentMethod,
+      dateFrom,
+      dateTo,
+      search,
+    });
   }
 
   @Get(':id')

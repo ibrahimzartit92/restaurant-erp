@@ -255,6 +255,11 @@ export class ReportsService {
     if (filters.branchId) query.andWhere('invoice.branch_id = :branchId', { branchId: filters.branchId });
     if (filters.supplierId) query.andWhere('invoice.supplier_id = :supplierId', { supplierId: filters.supplierId });
     if (filters.status) query.andWhere('invoice.status = :status', { status: filters.status });
+    if (filters.search) {
+      query.andWhere('(invoice.invoice_number ILIKE :search OR invoice.invoice_label ILIKE :search)', {
+        search: `%${filters.search}%`,
+      });
+    }
     this.applyDateRange(query, 'invoice.invoice_date', filters);
 
     const rows = (await query.getMany()).map((invoice) => ({
@@ -357,6 +362,12 @@ export class ReportsService {
     if (filters.branchId) query.andWhere('payment.branch_id = :branchId', { branchId: filters.branchId });
     if (filters.supplierId) query.andWhere('invoice.supplier_id = :supplierId', { supplierId: filters.supplierId });
     if (filters.paymentMethod) query.andWhere('payment.payment_method = :paymentMethod', { paymentMethod: filters.paymentMethod });
+    if (filters.search) {
+      query.andWhere(
+        '(payment.payment_number ILIKE :search OR payment.reference_number ILIKE :search OR invoice.invoice_number ILIKE :search)',
+        { search: `%${filters.search}%` },
+      );
+    }
     this.applyDateRange(query, 'payment.payment_date', filters);
 
     const rows = (await query.getMany()).map((payment) => ({
