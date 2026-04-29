@@ -7,6 +7,7 @@ import { DrawerTransactionEntity } from '../drawer-transactions/entities/drawer-
 import { DrawerEntity } from '../drawers/entities/drawer.entity';
 import { CloseDrawerDailySessionDto } from './dto/close-drawer-daily-session.dto';
 import { CreateDrawerDailySessionDto } from './dto/create-drawer-daily-session.dto';
+import { ReconcileDrawerDailySessionDto } from './dto/reconcile-drawer-daily-session.dto';
 import { UpdateDrawerDailySessionDto } from './dto/update-drawer-daily-session.dto';
 import { DrawerDailySessionEntity, DrawerDailySessionStatus } from './entities/drawer-daily-session.entity';
 
@@ -51,6 +52,35 @@ export class DrawerDailySessionsService {
     return Promise.all(sessions.map((session) => this.enrichSession(session)));
   }
 
+  async dailySummary(filters: { date?: string; drawerId?: string; branchId?: string }) {
+    const date = filters.date ?? new Date().toISOString().slice(0, 10);
+    const drawerQuery = this.drawerRepository
+      .createQueryBuilder('drawer')
+      .leftJoinAndSelect('drawer.branch', 'branch')
+      .where('drawer.is_active = :isActive', { isActive: true })
+      .orderBy('drawer.name', 'ASC');
+
+    if (filters.drawerId) {
+      drawerQuery.andWhere('drawer.id = :drawerId', { drawerId: filters.drawerId });
+    }
+
+    if (filters.branchId) {
+      drawerQuery.andWhere('drawer.branch_id = :branchId', { branchId: filters.branchId });
+    }
+
+    const drawers = await drawerQuery.getMany();
+
+    return Promise.all(
+      drawers.map(async (drawer) => {
+        const session = await this.drawerDailySessionRepository.findOne({
+          where: { drawerId: drawer.id, sessionDate: date },
+        });
+
+        return this.buildDailySummary(drawer, date, session ?? null);
+      }),
+    );
+  }
+
   async findByIdOrFail(id: string) {
     const session = await this.drawerDailySessionRepository.findOne({ where: { id } });
 
@@ -91,6 +121,46 @@ export class DrawerDailySessionsService {
     });
 
     return this.drawerDailySessionRepository.save(session);
+  }
+
+  async reconcile(reconcileDrawerDailySessionDto: ReconcileDrawerDailySessionDto) {
+    await this.validateReferences(reconcileDrawerDailySessionDto.drawerId, reconcileDrawerDailySessionDto.branchId);
+
+    const drawer = await this.drawerRepository.findOneOrFail({ where: { id: reconcileDrawerDailySessionDto.drawerId } });
+    const existingSession = await this.drawerDailySessionRepository.findOne({
+      where: {
+        drawerId: reconcileDrawerDailySessionDto.drawerId,
+        sessionDate: reconcileDrawerDailySessionDto.sessionDate,
+      },
+    });
+    const cashFloat = Number(
+      reconcileDrawerDailySessionDto.cashFloat ??
+        existingSession?.openingBalance ??
+        drawer.defaultCashFloat ??
+        drawer.defaultOpeningBalance ??
+        0,
+    );
+    const movementTotals = await this.getDrawerMovements(drawer.id, reconcileDrawerDailySessionDto.sessionDate);
+    const theoreticalBalance = this.roundMoney(cashFloat + movementTotals.inflows - movementTotals.outflows);
+    const actualCashAmount = this.roundMoney(reconcileDrawerDailySessionDto.actualCashAmount);
+
+    const session =
+      existingSession ??
+      this.drawerDailySessionRepository.create({
+        drawerId: drawer.id,
+        branchId: reconcileDrawerDailySessionDto.branchId,
+        sessionDate: reconcileDrawerDailySessionDto.sessionDate,
+      });
+
+    session.openingBalance = cashFloat;
+    session.requiredClosingFloat = cashFloat;
+    session.calculatedBalance = theoreticalBalance;
+    session.closingBalance = actualCashAmount;
+    session.differenceAmount = this.roundMoney(actualCashAmount - theoreticalBalance);
+    session.status = DrawerDailySessionStatus.Closed;
+    session.notes = reconcileDrawerDailySessionDto.notes ?? null;
+
+    return this.enrichSession(await this.drawerDailySessionRepository.save(session));
   }
 
   async update(id: string, updateDrawerDailySessionDto: UpdateDrawerDailySessionDto) {
@@ -154,7 +224,21 @@ export class DrawerDailySessionsService {
       where: { drawerId: session.drawerId, transactionDate: session.sessionDate },
       order: { createdAt: 'DESC' },
     });
-    const movementTotals = transactions.reduce(
+    const movementTotals = this.sumMovementTotals(transactions);
+
+    return { transactions, movementTotals };
+  }
+
+  private async getDrawerMovements(drawerId: string, transactionDate: string) {
+    const transactions = await this.drawerTransactionRepository.find({
+      where: { drawerId, transactionDate },
+    });
+
+    return this.sumMovementTotals(transactions);
+  }
+
+  private sumMovementTotals(transactions: DrawerTransactionEntity[]) {
+    return transactions.reduce(
       (totals, transaction) => {
         if (transaction.direction === 'in') {
           totals.inflows += transaction.amount;
@@ -166,8 +250,36 @@ export class DrawerDailySessionsService {
       },
       { inflows: 0, outflows: 0 },
     );
+  }
 
-    return { transactions, movementTotals };
+  private async buildDailySummary(drawer: DrawerEntity, sessionDate: string, session: DrawerDailySessionEntity | null) {
+    const movementTotals = await this.getDrawerMovements(drawer.id, sessionDate);
+    const cashFloat = Number(session?.openingBalance ?? drawer.defaultCashFloat ?? drawer.defaultOpeningBalance ?? 0);
+    const summary = this.buildReconciliationSummary(
+      {
+        id: session?.id ?? null,
+        drawerId: drawer.id,
+        drawer,
+        branchId: drawer.branchId,
+        branch: drawer.branch,
+        sessionDate,
+        openingBalance: cashFloat,
+        requiredClosingFloat: cashFloat,
+        calculatedBalance: cashFloat,
+        closingBalance: session?.closingBalance ?? null,
+        differenceAmount: session?.differenceAmount ?? 0,
+        status: session?.status ?? DrawerDailySessionStatus.Open,
+        notes: session?.notes ?? null,
+        createdAt: session?.createdAt ?? new Date(),
+        updatedAt: session?.updatedAt ?? new Date(),
+      } as DrawerDailySessionEntity,
+      movementTotals,
+    );
+
+    return {
+      ...summary,
+      isReconciled: session?.status === DrawerDailySessionStatus.Closed,
+    };
   }
 
   private buildReconciliationSummary(

@@ -1,4 +1,4 @@
-import { DrawerForm } from '../../../components/core-crud-forms';
+import { DrawerForm } from '../../../components/drawer-form';
 import { PageHeader } from '../../../components/page-header';
 import { fetchList } from '../../../lib/api';
 import type { BranchOption } from '../../../lib/types';
@@ -8,7 +8,7 @@ export default async function NewDrawerPage() {
 
   return (
     <>
-      <PageHeader title="إضافة درج نقدي" description="اربط درج النقد بفرع واحد حتى يمكن فتح جلسات الدرج اليومية." />
+      <PageHeader title="إضافة درج نقدي" description="عرّف درج النقد الخاص بالفرع والعهدة اليومية الافتراضية." />
       {branches.error ? <p className="notice">{branches.error}</p> : null}
       <DrawerForm branches={branches.data} />
     </>

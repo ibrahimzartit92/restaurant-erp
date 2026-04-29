@@ -29,8 +29,7 @@ type DrawerSessionDetails = {
     inflows: number;
     outflows: number;
   };
-  expectedWithdrawalAmount?: number;
-  actualWithdrawalAmount?: number | null;
+  reconciliationDifference?: number | null;
   transactions: DrawerTransaction[];
 };
 
@@ -50,8 +49,8 @@ export default async function DrawerSessionDetailsPage({ params }: { params: Pro
   if (!session) {
     return (
       <>
-        <PageHeader title="تفاصيل جلسة الدرج" description="تعذر تحميل الجلسة." />
-        <p className="notice">{result.error ?? 'الجلسة غير متاحة.'}</p>
+        <PageHeader title="تفاصيل تسوية الدرج" description="تعذر تحميل التسوية." />
+        <p className="notice">{result.error ?? 'التسوية غير متاحة.'}</p>
       </>
     );
   }
@@ -59,66 +58,56 @@ export default async function DrawerSessionDetailsPage({ params }: { params: Pro
   return (
     <>
       <PageHeader
-        title="تفاصيل جلسة الدرج"
+        title="تفاصيل تسوية الدرج"
         description={`${session.drawer?.name ?? 'درج'} - ${session.branch?.name ?? 'فرع'} - ${formatDate(session.sessionDate)}`}
       />
       <section className="summary-grid">
         <article className="summary-card">
-          <p>الرصيد الافتتاحي</p>
-          <strong>{formatMoney(session.openingBalance)}</strong>
-          <span>مدخل يدويا</span>
+          <p>العهدة الثابتة</p>
+          <strong>{formatMoney(session.requiredClosingFloat ?? session.openingBalance)}</strong>
+          <span>المبلغ المعتمد كبداية نقدية لليوم</span>
         </article>
         <article className="summary-card">
           <p>إجمالي الداخل</p>
           <strong>{formatMoney(session.movementTotals?.inflows ?? 0)}</strong>
-          <span>مبيعات نقدية وتسويات داخلة</span>
+          <span>مبيعات نقدية وحركات داخلة</span>
         </article>
         <article className="summary-card">
           <p>إجمالي الخارج</p>
           <strong>{formatMoney(session.movementTotals?.outflows ?? 0)}</strong>
-          <span>مصروفات ودفعات مورد نقدية</span>
+          <span>مصروفات ودفعات وسلف نقدية</span>
         </article>
         <article className="summary-card">
-          <p>الفكة الثابتة</p>
-          <strong>{formatMoney(session.requiredClosingFloat ?? 0)}</strong>
-          <span>المطلوب تركه في الدرج</span>
-        </article>
-        <article className="summary-card">
-          <p>الرصيد المحسوب</p>
+          <p>الرصيد النظري</p>
           <strong>{formatMoney(session.calculatedBalance)}</strong>
-          <span>الافتتاحي + الداخل - الخارج</span>
+          <span>العهدة + الداخل - الخارج</span>
         </article>
         <article className="summary-card">
-          <p>الرصيد الختامي</p>
-          <strong>{session.closingBalance === null ? 'غير مغلق' : formatMoney(session.closingBalance)}</strong>
-          <span>الرصيد الفعلي</span>
+          <p>النقد الفعلي</p>
+          <strong>{session.closingBalance === null ? 'لم يدخل' : formatMoney(session.closingBalance)}</strong>
+          <span>المبلغ الموجود فعليا عند الإغلاق</span>
         </article>
         <article className="summary-card">
           <p>الفرق</p>
-          <strong>{formatMoney(session.differenceAmount)}</strong>
-          <span>{session.status === 'open' ? 'الجلسة مفتوحة' : 'بعد الإغلاق'}</span>
-        </article>
-        <article className="summary-card">
-          <p>المبلغ للسحب</p>
-          <strong>{formatMoney(session.actualWithdrawalAmount ?? session.expectedWithdrawalAmount ?? 0)}</strong>
-          <span>ما يزيد عن الفكة الثابتة</span>
+          <strong>{formatMoney(session.reconciliationDifference ?? session.differenceAmount)}</strong>
+          <span>النقد الفعلي - الرصيد النظري</span>
         </article>
       </section>
 
       <div className="page-toolbar">
         <StatusBadge value={session.status} />
-        {session.status === 'open' ? (
-          <Link className="primary-button" href={`/drawer-daily-sessions/${session.id}/close`}>
-            إغلاق الجلسة
-          </Link>
-        ) : null}
+        <Link className="secondary-button" href="/drawers">
+          تعديل تسوية اليوم
+        </Link>
       </div>
+
+      {session.notes ? <p className="notice">{session.notes}</p> : null}
 
       <DataTable
         columns={columns}
         rows={session.transactions}
-        emptyTitle="لا توجد حركات لهذه الجلسة"
-        emptyText="عند تسجيل مبيعات نقدية أو مصروفات أو دفعات مورد نقدية في نفس تاريخ الجلسة ستظهر هنا."
+        emptyTitle="لا توجد حركات لهذا اليوم"
+        emptyText="عند تسجيل مبيعات نقدية أو مصروفات أو دفعات مورد أو سلف نقدية في نفس التاريخ ستظهر هنا."
       />
     </>
   );

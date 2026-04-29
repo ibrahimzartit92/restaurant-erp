@@ -1,11 +1,13 @@
 export function ListFilters({
   searchPlaceholder = 'بحث',
   showBranch = false,
+  showDrawer = false,
   showDate = false,
   showDateRange = false,
 }: Readonly<{
   searchPlaceholder?: string;
   showBranch?: boolean;
+  showDrawer?: boolean;
   showDate?: boolean;
   showDateRange?: boolean;
 }>) {
@@ -19,6 +21,12 @@ export function ListFilters({
         <label>
           الفرع
           <input name="branch_id" placeholder="معرف الفرع" />
+        </label>
+      ) : null}
+      {showDrawer ? (
+        <label>
+          الدرج
+          <input name="drawer_id" placeholder="معرف الدرج" />
         </label>
       ) : null}
       {showDate ? (

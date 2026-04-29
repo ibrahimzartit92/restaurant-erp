@@ -110,7 +110,7 @@ const quickActions = [
   { href: '/expenses/new', label: 'إضافة مصروف' },
   { href: '/purchase-invoices', label: 'إضافة فاتورة شراء' },
   { href: '/supplier-payments', label: 'إضافة دفعة مورد' },
-  { href: '/drawer-daily-sessions/new', label: 'فتح جلسة درج' },
+  { href: '/drawers', label: 'تسوية درج اليوم' },
   { href: '/transfers/new', label: 'إضافة تحويل بين الفروع' },
 ] as const;
 
@@ -401,15 +401,6 @@ export default async function DashboardPage({
     });
   }
 
-  const openDrawerSessionsCount = drawerSessions.data.filter((session) => session.status === 'open').length;
-  if (openDrawerSessionsCount > 0) {
-    alerts.push({
-      id: 'open-drawer-sessions',
-      title: 'جلسة درج غير مغلقة',
-      detail: `${openDrawerSessionsCount} جلسة درج ما زالت مفتوحة.`,
-    });
-  }
-
   if (missingPayrollCount > 0) {
     alerts.push({
       id: 'missing-payroll',
@@ -580,15 +571,15 @@ export default async function DashboardPage({
         <article className="panel dashboard-panel">
           <div className="panel-heading">
             <h3>ملخص الدرج</h3>
-            <span>{referenceDrawerSession?.drawer?.name ?? 'آخر جلسة متاحة'}</span>
+            <span>{referenceDrawerSession?.drawer?.name ?? 'آخر تسوية متاحة'}</span>
           </div>
           <div className="dashboard-mini-grid">
             {[
-              ['الرصيد الافتتاحي', formatMoney(drawerOpeningBalance)],
+              ['العهدة الثابتة', formatMoney(drawerOpeningBalance)],
               ['المقبوض النقدي', formatMoney(drawerCashIn)],
               ['المدفوع النقدي', formatMoney(drawerCashOut)],
               ['الرصيد المحسوب', formatMoney(drawerCalculatedBalance)],
-              ['الرصيد الختامي', formatMoney(drawerClosingBalance)],
+              ['النقد الفعلي', formatMoney(drawerClosingBalance)],
               ['الفرق', formatMoney(drawerDifference)],
             ].map(([label, value]) => (
               <div className="mini-stat-card" key={label}>
@@ -598,11 +589,11 @@ export default async function DashboardPage({
             ))}
           </div>
           <div className="quick-actions">
-            <Link className="quick-link-button" href="/drawer-daily-sessions/new">
-              فتح جلسة درج
+            <Link className="quick-link-button" href="/drawers">
+              تسوية درج اليوم
             </Link>
             <Link className="quick-link-button" href="/drawer-daily-sessions">
-              جلسات الدرج
+              تسويات الدرج
             </Link>
             <Link className="quick-link-button" href="/drawer-transactions">
               حركات الدرج

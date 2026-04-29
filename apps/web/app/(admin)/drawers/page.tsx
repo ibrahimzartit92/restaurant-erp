@@ -18,27 +18,46 @@ type DrawerRow = {
   notes?: string | null;
 };
 
-type DrawerSessionRow = {
-  id: string;
+type DrawerReconciliationRow = {
+  id: string | null;
   drawerId: string;
   branchId: string;
   sessionDate: string;
   openingBalance: number;
   calculatedBalance: number;
+  theoreticalBalance?: number;
   requiredClosingFloat?: number;
   closingBalance?: number | null;
   differenceAmount: number;
+  reconciliationDifference?: number | null;
+  movementTotals?: {
+    inflows: number;
+    outflows: number;
+  };
   status: string;
+  notes?: string | null;
+  isReconciled?: boolean;
 };
 
 const columns: DataColumn<DrawerRow>[] = [
   { key: 'code', label: 'الكود', render: (row) => row.code },
   { key: 'name', label: 'اسم الدرج', render: (row) => row.name },
   { key: 'branch', label: 'الفرع', render: (row) => row.branch?.name ?? 'غير محدد' },
-  { key: 'opening', label: 'الافتتاحي الافتراضي', render: (row) => formatMoney(row.defaultOpeningBalance ?? 0) },
-  { key: 'float', label: 'الفكة الثابتة', render: (row) => formatMoney(row.defaultCashFloat ?? 0) },
+  { key: 'opening', label: 'العهدة الافتراضية', render: (row) => formatMoney(row.defaultOpeningBalance ?? 0) },
+  { key: 'float', label: 'العهدة الثابتة', render: (row) => formatMoney(row.defaultCashFloat ?? 0) },
   { key: 'isActive', label: 'الحالة', render: (row) => <StatusBadge value={row.isActive} /> },
   { key: 'notes', label: 'ملاحظات', render: (row) => row.notes ?? 'لا توجد' },
+  {
+    key: 'actions',
+    label: 'إجراء',
+    render: (row) => (
+      <div className="inline-actions">
+        <Link className="text-link" href={`/drawers/${row.id}/edit`}>
+          تعديل
+        </Link>
+      </div>
+    ),
+  },
 ];
 
 export default async function DrawersPage({
@@ -48,20 +67,19 @@ export default async function DrawersPage({
 }) {
   const params = (await searchParams) ?? {};
   const today = new Date().toISOString().slice(0, 10);
-  const [drawers, todaySessions] = await Promise.all([
+  const [drawers, todaySummaries] = await Promise.all([
     fetchList<DrawerRow>(`/drawers${buildQuery({ search: params.search, branch_id: params.branch_id })}`),
-    fetchList<DrawerSessionRow>(
-      `/drawer-daily-sessions${buildQuery({
+    fetchList<DrawerReconciliationRow>(
+      `/drawer-daily-sessions/summary${buildQuery({
         branch_id: params.branch_id,
-        date_from: today,
-        date_to: today,
+        date: today,
       })}`,
     ),
   ]);
 
   return (
     <>
-      <PageHeader title="الأدراج" description="فتح وإغلاق درج اليوم ومراجعة الفكة الثابتة لكل فرع من نفس الصفحة." />
+      <PageHeader title="الأدراج" description="تسوية النقد في نهاية اليوم بناء على الحركات النقدية المسجلة تلقائيا." />
 
       <div className="page-toolbar">
         <ListFilters searchPlaceholder="اسم أو كود الدرج" showBranch />
@@ -71,17 +89,17 @@ export default async function DrawersPage({
       </div>
 
       {drawers.error ? <p className="notice">{drawers.error}</p> : null}
-      {todaySessions.error ? <p className="notice">{todaySessions.error}</p> : null}
+      {todaySummaries.error ? <p className="notice">{todaySummaries.error}</p> : null}
 
       {drawers.data.length > 0 ? (
-        <DrawerDailyWorkflow drawers={drawers.data} today={today} todaySessions={todaySessions.data} />
+        <DrawerDailyWorkflow drawers={drawers.data} today={today} summaries={todaySummaries.data} />
       ) : null}
 
       <DataTable
         columns={columns}
         rows={drawers.data}
         emptyTitle="لا توجد أدراج"
-        emptyText="أضف درجا لكل فرع حتى تبدأ جلسات النقد اليومية."
+        emptyText="أضف درجا لكل فرع حتى تظهر تسوية النقد اليومية."
       />
     </>
   );

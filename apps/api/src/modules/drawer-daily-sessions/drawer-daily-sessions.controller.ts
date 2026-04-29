@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { CloseDrawerDailySessionDto } from './dto/close-drawer-daily-session.dto';
 import { CreateDrawerDailySessionDto } from './dto/create-drawer-daily-session.dto';
+import { ReconcileDrawerDailySessionDto } from './dto/reconcile-drawer-daily-session.dto';
 import { UpdateDrawerDailySessionDto } from './dto/update-drawer-daily-session.dto';
 import { DrawerDailySessionsService } from './drawer-daily-sessions.service';
 
@@ -18,9 +19,23 @@ export class DrawerDailySessionsController {
     return this.drawerDailySessionsService.findAll({ drawerId, branchId, dateFrom, dateTo });
   }
 
+  @Get('summary')
+  dailySummary(
+    @Query('date') date?: string,
+    @Query('drawer_id') drawerId?: string,
+    @Query('branch_id') branchId?: string,
+  ) {
+    return this.drawerDailySessionsService.dailySummary({ date, drawerId, branchId });
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.drawerDailySessionsService.findDetails(id);
+  }
+
+  @Post('reconcile')
+  reconcile(@Body() reconcileDrawerDailySessionDto: ReconcileDrawerDailySessionDto) {
+    return this.drawerDailySessionsService.reconcile(reconcileDrawerDailySessionDto);
   }
 
   @Post()
