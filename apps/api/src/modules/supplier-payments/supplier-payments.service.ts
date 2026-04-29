@@ -105,18 +105,24 @@ export class SupplierPaymentsService {
   }
 
   async createBatch(createSupplierPaymentBatchDto: CreateSupplierPaymentBatchDto) {
+    const paymentRows = createSupplierPaymentBatchDto.payments ?? [];
     const invoice = await this.purchaseInvoiceRepository.findOne({
       where: { id: createSupplierPaymentBatchDto.purchaseInvoiceId },
     });
     if (!invoice) {
       throw new NotFoundException('Purchase invoice was not found.');
     }
-    const total = createSupplierPaymentBatchDto.payments.reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0);
+
+    if (paymentRows.length === 0) {
+      return [];
+    }
+
+    const total = paymentRows.reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0);
     if (this.roundMoney(total) > invoice.remainingAmount) {
       throw new BadRequestException('Payment amount cannot be greater than the invoice remaining amount.');
     }
 
-    const normalizedPayments = createSupplierPaymentBatchDto.payments.map((payment) => ({
+    const normalizedPayments = paymentRows.map((payment) => ({
       purchaseInvoiceId: createSupplierPaymentBatchDto.purchaseInvoiceId,
       branchId: createSupplierPaymentBatchDto.branchId,
       paymentDate: createSupplierPaymentBatchDto.paymentDate,

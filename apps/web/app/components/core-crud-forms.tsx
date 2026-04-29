@@ -522,7 +522,7 @@ export function PurchaseInvoiceForm({
 
     try {
       const saved = (await submitJson('/purchase-invoices', 'POST', payload)) as { id?: string };
-      if (saved.id) {
+      if (saved.id && activePayments.length > 0) {
         await submitJson('/supplier-payments/batch', 'POST', {
           purchaseInvoiceId: saved.id,
           branchId: payload.branchId,
