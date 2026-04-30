@@ -248,7 +248,7 @@ export class PurchaseInvoicesService {
     return { id };
   }
 
-  async cancel(id: string) {
+  async cancel(id: string, vaultId?: string | null) {
     return this.dataSource.transaction(async (manager) => {
       const invoiceRepository = manager.getRepository(PurchaseInvoiceEntity);
       const invoice = await invoiceRepository.findOne({
@@ -265,7 +265,7 @@ export class PurchaseInvoicesService {
       }
 
       if (invoice.payments.length > 0 || invoice.paidAmount > 0) {
-        await this.supplierPaymentsService.reversePaymentsForInvoice(invoice.id, manager);
+        await this.supplierPaymentsService.reversePaymentsForInvoice(invoice.id, manager, vaultId);
       }
 
       invoice.status = PurchaseInvoiceStatus.Cancelled;

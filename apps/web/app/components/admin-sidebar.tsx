@@ -87,6 +87,7 @@ const navigationSections: NavigationSection[] = [
     title: 'الإعدادات',
     items: [
       { href: '/settings', label: 'الإعدادات', mark: 'إ', permissionCodes: ['manage_settings'] },
+      { href: '/undo-actions', label: 'عمليات التراجع', mark: 'ت', permissionCodes: ['manage_settings'] },
       { href: '/expense-categories', label: 'أنواع المصاريف', mark: 'ن' },
       { href: '/expense-templates', label: 'قوالب المصاريف', mark: 'ق' },
     ],

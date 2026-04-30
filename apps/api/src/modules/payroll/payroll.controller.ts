@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { CreatePayrollRecordDto } from './dto/create-payroll-record.dto';
 import { UpdatePayrollRecordDto } from './dto/update-payroll-record.dto';
 import { PayrollService } from './payroll.service';
@@ -35,5 +35,14 @@ export class PayrollController {
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateDto: UpdatePayrollRecordDto) {
     return this.payrollService.update(id, updateDto);
+  }
+
+  @Delete(':id')
+  remove(
+    @Param('id') id: string,
+    @Query('reverse_financial_effect') reverseFinancialEffect?: string,
+    @Query('vault_id') vaultId?: string,
+  ) {
+    return this.payrollService.remove(id, reverseFinancialEffect === 'true', vaultId);
   }
 }

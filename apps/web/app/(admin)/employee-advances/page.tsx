@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { DataTable, type DataColumn } from '../../components/data-table';
+import { DeleteFinancialRecordButton } from '../../components/delete-financial-record-button';
 import { PageHeader } from '../../components/page-header';
 import { buildQuery, fetchList, formatDate, formatMoney } from '../../lib/api';
 import type { EmployeeAdvanceSummary, EmployeeSummary } from '../../lib/types';
@@ -8,20 +9,41 @@ const columns: DataColumn<EmployeeAdvanceSummary>[] = [
   { key: 'employee', label: 'الموظف', render: (row) => row.employee.fullName },
   { key: 'date', label: 'التاريخ', render: (row) => formatDate(row.advanceDate) },
   { key: 'amount', label: 'المبلغ', render: (row) => formatMoney(row.amount) },
-  { key: 'period', label: 'فترة الراتب', render: (row) => row.payrollMonth && row.payrollYear ? `${row.payrollMonth}/${row.payrollYear}` : 'غير مرتبط' },
+  {
+    key: 'period',
+    label: 'فترة الراتب',
+    render: (row) => (row.payrollMonth && row.payrollYear ? `${row.payrollMonth}/${row.payrollYear}` : 'غير مرتبط'),
+  },
   { key: 'notes', label: 'ملاحظات', render: (row) => row.notes ?? 'بدون ملاحظات' },
+  {
+    key: 'actions',
+    label: 'إجراء',
+    render: (row) => (
+      <div className="inline-actions">
+        <DeleteFinancialRecordButton path={`/employee-advances/${row.id}`} reverse={false} label="حذف فقط" />
+        <DeleteFinancialRecordButton path={`/employee-advances/${row.id}`} reverse label="حذف وإرجاع للخزنة" />
+      </div>
+    ),
+  },
 ];
 
 export default async function EmployeeAdvancesPage({ searchParams }: { searchParams?: Promise<Record<string, string | undefined>> }) {
   const params = (await searchParams) ?? {};
   const [result, employeesResult] = await Promise.all([
-    fetchList<EmployeeAdvanceSummary>(`/employee-advances${buildQuery({ search: params.search, employee_id: params.employee_id, payroll_month: params.payroll_month, payroll_year: params.payroll_year })}`),
+    fetchList<EmployeeAdvanceSummary>(
+      `/employee-advances${buildQuery({
+        search: params.search,
+        employee_id: params.employee_id,
+        payroll_month: params.payroll_month,
+        payroll_year: params.payroll_year,
+      })}`,
+    ),
     fetchList<EmployeeSummary>('/employees'),
   ]);
 
   return (
     <>
-      <PageHeader title="قائمة السلف" description="متابعة السلف المسجلة للموظفين وربطها لاحقًا بالرواتب." />
+      <PageHeader title="قائمة السلف" description="متابعة السلف المسجلة للموظفين وربطها لاحقا بالرواتب." />
       <div className="page-toolbar">
         <form action="" className="filters">
           <label>
@@ -32,14 +54,26 @@ export default async function EmployeeAdvancesPage({ searchParams }: { searchPar
             الموظف
             <select defaultValue={params.employee_id ?? ''} name="employee_id">
               <option value="">كل الموظفين</option>
-              {employeesResult.data.map((employee) => <option key={employee.id} value={employee.id}>{employee.fullName}</option>)}
+              {employeesResult.data.map((employee) => (
+                <option key={employee.id} value={employee.id}>
+                  {employee.fullName}
+                </option>
+              ))}
             </select>
           </label>
-          <label><input defaultValue={params.payroll_month ?? ''} max="12" min="1" name="payroll_month" placeholder="الشهر" type="number" /></label>
-          <label><input defaultValue={params.payroll_year ?? ''} max="2100" min="2000" name="payroll_year" placeholder="السنة" type="number" /></label>
+          <label>
+            الشهر
+            <input defaultValue={params.payroll_month ?? ''} max="12" min="1" name="payroll_month" type="number" />
+          </label>
+          <label>
+            السنة
+            <input defaultValue={params.payroll_year ?? ''} max="2100" min="2000" name="payroll_year" type="number" />
+          </label>
           <button type="submit">تطبيق</button>
         </form>
-        <Link className="primary-button" href="/employee-advances/new">إضافة سلفة</Link>
+        <Link className="primary-button" href="/employee-advances/new">
+          إضافة سلفة
+        </Link>
       </div>
       {result.error ? <p className="notice">{result.error}</p> : null}
       <DataTable columns={columns} rows={result.data} emptyTitle="لا توجد سلف" emptyText="أضف سلفة جديدة وستظهر هنا." />

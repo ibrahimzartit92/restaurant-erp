@@ -33,13 +33,13 @@ export function PurchaseInvoiceActions({
   }
 
   async function cancelInvoice() {
-    if (!confirm('سيتم إلغاء الفاتورة وتسجيل حركات عكسية لكل المدفوعات النقدية والبنكية. هل تريد المتابعة؟')) return;
+    if (!confirm('سيتم إلغاء الفاتورة وإرجاع إجمالي المدفوعات إلى الخزنة كحركة واردة. هل تريد المتابعة؟')) return;
     setIsSaving(true);
     setMessage(null);
     try {
       await submitJson(`/purchase-invoices/${invoiceId}/cancel`, 'POST', {});
       router.refresh();
-      setMessage('تم إلغاء الفاتورة وعكس أثر المدفوعات.');
+      setMessage('تم إلغاء الفاتورة وإرجاع المدفوعات إلى الخزنة.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'تعذر إلغاء الفاتورة.');
     } finally {
@@ -57,7 +57,7 @@ export function PurchaseInvoiceActions({
       <div className="form-actions">
         {hasPayments ? (
           <button className="secondary-button" disabled={isSaving} onClick={cancelInvoice} type="button">
-            إلغاء الفاتورة مع عكس المدفوعات
+            إلغاء الفاتورة وإرجاع المدفوعات للخزنة
           </button>
         ) : (
           <button className="secondary-button" disabled={isSaving} onClick={deleteInvoice} type="button">

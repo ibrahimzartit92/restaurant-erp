@@ -35,6 +35,7 @@ import { SupplierPaymentsModule } from './modules/supplier-payments/supplier-pay
 import { SuppliersModule } from './modules/suppliers/suppliers.module';
 import { TransfersModule } from './modules/transfers/transfers.module';
 import { UnitsModule } from './modules/units/units.module';
+import { UndoActionsModule } from './modules/undo-actions/undo-actions.module';
 import { UsersModule } from './modules/users/users.module';
 import { VaultsModule } from './modules/vaults/vaults.module';
 import { WarehousesModule } from './modules/warehouses/warehouses.module';
@@ -76,6 +77,7 @@ import { WarehousesModule } from './modules/warehouses/warehouses.module';
     SuppliersModule,
     TransfersModule,
     UnitsModule,
+    UndoActionsModule,
     UsersModule,
     VaultsModule,
     WarehousesModule,

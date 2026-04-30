@@ -15,6 +15,8 @@ import {
 } from '../drawer-transactions/entities/drawer-transaction.entity';
 import { DrawerEntity } from '../drawers/entities/drawer.entity';
 import { FinancialPaymentMethod } from '../shared/payment-allocation.dto';
+import { UndoActionEntity } from '../undo-actions/entities/undo-action.entity';
+import { UndoActionsService } from '../undo-actions/undo-actions.service';
 import {
   VaultTransactionDirection,
   VaultTransactionEntity,
@@ -53,6 +55,7 @@ export class SupplierPaymentsService {
     @InjectRepository(BankAccountEntity)
     private readonly bankAccountRepository: Repository<BankAccountEntity>,
     private readonly vaultsService: VaultsService,
+    private readonly undoActionsService: UndoActionsService,
   ) {}
 
   findAll(filters: SupplierPaymentFilters = {}) {
@@ -267,12 +270,12 @@ export class SupplierPaymentsService {
     return this.findByIdOrFail(savedPayment.id);
   }
 
-  async remove(id: string, reverseFinancialEffect = false) {
+  async remove(id: string, reverseFinancialEffect = false, vaultId?: string | null) {
     const payment = await this.findByIdOrFail(id);
     const purchaseInvoiceId = payment.purchaseInvoiceId;
     await this.dataSource.transaction(async (manager) => {
       if (reverseFinancialEffect) {
-        await this.recordFinancialReversal(payment, manager);
+        await this.recordFinancialReversalToVault(payment, vaultId, manager);
       } else {
         await this.deleteFinancialMovement(payment.id, manager);
       }
@@ -282,16 +285,42 @@ export class SupplierPaymentsService {
         manager.getRepository(PurchaseInvoiceEntity),
         manager.getRepository(SupplierPaymentEntity),
       );
+      await this.undoActionsService.record({
+        actionType: reverseFinancialEffect ? 'delete_with_vault_reversal' : 'delete_only',
+        entityType: 'supplier_payment',
+        entityId: payment.id,
+        recordSummary: payment.paymentNumber,
+        snapshot: this.toSnapshot(payment),
+        reverseToVault: reverseFinancialEffect,
+        vaultTransactionSourceType: reverseFinancialEffect ? 'supplier_payment_vault_reversal' : null,
+        vaultTransactionSourceId: reverseFinancialEffect ? payment.id : null,
+      });
     });
 
     return { id };
   }
 
-  async reversePaymentsForInvoice(purchaseInvoiceId: string, manager = this.dataSource.manager) {
+  async restoreFromUndo(action: UndoActionEntity) {
+    const restoredPayment = this.supplierPaymentRepository.create(action.snapshot as Partial<SupplierPaymentEntity>);
+
+    return this.dataSource.transaction(async (manager) => {
+      await this.vaultsService.deleteFinancialMovement('supplier_payment_vault_reversal', restoredPayment.id, manager);
+      const saved = await manager.getRepository(SupplierPaymentEntity).save(restoredPayment);
+      await this.recreateFinancialMovement(saved, manager);
+      await this.recalculateInvoicePaymentState(
+        saved.purchaseInvoiceId,
+        manager.getRepository(PurchaseInvoiceEntity),
+        manager.getRepository(SupplierPaymentEntity),
+      );
+      return saved;
+    });
+  }
+
+  async reversePaymentsForInvoice(purchaseInvoiceId: string, manager = this.dataSource.manager, vaultId?: string | null) {
     const payments = await manager.getRepository(SupplierPaymentEntity).find({ where: { purchaseInvoiceId } });
 
     for (const payment of payments) {
-      await this.recordFinancialReversal(payment, manager);
+      await this.recordFinancialReversalToVault(payment, vaultId, manager);
     }
 
     return payments;
@@ -421,6 +450,27 @@ export class SupplierPaymentsService {
         manager,
       );
     }
+  }
+
+  private async recordFinancialReversalToVault(
+    payment: SupplierPaymentEntity,
+    vaultId?: string | null,
+    manager = this.dataSource.manager,
+  ) {
+    await this.deleteFinancialMovement(payment.id, manager);
+    await this.vaultsService.recordFinancialReturnToVault(
+      {
+        vaultId,
+        amount: payment.amount,
+        branchId: payment.branchId,
+        sourceType: 'supplier_payment_vault_reversal',
+        sourceId: payment.id,
+        referenceNumber: payment.referenceNumber ?? payment.paymentNumber,
+        description: `استرجاع دفعة مورد إلى الخزنة ${payment.paymentNumber}`,
+        notes: payment.notes,
+      },
+      manager,
+    );
   }
 
   private async deleteFinancialMovement(paymentId: string, manager = this.dataSource.manager) {
@@ -554,5 +604,22 @@ export class SupplierPaymentsService {
 
   private roundMoney(value: number) {
     return Math.round((value + Number.EPSILON) * 100) / 100;
+  }
+
+  private toSnapshot(payment: SupplierPaymentEntity) {
+    return {
+      id: payment.id,
+      paymentNumber: payment.paymentNumber,
+      purchaseInvoiceId: payment.purchaseInvoiceId,
+      branchId: payment.branchId,
+      paymentDate: payment.paymentDate,
+      paymentMethod: payment.paymentMethod,
+      drawerId: payment.drawerId,
+      bankAccountId: payment.bankAccountId,
+      vaultId: payment.vaultId,
+      amount: payment.amount,
+      referenceNumber: payment.referenceNumber,
+      notes: payment.notes,
+    };
   }
 }

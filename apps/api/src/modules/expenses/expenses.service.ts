@@ -17,6 +17,8 @@ import { DrawerEntity } from '../drawers/entities/drawer.entity';
 import { ExpenseCategoryEntity } from '../expense-categories/entities/expense-category.entity';
 import { ExpenseTemplateEntity } from '../expense-templates/entities/expense-template.entity';
 import { FinancialPaymentMethod, PaymentAllocationDto } from '../shared/payment-allocation.dto';
+import { UndoActionEntity } from '../undo-actions/entities/undo-action.entity';
+import { UndoActionsService } from '../undo-actions/undo-actions.service';
 import { VaultTransactionDirection, VaultTransactionType } from '../vaults/entities/vault-transaction.entity';
 import { VaultsService } from '../vaults/vaults.service';
 import { CreateExpenseDto } from './dto/create-expense.dto';
@@ -42,6 +44,7 @@ export class ExpensesService {
     @InjectRepository(BankAccountEntity)
     private readonly bankAccountRepository: Repository<BankAccountEntity>,
     private readonly vaultsService: VaultsService,
+    private readonly undoActionsService: UndoActionsService,
   ) {}
 
   findAll(filters: {
@@ -169,18 +172,39 @@ export class ExpensesService {
     });
   }
 
-  async remove(id: string, reverseFinancialEffect = false) {
+  async remove(id: string, reverseFinancialEffect = false, vaultId?: string | null) {
     const expense = await this.findByIdOrFail(id);
     await this.dataSource.transaction(async (manager) => {
       if (reverseFinancialEffect) {
-        await this.recordFinancialReversal(expense, manager);
+        await this.recordFinancialReversalToVault(expense, vaultId, manager);
       } else {
         await this.deleteFinancialMovement(expense.id, manager);
       }
       await manager.getRepository(ExpenseEntity).remove(expense);
+      await this.undoActionsService.record({
+        actionType: reverseFinancialEffect ? 'delete_with_vault_reversal' : 'delete_only',
+        entityType: 'expense',
+        entityId: expense.id,
+        recordSummary: `${expense.expenseNumber} - ${expense.title}`,
+        snapshot: this.toSnapshot(expense),
+        reverseToVault: reverseFinancialEffect,
+        vaultTransactionSourceType: reverseFinancialEffect ? 'expense_vault_reversal' : null,
+        vaultTransactionSourceId: reverseFinancialEffect ? expense.id : null,
+      });
     });
 
     return { id };
+  }
+
+  async restoreFromUndo(action: UndoActionEntity) {
+    const restoredExpense = this.expenseRepository.create(action.snapshot as Partial<ExpenseEntity>);
+
+    return this.dataSource.transaction(async (manager) => {
+      await this.vaultsService.deleteFinancialMovement('expense_vault_reversal', restoredExpense.id, manager);
+      const saved = await manager.getRepository(ExpenseEntity).save(restoredExpense);
+      await this.recreateFinancialMovement(saved, manager);
+      return saved;
+    });
   }
 
   private async recreateFinancialMovement(expense: ExpenseEntity, manager = this.dataSource.manager) {
@@ -292,6 +316,34 @@ export class ExpensesService {
         );
       }
     }
+  }
+
+  private async recordFinancialReversalToVault(
+    expense: ExpenseEntity,
+    vaultId?: string | null,
+    manager = this.dataSource.manager,
+  ) {
+    const allocations = expense.paymentAllocations ?? this.legacyExpenseAllocations(expense);
+    const total = this.roundMoney(allocations.reduce((sum, allocation) => sum + allocation.amount, 0));
+
+    if (total <= 0) {
+      return;
+    }
+
+    await this.deleteFinancialMovement(expense.id, manager);
+    await this.vaultsService.recordFinancialReturnToVault(
+      {
+        vaultId,
+        amount: total,
+        branchId: expense.branchId,
+        sourceType: 'expense_vault_reversal',
+        sourceId: expense.id,
+        referenceNumber: expense.expenseNumber,
+        description: `استرجاع مصروف إلى الخزنة ${expense.expenseNumber} - ${expense.title}`,
+        notes: expense.notes,
+      },
+      manager,
+    );
   }
 
   private async deleteFinancialMovement(expenseId: string, manager = this.dataSource.manager) {
@@ -456,5 +508,25 @@ export class ExpensesService {
 
   private roundMoney(value: number) {
     return Math.round((value + Number.EPSILON) * 100) / 100;
+  }
+
+  private toSnapshot(expense: ExpenseEntity) {
+    return {
+      id: expense.id,
+      expenseNumber: expense.expenseNumber,
+      expenseDate: expense.expenseDate,
+      branchId: expense.branchId,
+      expenseCategoryId: expense.expenseCategoryId,
+      templateId: expense.templateId,
+      title: expense.title,
+      amount: expense.amount,
+      paymentMethod: expense.paymentMethod,
+      drawerId: expense.drawerId,
+      bankAccountId: expense.bankAccountId,
+      vaultId: expense.vaultId,
+      paymentAllocations: expense.paymentAllocations,
+      isFixed: expense.isFixed,
+      notes: expense.notes,
+    };
   }
 }

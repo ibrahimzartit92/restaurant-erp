@@ -65,8 +65,8 @@ export class PurchaseInvoicesController {
   }
 
   @Post(':id/cancel')
-  cancel(@Param('id') id: string) {
-    return this.purchaseInvoicesService.cancel(id);
+  cancel(@Param('id') id: string, @Query('vault_id') vaultId?: string) {
+    return this.purchaseInvoicesService.cancel(id, vaultId);
   }
 
   @Delete(':id')

@@ -1033,6 +1033,11 @@ a {
   gap: 12px;
 }
 
+.inline-action-stack {
+  display: inline-grid;
+  gap: 4px;
+}
+
 .page-toolbar {
   display: flex;
   align-items: flex-start;

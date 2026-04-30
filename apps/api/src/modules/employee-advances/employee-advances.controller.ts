@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { CreateEmployeeAdvanceDto } from './dto/create-employee-advance.dto';
 import { UpdateEmployeeAdvanceDto } from './dto/update-employee-advance.dto';
 import { EmployeeAdvancesService } from './employee-advances.service';
@@ -35,5 +35,14 @@ export class EmployeeAdvancesController {
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateDto: UpdateEmployeeAdvanceDto) {
     return this.employeeAdvancesService.update(id, updateDto);
+  }
+
+  @Delete(':id')
+  remove(
+    @Param('id') id: string,
+    @Query('reverse_financial_effect') reverseFinancialEffect?: string,
+    @Query('vault_id') vaultId?: string,
+  ) {
+    return this.employeeAdvancesService.remove(id, reverseFinancialEffect === 'true', vaultId);
   }
 }

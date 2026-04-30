@@ -17,6 +17,8 @@ import { EmployeeAdvanceEntity } from '../employee-advances/entities/employee-ad
 import { EmployeePenaltyEntity } from '../employee-penalties/entities/employee-penalty.entity';
 import { EmployeesService } from '../employees/employees.service';
 import { FinancialPaymentMethod, PaymentAllocationDto } from '../shared/payment-allocation.dto';
+import { UndoActionEntity } from '../undo-actions/entities/undo-action.entity';
+import { UndoActionsService } from '../undo-actions/undo-actions.service';
 import { VaultTransactionDirection, VaultTransactionType } from '../vaults/entities/vault-transaction.entity';
 import { VaultsService } from '../vaults/vaults.service';
 import { CreatePayrollRecordDto } from './dto/create-payroll-record.dto';
@@ -40,6 +42,7 @@ export class PayrollService {
     private readonly employeePenaltyRepository: Repository<EmployeePenaltyEntity>,
     private readonly employeesService: EmployeesService,
     private readonly vaultsService: VaultsService,
+    private readonly undoActionsService: UndoActionsService,
   ) {}
 
   async findAll(filters: { search?: string; employeeId?: string; payrollMonth?: string; payrollYear?: string }) {
@@ -185,6 +188,71 @@ export class PayrollService {
     });
   }
 
+  async remove(id: string, reverseFinancialEffect = false, vaultId?: string | null) {
+    const payroll = await this.findByIdOrFail(id);
+
+    await this.dataSource.transaction(async (manager) => {
+      await this.deleteFinancialMovement(payroll.id, manager);
+
+      if (reverseFinancialEffect && payroll.paidAmount > 0) {
+        await this.vaultsService.recordFinancialReturnToVault(
+          {
+            vaultId,
+            amount: payroll.paidAmount,
+            branchId: payroll.employee?.defaultBranchId ?? null,
+            sourceType: 'payroll_vault_reversal',
+            sourceId: payroll.id,
+            description: `استرجاع دفعة راتب إلى الخزنة ${payroll.employee?.fullName ?? payroll.employeeId}`,
+            notes: payroll.notes,
+          },
+          manager,
+        );
+      }
+
+      await Promise.all([
+        manager
+          .getRepository(EmployeeAdvanceEntity)
+          .createQueryBuilder()
+          .update(EmployeeAdvanceEntity)
+          .set({ payrollRecordId: null })
+          .where('payroll_record_id = :payrollId', { payrollId: payroll.id })
+          .execute(),
+        manager
+          .getRepository(EmployeePenaltyEntity)
+          .createQueryBuilder()
+          .update(EmployeePenaltyEntity)
+          .set({ payrollRecordId: null })
+          .where('payroll_record_id = :payrollId', { payrollId: payroll.id })
+          .execute(),
+      ]);
+      await manager.getRepository(PayrollRecordEntity).remove(payroll);
+      await this.undoActionsService.record({
+        actionType: reverseFinancialEffect ? 'delete_with_vault_reversal' : 'delete_only',
+        entityType: 'payroll',
+        entityId: payroll.id,
+        recordSummary: `راتب ${payroll.employee?.fullName ?? payroll.employeeId} ${payroll.payrollMonth}/${payroll.payrollYear}`,
+        snapshot: this.toSnapshot(payroll),
+        reverseToVault: reverseFinancialEffect,
+        vaultTransactionSourceType: reverseFinancialEffect ? 'payroll_vault_reversal' : null,
+        vaultTransactionSourceId: reverseFinancialEffect ? payroll.id : null,
+      });
+    });
+
+    return { id };
+  }
+
+  async restoreFromUndo(action: UndoActionEntity) {
+    const payroll = this.payrollRepository.create(action.snapshot as Partial<PayrollRecordEntity>);
+
+    return this.dataSource.transaction(async (manager) => {
+      await this.vaultsService.deleteFinancialMovement('payroll_vault_reversal', payroll.id, manager);
+      const saved = await manager.getRepository(PayrollRecordEntity).save(payroll);
+      await this.syncDeductionLinks(saved, manager);
+      await this.recreateFinancialMovement(saved, manager);
+      return saved;
+    });
+  }
+
   private async resolvePaymentAllocations(payments: PaymentAllocationDto[] | PayrollPaymentAllocation[] | undefined, netSalary: number) {
     const allocations = (payments ?? [])
       .map((payment) => ({
@@ -225,11 +293,7 @@ export class PayrollService {
   }
 
   private async recreateFinancialMovement(payroll: PayrollRecordEntity, manager = this.dataSource.manager) {
-    await Promise.all([
-      manager.getRepository(DrawerTransactionEntity).delete({ sourceType: 'payroll_payment', sourceId: payroll.id }),
-      manager.getRepository(BankAccountTransactionEntity).delete({ sourceType: 'payroll_payment', sourceId: payroll.id }),
-      this.vaultsService.deleteFinancialMovement('payroll_payment', payroll.id, manager),
-    ]);
+    await this.deleteFinancialMovement(payroll.id, manager);
 
     for (const allocation of payroll.paymentAllocations ?? []) {
       const description = `دفعة راتب ${payroll.employee?.fullName ?? payroll.employeeId} ${payroll.payrollMonth}/${payroll.payrollYear}`;
@@ -286,6 +350,14 @@ export class PayrollService {
         );
       }
     }
+  }
+
+  private async deleteFinancialMovement(payrollId: string, manager = this.dataSource.manager) {
+    await Promise.all([
+      manager.getRepository(DrawerTransactionEntity).delete({ sourceType: 'payroll_payment', sourceId: payrollId }),
+      manager.getRepository(BankAccountTransactionEntity).delete({ sourceType: 'payroll_payment', sourceId: payrollId }),
+      this.vaultsService.deleteFinancialMovement('payroll_payment', payrollId, manager),
+    ]);
   }
 
   private async ensureUniquePayroll(employeeId: string, payrollMonth: number, payrollYear: number, currentId?: string) {
@@ -369,6 +441,26 @@ export class PayrollService {
 
   private roundMoney(value: number) {
     return Math.round((value + Number.EPSILON) * 100) / 100;
+  }
+
+  private toSnapshot(payroll: PayrollRecordEntity) {
+    return {
+      id: payroll.id,
+      employeeId: payroll.employeeId,
+      payrollMonth: payroll.payrollMonth,
+      payrollYear: payroll.payrollYear,
+      baseSalary: payroll.baseSalary,
+      allowancesAmount: payroll.allowancesAmount,
+      advancesDeductionAmount: payroll.advancesDeductionAmount,
+      penaltiesDeductionAmount: payroll.penaltiesDeductionAmount,
+      otherDeductionAmount: payroll.otherDeductionAmount,
+      netSalary: payroll.netSalary,
+      paidAmount: payroll.paidAmount,
+      remainingAmount: payroll.remainingAmount,
+      paymentStatus: payroll.paymentStatus,
+      paymentAllocations: payroll.paymentAllocations,
+      notes: payroll.notes,
+    };
   }
 
   private resolvePaymentStatus(netSalary: number, paidAmount: number) {

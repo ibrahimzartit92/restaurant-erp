@@ -60,6 +60,19 @@ export class VaultsService {
     return vault;
   }
 
+  async findDefaultEntity(manager = this.dataSource.manager) {
+    const vault = await manager.getRepository(VaultEntity).findOne({
+      where: { isActive: true },
+      order: { code: 'ASC' },
+    });
+
+    if (!vault) {
+      throw new NotFoundException('No active vault is available for financial reversal.');
+    }
+
+    return vault;
+  }
+
   async findTransactions(filters: {
     vaultId?: string;
     transactionType?: VaultTransactionType;
@@ -246,6 +259,40 @@ export class VaultsService {
       description: data.description,
       notes: data.notes ?? null,
     });
+  }
+
+  async recordFinancialReturnToVault(
+    data: {
+      amount: number;
+      vaultId?: string | null;
+      transactionDate?: string | null;
+      branchId?: string | null;
+      sourceType: string;
+      sourceId: string;
+      referenceNumber?: string | null;
+      description: string;
+      notes?: string | null;
+    },
+    manager = this.dataSource.manager,
+  ) {
+    const vault = data.vaultId ? await this.findEntityByIdOrFail(data.vaultId, manager) : await this.findDefaultEntity(manager);
+
+    return this.recordTransaction(
+      {
+        vaultId: vault.id,
+        transactionDate: data.transactionDate ?? new Date().toISOString().slice(0, 10),
+        transactionType: VaultTransactionType.FinancialReversal,
+        direction: VaultTransactionDirection.In,
+        amount: data.amount,
+        branchId: data.branchId ?? null,
+        sourceType: data.sourceType,
+        sourceId: data.sourceId,
+        referenceNumber: data.referenceNumber ?? null,
+        description: data.description,
+        notes: data.notes ?? null,
+      },
+      manager,
+    );
   }
 
   async deleteFinancialMovement(sourceType: string, sourceId: string, manager = this.dataSource.manager) {

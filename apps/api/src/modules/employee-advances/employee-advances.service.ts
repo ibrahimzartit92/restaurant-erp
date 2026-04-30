@@ -8,6 +8,9 @@ import {
 } from '../drawer-transactions/entities/drawer-transaction.entity';
 import { DrawerEntity } from '../drawers/entities/drawer.entity';
 import { EmployeesService } from '../employees/employees.service';
+import { UndoActionEntity } from '../undo-actions/entities/undo-action.entity';
+import { UndoActionsService } from '../undo-actions/undo-actions.service';
+import { VaultsService } from '../vaults/vaults.service';
 import { CreateEmployeeAdvanceDto } from './dto/create-employee-advance.dto';
 import { UpdateEmployeeAdvanceDto } from './dto/update-employee-advance.dto';
 import { EmployeeAdvanceEntity } from './entities/employee-advance.entity';
@@ -22,6 +25,8 @@ export class EmployeeAdvancesService {
     @InjectRepository(DrawerEntity)
     private readonly drawerRepository: Repository<DrawerEntity>,
     private readonly employeesService: EmployeesService,
+    private readonly undoActionsService: UndoActionsService,
+    private readonly vaultsService: VaultsService,
   ) {}
 
   async findAll(filters: {
@@ -114,6 +119,54 @@ export class EmployeeAdvancesService {
     });
   }
 
+  async remove(id: string, reverseFinancialEffect = false, vaultId?: string | null) {
+    const advance = await this.findByIdOrFail(id);
+
+    await this.dataSource.transaction(async (manager) => {
+      await manager.getRepository(DrawerTransactionEntity).delete({ sourceType: 'employee_advance', sourceId: advance.id });
+
+      if (reverseFinancialEffect && advance.amount > 0) {
+        await this.vaultsService.recordFinancialReturnToVault(
+          {
+            vaultId,
+            amount: advance.amount,
+            branchId: advance.drawer?.branchId ?? null,
+            sourceType: 'employee_advance_vault_reversal',
+            sourceId: advance.id,
+            description: `استرجاع سلفة موظف إلى الخزنة ${advance.employee?.fullName ?? advance.employeeId}`,
+            notes: advance.notes,
+          },
+          manager,
+        );
+      }
+
+      await manager.getRepository(EmployeeAdvanceEntity).remove(advance);
+      await this.undoActionsService.record({
+        actionType: reverseFinancialEffect ? 'delete_with_vault_reversal' : 'delete_only',
+        entityType: 'employee_advance',
+        entityId: advance.id,
+        recordSummary: `سلفة ${advance.employee?.fullName ?? advance.employeeId}`,
+        snapshot: this.toSnapshot(advance),
+        reverseToVault: reverseFinancialEffect,
+        vaultTransactionSourceType: reverseFinancialEffect ? 'employee_advance_vault_reversal' : null,
+        vaultTransactionSourceId: reverseFinancialEffect ? advance.id : null,
+      });
+    });
+
+    return { id };
+  }
+
+  async restoreFromUndo(action: UndoActionEntity) {
+    const restoredAdvance = this.advanceRepository.create(action.snapshot as Partial<EmployeeAdvanceEntity>);
+
+    return this.dataSource.transaction(async (manager) => {
+      await this.vaultsService.deleteFinancialMovement('employee_advance_vault_reversal', restoredAdvance.id, manager);
+      const saved = await manager.getRepository(EmployeeAdvanceEntity).save(restoredAdvance);
+      await this.recreateFinancialMovement(saved, manager);
+      return saved;
+    });
+  }
+
   private async resolveDrawerId(drawerId?: string | null, branchId?: string | null) {
     if (drawerId) {
       const drawer = await this.drawerRepository.findOne({ where: { id: drawerId } });
@@ -165,5 +218,19 @@ export class EmployeeAdvancesService {
   private normalizeOptionalText(value?: string | null) {
     const normalizedValue = value?.trim();
     return normalizedValue ? normalizedValue : null;
+  }
+
+  private toSnapshot(advance: EmployeeAdvanceEntity) {
+    return {
+      id: advance.id,
+      employeeId: advance.employeeId,
+      advanceDate: advance.advanceDate,
+      amount: advance.amount,
+      drawerId: advance.drawerId,
+      payrollMonth: advance.payrollMonth,
+      payrollYear: advance.payrollYear,
+      payrollRecordId: advance.payrollRecordId,
+      notes: advance.notes,
+    };
   }
 }

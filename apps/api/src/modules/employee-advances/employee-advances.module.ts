@@ -6,9 +6,16 @@ import { DrawerEntity } from '../drawers/entities/drawer.entity';
 import { EmployeeAdvancesController } from './employee-advances.controller';
 import { EmployeeAdvancesService } from './employee-advances.service';
 import { EmployeeAdvanceEntity } from './entities/employee-advance.entity';
+import { UndoActionsModule } from '../undo-actions/undo-actions.module';
+import { VaultsModule } from '../vaults/vaults.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([DrawerEntity, DrawerTransactionEntity, EmployeeAdvanceEntity]), EmployeesModule],
+  imports: [
+    TypeOrmModule.forFeature([DrawerEntity, DrawerTransactionEntity, EmployeeAdvanceEntity]),
+    EmployeesModule,
+    UndoActionsModule,
+    VaultsModule,
+  ],
   controllers: [EmployeeAdvancesController],
   providers: [EmployeeAdvancesService],
   exports: [EmployeeAdvancesService],

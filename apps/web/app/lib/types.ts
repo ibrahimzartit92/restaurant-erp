@@ -104,6 +104,18 @@ export type VaultOption = {
   isActive?: boolean;
 };
 
+export type UndoActionSummary = {
+  id: string;
+  actionType: string;
+  entityType: string;
+  entityId: string;
+  recordSummary: string;
+  reverseToVault: boolean;
+  status: 'pending' | 'undone';
+  createdAt: string;
+  undoneAt?: string | null;
+};
+
 export type BankAccountSummary = {
   id: string;
   code: string;

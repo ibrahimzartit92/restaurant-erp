@@ -2,6 +2,8 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { EmployeesService } from '../employees/employees.service';
+import { UndoActionEntity } from '../undo-actions/entities/undo-action.entity';
+import { UndoActionsService } from '../undo-actions/undo-actions.service';
 import { CreateEmployeePenaltyDto } from './dto/create-employee-penalty.dto';
 import { UpdateEmployeePenaltyDto } from './dto/update-employee-penalty.dto';
 import { EmployeePenaltyEntity } from './entities/employee-penalty.entity';
@@ -12,6 +14,7 @@ export class EmployeePenaltiesService {
     @InjectRepository(EmployeePenaltyEntity)
     private readonly penaltyRepository: Repository<EmployeePenaltyEntity>,
     private readonly employeesService: EmployeesService,
+    private readonly undoActionsService: UndoActionsService,
   ) {}
 
   async findAll(filters: {
@@ -74,6 +77,26 @@ export class EmployeePenaltiesService {
     return this.penaltyRepository.save(penalty);
   }
 
+  async remove(id: string) {
+    const penalty = await this.findByIdOrFail(id);
+    await this.penaltyRepository.remove(penalty);
+    await this.undoActionsService.record({
+      actionType: 'delete_only',
+      entityType: 'employee_penalty',
+      entityId: penalty.id,
+      recordSummary: `عقوبة ${penalty.employee?.fullName ?? penalty.employeeId}`,
+      snapshot: this.toSnapshot(penalty),
+      reverseToVault: false,
+    });
+
+    return { id };
+  }
+
+  async restoreFromUndo(action: UndoActionEntity) {
+    const penalty = this.penaltyRepository.create(action.snapshot as Partial<EmployeePenaltyEntity>);
+    return this.penaltyRepository.save(penalty);
+  }
+
   async update(id: string, updateDto: UpdateEmployeePenaltyDto) {
     const penalty = await this.findByIdOrFail(id);
 
@@ -97,5 +120,19 @@ export class EmployeePenaltiesService {
   private normalizeOptionalText(value?: string | null) {
     const normalizedValue = value?.trim();
     return normalizedValue ? normalizedValue : null;
+  }
+
+  private toSnapshot(penalty: EmployeePenaltyEntity) {
+    return {
+      id: penalty.id,
+      employeeId: penalty.employeeId,
+      penaltyDate: penalty.penaltyDate,
+      amount: penalty.amount,
+      reason: penalty.reason,
+      payrollMonth: penalty.payrollMonth,
+      payrollYear: penalty.payrollYear,
+      payrollRecordId: penalty.payrollRecordId,
+      notes: penalty.notes,
+    };
   }
 }
