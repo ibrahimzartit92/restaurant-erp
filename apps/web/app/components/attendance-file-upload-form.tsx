@@ -8,9 +8,11 @@ import type { BranchOption, EmployeeSummary } from '../lib/types';
 export function AttendanceFileUploadForm({
   employees,
   branches,
+  initialEmployeeId,
 }: Readonly<{
   employees: EmployeeSummary[];
   branches: BranchOption[];
+  initialEmployeeId?: string;
 }>) {
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
@@ -40,7 +42,7 @@ export function AttendanceFileUploadForm({
       <div className="form-grid">
         <label>
           الموظف
-          <select defaultValue="" name="employeeId">
+          <select defaultValue={initialEmployeeId ?? ''} name="employeeId">
             <option value="">بدون موظف محدد</option>
             {employees.map((employee) => (
               <option key={employee.id} value={employee.id}>

@@ -9,10 +9,12 @@ export function EmployeeAdvanceForm({
   employees,
   drawers = [],
   initialAdvance,
+  initialEmployeeId,
 }: Readonly<{
   employees: EmployeeSummary[];
   drawers?: DrawerOption[];
   initialAdvance?: EmployeeAdvanceSummary | null;
+  initialEmployeeId?: string;
 }>) {
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
@@ -51,7 +53,7 @@ export function EmployeeAdvanceForm({
       <div className="form-grid">
         <label>
           الموظف
-          <select defaultValue={initialAdvance?.employeeId ?? ''} name="employeeId" required>
+          <select defaultValue={initialAdvance?.employeeId ?? initialEmployeeId ?? ''} name="employeeId" required>
             <option value="">اختر الموظف</option>
             {employees.map((employee) => (
               <option key={employee.id} value={employee.id}>

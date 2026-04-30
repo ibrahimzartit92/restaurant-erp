@@ -9,6 +9,7 @@ import {
 } from 'typeorm';
 import { EmployeeEntity } from '../../employees/entities/employee.entity';
 import { DrawerEntity } from '../../drawers/entities/drawer.entity';
+import { PayrollRecordEntity } from '../../payroll/entities/payroll-record.entity';
 
 const numericTransformer = {
   to: (value?: number | null) => value ?? 0,
@@ -50,6 +51,13 @@ export class EmployeeAdvanceEntity {
 
   @Column({ name: 'payroll_year', type: 'int', nullable: true })
   payrollYear!: number | null;
+
+  @Column({ name: 'payroll_record_id', type: 'uuid', nullable: true })
+  payrollRecordId!: string | null;
+
+  @ManyToOne(() => PayrollRecordEntity, { nullable: true })
+  @JoinColumn({ name: 'payroll_record_id' })
+  payrollRecord!: PayrollRecordEntity | null;
 
   @Column({ type: 'text', nullable: true })
   notes!: string | null;

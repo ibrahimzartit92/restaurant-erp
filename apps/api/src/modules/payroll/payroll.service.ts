@@ -1,6 +1,6 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Not, Repository } from 'typeorm';
+import { Brackets, DataSource, Not, Repository } from 'typeorm';
 import {
   BankAccountTransactionDirection,
   BankAccountTransactionEntity,
@@ -21,7 +21,7 @@ import { VaultTransactionDirection, VaultTransactionType } from '../vaults/entit
 import { VaultsService } from '../vaults/vaults.service';
 import { CreatePayrollRecordDto } from './dto/create-payroll-record.dto';
 import { UpdatePayrollRecordDto } from './dto/update-payroll-record.dto';
-import { PayrollPaymentAllocation, PayrollRecordEntity } from './entities/payroll-record.entity';
+import { PayrollPaymentAllocation, PayrollPaymentStatus, PayrollRecordEntity } from './entities/payroll-record.entity';
 
 @Injectable()
 export class PayrollService {
@@ -114,12 +114,14 @@ export class PayrollService {
       netSalary,
       paidAmount,
       remainingAmount: this.roundMoney(netSalary - paidAmount),
+      paymentStatus: this.resolvePaymentStatus(netSalary, paidAmount),
       paymentAllocations,
       notes: this.normalizeOptionalText(createDto.notes),
     });
 
     return this.dataSource.transaction(async (manager) => {
       const saved = await manager.getRepository(PayrollRecordEntity).save(payroll);
+      await this.syncDeductionLinks(saved, manager);
       await this.recreateFinancialMovement(saved, manager);
       return saved;
     });
@@ -136,7 +138,7 @@ export class PayrollService {
     }
 
     await this.ensureUniquePayroll(employeeId, payrollMonth, payrollYear, id);
-    const automaticDeductions = await this.calculateAutomaticDeductions(employeeId, payrollMonth, payrollYear);
+    const automaticDeductions = await this.calculateAutomaticDeductions(employeeId, payrollMonth, payrollYear, id);
     const baseSalary = updateDto.baseSalary !== undefined ? Number(updateDto.baseSalary) : payroll.baseSalary;
     const allowancesAmount =
       updateDto.allowancesAmount !== undefined ? Number(updateDto.allowancesAmount) : payroll.allowancesAmount;
@@ -170,12 +172,14 @@ export class PayrollService {
       netSalary,
       paidAmount,
       remainingAmount: this.roundMoney(netSalary - paidAmount),
+      paymentStatus: this.resolvePaymentStatus(netSalary, paidAmount),
       paymentAllocations,
       notes: updateDto.notes !== undefined ? this.normalizeOptionalText(updateDto.notes) : payroll.notes,
     });
 
     return this.dataSource.transaction(async (manager) => {
       const saved = await manager.getRepository(PayrollRecordEntity).save(payroll);
+      await this.syncDeductionLinks(saved, manager);
       await this.recreateFinancialMovement(saved, manager);
       return saved;
     });
@@ -304,10 +308,41 @@ export class PayrollService {
     return normalizedValue ? normalizedValue : null;
   }
 
-  private async calculateAutomaticDeductions(employeeId: string, payrollMonth: number, payrollYear: number) {
+  private async calculateAutomaticDeductions(
+    employeeId: string,
+    payrollMonth: number,
+    payrollYear: number,
+    currentPayrollId?: string,
+  ) {
     const [advances, penalties] = await Promise.all([
-      this.employeeAdvanceRepository.find({ where: { employeeId, payrollMonth, payrollYear } }),
-      this.employeePenaltyRepository.find({ where: { employeeId, payrollMonth, payrollYear } }),
+      this.employeeAdvanceRepository
+        .createQueryBuilder('advance')
+        .where('advance.employee_id = :employeeId', { employeeId })
+        .andWhere('advance.payroll_month = :payrollMonth', { payrollMonth })
+        .andWhere('advance.payroll_year = :payrollYear', { payrollYear })
+        .andWhere(
+          new Brackets((query) => {
+            query.where('advance.payroll_record_id IS NULL');
+            if (currentPayrollId) {
+              query.orWhere('advance.payroll_record_id = :currentPayrollId', { currentPayrollId });
+            }
+          }),
+        )
+        .getMany(),
+      this.employeePenaltyRepository
+        .createQueryBuilder('penalty')
+        .where('penalty.employee_id = :employeeId', { employeeId })
+        .andWhere('penalty.payroll_month = :payrollMonth', { payrollMonth })
+        .andWhere('penalty.payroll_year = :payrollYear', { payrollYear })
+        .andWhere(
+          new Brackets((query) => {
+            query.where('penalty.payroll_record_id IS NULL');
+            if (currentPayrollId) {
+              query.orWhere('penalty.payroll_record_id = :currentPayrollId', { currentPayrollId });
+            }
+          }),
+        )
+        .getMany(),
     ]);
 
     return {
@@ -334,5 +369,59 @@ export class PayrollService {
 
   private roundMoney(value: number) {
     return Math.round((value + Number.EPSILON) * 100) / 100;
+  }
+
+  private resolvePaymentStatus(netSalary: number, paidAmount: number) {
+    if (paidAmount <= 0) {
+      return PayrollPaymentStatus.Unpaid;
+    }
+
+    if (paidAmount >= this.roundMoney(netSalary)) {
+      return PayrollPaymentStatus.Paid;
+    }
+
+    return PayrollPaymentStatus.PartiallyPaid;
+  }
+
+  private async syncDeductionLinks(payroll: PayrollRecordEntity, manager = this.dataSource.manager) {
+    await Promise.all([
+      manager
+        .getRepository(EmployeeAdvanceEntity)
+        .createQueryBuilder()
+        .update(EmployeeAdvanceEntity)
+        .set({ payrollRecordId: null })
+        .where('payroll_record_id = :payrollId', { payrollId: payroll.id })
+        .execute(),
+      manager
+        .getRepository(EmployeePenaltyEntity)
+        .createQueryBuilder()
+        .update(EmployeePenaltyEntity)
+        .set({ payrollRecordId: null })
+        .where('payroll_record_id = :payrollId', { payrollId: payroll.id })
+        .execute(),
+    ]);
+
+    await Promise.all([
+      manager
+        .getRepository(EmployeeAdvanceEntity)
+        .createQueryBuilder()
+        .update(EmployeeAdvanceEntity)
+        .set({ payrollRecordId: payroll.id })
+        .where('employee_id = :employeeId', { employeeId: payroll.employeeId })
+        .andWhere('payroll_month = :payrollMonth', { payrollMonth: payroll.payrollMonth })
+        .andWhere('payroll_year = :payrollYear', { payrollYear: payroll.payrollYear })
+        .andWhere('payroll_record_id IS NULL')
+        .execute(),
+      manager
+        .getRepository(EmployeePenaltyEntity)
+        .createQueryBuilder()
+        .update(EmployeePenaltyEntity)
+        .set({ payrollRecordId: payroll.id })
+        .where('employee_id = :employeeId', { employeeId: payroll.employeeId })
+        .andWhere('payroll_month = :payrollMonth', { payrollMonth: payroll.payrollMonth })
+        .andWhere('payroll_year = :payrollYear', { payrollYear: payroll.payrollYear })
+        .andWhere('payroll_record_id IS NULL')
+        .execute(),
+    ]);
   }
 }

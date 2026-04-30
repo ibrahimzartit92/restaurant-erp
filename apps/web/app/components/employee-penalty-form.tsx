@@ -8,9 +8,11 @@ import type { EmployeePenaltySummary, EmployeeSummary } from '../lib/types';
 export function EmployeePenaltyForm({
   employees,
   initialPenalty,
+  initialEmployeeId,
 }: Readonly<{
   employees: EmployeeSummary[];
   initialPenalty?: EmployeePenaltySummary | null;
+  initialEmployeeId?: string;
 }>) {
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
@@ -49,7 +51,7 @@ export function EmployeePenaltyForm({
       <div className="form-grid">
         <label>
           الموظف
-          <select defaultValue={initialPenalty?.employeeId ?? ''} name="employeeId" required>
+          <select defaultValue={initialPenalty?.employeeId ?? initialEmployeeId ?? ''} name="employeeId" required>
             <option value="">اختر الموظف</option>
             {employees.map((employee) => (
               <option key={employee.id} value={employee.id}>

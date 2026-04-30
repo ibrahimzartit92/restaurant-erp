@@ -1,7 +1,11 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Not, Repository } from 'typeorm';
+import { AttendanceFileEntity } from '../attendance-files/entities/attendance-file.entity';
 import { BranchesService } from '../branches/branches.service';
+import { EmployeeAdvanceEntity } from '../employee-advances/entities/employee-advance.entity';
+import { EmployeePenaltyEntity } from '../employee-penalties/entities/employee-penalty.entity';
+import { PayrollRecordEntity } from '../payroll/entities/payroll-record.entity';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { EmployeeEntity } from './entities/employee.entity';
@@ -11,6 +15,14 @@ export class EmployeesService {
   constructor(
     @InjectRepository(EmployeeEntity)
     private readonly employeeRepository: Repository<EmployeeEntity>,
+    @InjectRepository(PayrollRecordEntity)
+    private readonly payrollRepository: Repository<PayrollRecordEntity>,
+    @InjectRepository(EmployeeAdvanceEntity)
+    private readonly employeeAdvanceRepository: Repository<EmployeeAdvanceEntity>,
+    @InjectRepository(EmployeePenaltyEntity)
+    private readonly employeePenaltyRepository: Repository<EmployeePenaltyEntity>,
+    @InjectRepository(AttendanceFileEntity)
+    private readonly attendanceFileRepository: Repository<AttendanceFileEntity>,
     private readonly branchesService: BranchesService,
   ) {}
 
@@ -67,6 +79,21 @@ export class EmployeesService {
     return this.employeeRepository.save(employee);
   }
 
+  async remove(id: string) {
+    const employee = await this.findByIdOrFail(id);
+    const linkedRecords = await this.countLinkedRecords(id);
+
+    if (linkedRecords === 0) {
+      await this.employeeRepository.remove(employee);
+      return { id, deleted: true, deactivated: false, linkedRecords };
+    }
+
+    employee.isActive = false;
+    await this.employeeRepository.save(employee);
+
+    return { id, deleted: false, deactivated: true, linkedRecords };
+  }
+
   async update(id: string, updateDto: UpdateEmployeeDto) {
     const employee = await this.findByIdOrFail(id);
     const employeeNumber = updateDto.employeeNumber?.trim().toUpperCase();
@@ -119,5 +146,16 @@ export class EmployeesService {
   private normalizeOptionalText(value?: string | null) {
     const normalizedValue = value?.trim();
     return normalizedValue ? normalizedValue : null;
+  }
+
+  private async countLinkedRecords(employeeId: string) {
+    const [payrolls, advances, penalties, attendanceFiles] = await Promise.all([
+      this.payrollRepository.count({ where: { employeeId } }),
+      this.employeeAdvanceRepository.count({ where: { employeeId } }),
+      this.employeePenaltyRepository.count({ where: { employeeId } }),
+      this.attendanceFileRepository.count({ where: { employeeId } }),
+    ]);
+
+    return payrolls + advances + penalties + attendanceFiles;
   }
 }

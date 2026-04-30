@@ -17,6 +17,7 @@ export function EmployeeForm({
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -47,6 +48,33 @@ export function EmployeeForm({
       setMessage(error instanceof Error ? error.message : 'تعذر حفظ الموظف.');
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!initialEmployee?.id) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      'هل تريد حذف هذا الموظف؟ إذا كان لديه سجلات مرتبطة سيتم إيقافه بدلا من الحذف للحفاظ على التاريخ المالي.',
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsDeleting(true);
+    setMessage(null);
+
+    try {
+      await submitJson(`/employees/${initialEmployee.id}`, 'DELETE', {});
+      router.push('/employees');
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'تعذر حذف أو إيقاف الموظف.');
+    } finally {
+      setIsDeleting(false);
     }
   }
 
@@ -98,9 +126,14 @@ export function EmployeeForm({
       </label>
 
       <div className="form-actions">
-        <button disabled={isSaving} type="submit">
-          {isSaving ? 'جار الحفظ...' : mode === 'create' ? 'حفظ الموظف' : 'حفظ التعديلات'}
+        <button disabled={isSaving || isDeleting} type="submit">
+          {isSaving ? 'جاري الحفظ...' : mode === 'create' ? 'حفظ الموظف' : 'حفظ التعديلات'}
         </button>
+        {mode === 'edit' ? (
+          <button disabled={isSaving || isDeleting} onClick={handleDelete} type="button">
+            {isDeleting ? 'جاري المعالجة...' : 'حذف / إيقاف الموظف'}
+          </button>
+        ) : null}
       </div>
     </form>
   );

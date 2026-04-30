@@ -20,6 +20,7 @@ import { MultiPaymentReversals1730000016000 } from './migrations/1730000016000-m
 import { Vaults1730000017000 } from './migrations/1730000017000-vaults';
 import { UnifiedPayrollPayments1730000018000 } from './migrations/1730000018000-unified-payroll-payments';
 import { VaultLinkageSchemaRepair1730000019000 } from './migrations/1730000019000-vault-linkage-schema-repair';
+import { PayrollDeductionLinks1730000020000 } from './migrations/1730000020000-payroll-deduction-links';
 import { databaseEntities } from './typeorm-options';
 
 export const AppDataSource = new DataSource({
@@ -47,6 +48,7 @@ export const AppDataSource = new DataSource({
     Vaults1730000017000,
     UnifiedPayrollPayments1730000018000,
     VaultLinkageSchemaRepair1730000019000,
+    PayrollDeductionLinks1730000020000,
   ],
   synchronize: false,
 });

@@ -117,6 +117,41 @@ function comparisonText(metric: DashboardMetric, formatMoney: (value?: number | 
   return `${change}${percent} عن الفترة السابقة`;
 }
 
+function filteredQuery(dashboard: DashboardResult, extra: Record<string, string | undefined>) {
+  return buildQuery({
+    branch_id: dashboard.filters.branchId ?? undefined,
+    date_from: dashboard.filters.dateFrom,
+    date_to: dashboard.filters.dateTo,
+    ...extra,
+  });
+}
+
+function metricHref(metricKey: string, dashboard: DashboardResult) {
+  switch (metricKey) {
+    case 'total_sales':
+      return `/daily-sales${filteredQuery(dashboard, {})}`;
+    case 'total_purchases':
+      return `/purchase-invoices${filteredQuery(dashboard, {
+        invoice_date_from: dashboard.filters.dateFrom,
+        invoice_date_to: dashboard.filters.dateTo,
+        date_from: undefined,
+        date_to: undefined,
+      })}`;
+    case 'total_operating_expenses':
+      return `/expenses${filteredQuery(dashboard, { category_type: 'operating' })}`;
+    case 'total_miscellaneous_expenses':
+      return `/expenses${filteredQuery(dashboard, { category_type: 'miscellaneous' })}`;
+    case 'total_payroll':
+      return `/payrolls${buildQuery({ payroll_year: dashboard.filters.dateTo.slice(0, 4) })}`;
+    case 'bank_balance':
+      return '/bank-accounts';
+    case 'supplier_due':
+      return '/purchase-invoices?status=open';
+    default:
+      return null;
+  }
+}
+
 function maxValue(values: number[]) {
   return Math.max(1, ...values.map((value) => Math.abs(value)));
 }
@@ -267,13 +302,27 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       </section>
 
       <section className="dashboard-kpis dashboard-kpis-management" aria-label="المؤشرات الرئيسية">
-        {dashboard.metrics.map((metric) => (
-          <article className={`dashboard-kpi-card ${metricTone(metric)}`} key={metric.key}>
-            <p>{metric.label}</p>
-            <strong>{formatMoney(metric.value)}</strong>
-            <span>{comparisonText(metric, formatMoney)}</span>
-          </article>
-        ))}
+        {dashboard.metrics.map((metric) => {
+          const href = metricHref(metric.key, dashboard);
+          const className = `dashboard-kpi-card ${metricTone(metric)}`;
+          const content = (
+            <>
+              <p>{metric.label}</p>
+              <strong>{formatMoney(metric.value)}</strong>
+              <span>{comparisonText(metric, formatMoney)}</span>
+            </>
+          );
+
+          return href ? (
+            <Link className={className} href={href} key={metric.key}>
+              {content}
+            </Link>
+          ) : (
+            <article className={className} key={metric.key}>
+              {content}
+            </article>
+          );
+        })}
       </section>
 
       <section className="dashboard-grid dashboard-grid-primary">
@@ -365,18 +414,18 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             <span>نقاط تحتاج مراجعة يومية</span>
           </div>
           <div className="dashboard-mini-grid">
-            <div className="mini-stat-card">
+            <Link className="mini-stat-card" href="/purchase-invoices?status=open">
               <span>الفواتير المفتوحة</span>
               <strong>{dashboard.openInvoices.length}</strong>
-            </div>
-            <div className="mini-stat-card">
+            </Link>
+            <Link className="mini-stat-card" href="/purchase-invoices?status=open">
               <span>مستحقات الموردين</span>
               <strong>{formatMoney(metricsByKey.get('supplier_due')?.value ?? 0)}</strong>
-            </div>
-            <div className="mini-stat-card">
+            </Link>
+            <Link className="mini-stat-card" href="/bank-accounts">
               <span>الرصيد البنكي الحالي</span>
               <strong>{formatMoney(metricsByKey.get('bank_balance')?.value ?? 0)}</strong>
-            </div>
+            </Link>
           </div>
         </article>
       </section>

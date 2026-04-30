@@ -22,6 +22,12 @@ export type PayrollPaymentAllocation = {
   notes?: string | null;
 };
 
+export enum PayrollPaymentStatus {
+  Unpaid = 'unpaid',
+  PartiallyPaid = 'partially_paid',
+  Paid = 'paid',
+}
+
 const numericTransformer = {
   to: (value?: number | null) => value ?? 0,
   from: (value: string | null) => (value === null ? 0 : Number(value)),
@@ -69,6 +75,9 @@ export class PayrollRecordEntity {
 
   @Column({ name: 'remaining_amount', type: 'numeric', precision: 12, scale: 2, default: 0, transformer: numericTransformer })
   remainingAmount!: number;
+
+  @Column({ name: 'payment_status', type: 'varchar', length: 30, default: PayrollPaymentStatus.Unpaid })
+  paymentStatus!: PayrollPaymentStatus;
 
   @Column({ name: 'payment_allocations', type: 'jsonb', nullable: true })
   paymentAllocations!: PayrollPaymentAllocation[] | null;

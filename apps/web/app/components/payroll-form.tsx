@@ -54,12 +54,14 @@ export function PayrollForm({
   bankAccounts,
   vaults,
   initialPayroll,
+  initialEmployeeId,
 }: Readonly<{
   employees: EmployeeSummary[];
   drawers: DrawerOption[];
   bankAccounts: BankAccountOption[];
   vaults: VaultOption[];
   initialPayroll?: PayrollSummary | null;
+  initialEmployeeId?: string;
 }>) {
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
@@ -145,7 +147,7 @@ export function PayrollForm({
       <div className="form-grid">
         <label>
           الموظف
-          <select defaultValue={initialPayroll?.employeeId ?? ''} name="employeeId" required>
+          <select defaultValue={initialPayroll?.employeeId ?? initialEmployeeId ?? ''} name="employeeId" required>
             <option value="">اختر الموظف</option>
             {employees.map((employee) => (
               <option key={employee.id} value={employee.id}>

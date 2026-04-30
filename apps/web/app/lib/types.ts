@@ -241,6 +241,7 @@ export type EmployeeAdvanceSummary = {
   drawer?: DrawerOption | null;
   payrollMonth?: number | null;
   payrollYear?: number | null;
+  payrollRecordId?: string | null;
   notes?: string | null;
 };
 
@@ -253,6 +254,7 @@ export type EmployeePenaltySummary = {
   reason?: string | null;
   payrollMonth?: number | null;
   payrollYear?: number | null;
+  payrollRecordId?: string | null;
   notes?: string | null;
 };
 
@@ -270,6 +272,7 @@ export type PayrollSummary = {
   netSalary: number;
   paidAmount?: number;
   remainingAmount?: number;
+  paymentStatus?: 'unpaid' | 'partially_paid' | 'paid';
   paymentAllocations?: {
     paymentMethod: 'cash' | 'bank' | 'vault';
     drawerId?: string | null;

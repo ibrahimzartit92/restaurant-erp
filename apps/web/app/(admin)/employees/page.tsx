@@ -7,7 +7,15 @@ import type { BranchOption, EmployeeSummary } from '../../lib/types';
 
 const columns: DataColumn<EmployeeSummary>[] = [
   { key: 'employeeNumber', label: 'رقم الموظف', render: (row) => row.employeeNumber },
-  { key: 'fullName', label: 'الاسم', render: (row) => row.fullName },
+  {
+    key: 'fullName',
+    label: 'الاسم',
+    render: (row) => (
+      <Link className="text-link" href={`/employees/${row.id}`}>
+        {row.fullName}
+      </Link>
+    ),
+  },
   { key: 'jobTitle', label: 'الوظيفة', render: (row) => row.jobTitle ?? 'غير محدد' },
   { key: 'branch', label: 'الفرع', render: (row) => row.defaultBranch?.name ?? 'بدون فرع' },
   { key: 'hireDate', label: 'تاريخ التعيين', render: (row) => (row.hireDate ? formatDate(row.hireDate) : 'غير محدد') },
@@ -17,8 +25,12 @@ const columns: DataColumn<EmployeeSummary>[] = [
     label: 'إجراء',
     render: (row) => (
       <div className="table-actions">
-        <Link className="text-link" href={`/employees/${row.id}`}>التفاصيل</Link>
-        <Link className="text-link" href={`/employees/${row.id}/edit`}>تعديل</Link>
+        <Link className="text-link" href={`/employees/${row.id}`}>
+          الملف
+        </Link>
+        <Link className="text-link" href={`/employees/${row.id}/edit`}>
+          تعديل
+        </Link>
       </div>
     ),
   },
@@ -37,7 +49,7 @@ export default async function EmployeesPage({
 
   return (
     <>
-      <PageHeader title="قائمة الموظفين" description="تابع بيانات الموظفين والفرع الافتراضي والحالة الوظيفية." />
+      <PageHeader title="قائمة الموظفين" description="تابع بيانات الموظفين وملفاتهم المالية والوظيفية من مكان واحد." />
       <div className="page-toolbar">
         <form action="" className="filters">
           <label>
@@ -49,16 +61,25 @@ export default async function EmployeesPage({
             <select defaultValue={params.branch_id ?? ''} name="branch_id">
               <option value="">كل الفروع</option>
               {branchesResult.data.map((branch) => (
-                <option key={branch.id} value={branch.id}>{branch.name}</option>
+                <option key={branch.id} value={branch.id}>
+                  {branch.name}
+                </option>
               ))}
             </select>
           </label>
           <button type="submit">تطبيق</button>
         </form>
-        <Link className="primary-button" href="/employees/new">موظف جديد</Link>
+        <Link className="primary-button" href="/employees/new">
+          موظف جديد
+        </Link>
       </div>
       {employeesResult.error ? <p className="notice">{employeesResult.error}</p> : null}
-      <DataTable columns={columns} rows={employeesResult.data} emptyTitle="لا يوجد موظفون" emptyText="أضف موظفًا جديدًا وسيظهر هنا." />
+      <DataTable
+        columns={columns}
+        rows={employeesResult.data}
+        emptyTitle="لا يوجد موظفون"
+        emptyText="أضف موظفا جديدا وسيظهر هنا."
+      />
     </>
   );
 }
