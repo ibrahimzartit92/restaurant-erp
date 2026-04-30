@@ -1,4 +1,5 @@
 import {
+  IsArray,
   IsInt,
   IsNumber,
   IsOptional,
@@ -7,7 +8,10 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
+import { PaymentAllocationDto } from '../../shared/payment-allocation.dto';
 
 export class UpdatePayrollRecordDto {
   @IsOptional()
@@ -54,6 +58,12 @@ export class UpdatePayrollRecordDto {
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
   netSalary?: number;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PaymentAllocationDto)
+  @IsOptional()
+  payments?: PaymentAllocationDto[];
 
   @IsOptional()
   @IsString()

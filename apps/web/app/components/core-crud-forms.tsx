@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
@@ -12,8 +12,17 @@ import type {
   PurchaseInvoiceOption,
   SupplierOption,
   UnitOption,
+  VaultOption,
   WarehouseOption,
 } from '../lib/types';
+import {
+  PaymentSourceRows,
+  activePaymentRows,
+  paymentRowsTotal,
+  toBackendPayment,
+  validatePaymentRows,
+  type UnifiedPaymentRow,
+} from './payment-source-rows';
 
 type MessageState = string | null;
 
@@ -60,7 +69,7 @@ export function BranchForm() {
       router.push('/branches');
       router.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'تعذر حفظ الفرع.');
+      setMessage(error instanceof Error ? error.message : 'ØªØ¹Ø°Ø± Ø­ÙØ¸ Ø§Ù„ÙØ±Ø¹.');
     } finally {
       setIsSaving(false);
     }
@@ -71,28 +80,28 @@ export function BranchForm() {
       <FormMessage message={message} />
       <div className="form-grid">
         <label>
-          كود الفرع
-          <input name="code" maxLength={50} placeholder="اختياري" />
+          ÙƒÙˆØ¯ Ø§Ù„ÙØ±Ø¹
+          <input name="code" maxLength={50} placeholder="Ø§Ø®ØªÙŠØ§Ø±ÙŠ" />
         </label>
         <label>
-          اسم الفرع
+          Ø§Ø³Ù… Ø§Ù„ÙØ±Ø¹
           <input name="name" maxLength={160} required />
         </label>
         <label>
-          الرصيد الافتتاحي الافتراضي
+          Ø§Ù„Ø±ØµÙŠØ¯ Ø§Ù„Ø§ÙØªØªØ§Ø­ÙŠ Ø§Ù„Ø§ÙØªØ±Ø§Ø¶ÙŠ
           <input name="defaultOpeningBalance" type="number" min="0" step="0.01" defaultValue={0} />
         </label>
         <label>
-          مبلغ الفكة الثابت
+          Ù…Ø¨Ù„Øº Ø§Ù„ÙÙƒØ© Ø§Ù„Ø«Ø§Ø¨Øª
           <input name="defaultCashFloat" type="number" min="0" step="0.01" defaultValue={0} />
         </label>
         <label className="checkbox-field">
           <input name="isActive" type="checkbox" defaultChecked />
-          الفرع نشط
+          Ø§Ù„ÙØ±Ø¹ Ù†Ø´Ø·
         </label>
       </div>
       <div className="form-actions">
-        <button disabled={isSaving} type="submit">{isSaving ? 'جاري الحفظ...' : 'حفظ الفرع'}</button>
+        <button disabled={isSaving} type="submit">{isSaving ? 'Ø¬Ø§Ø±ÙŠ Ø§Ù„Ø­ÙØ¸...' : 'Ø­ÙØ¸ Ø§Ù„ÙØ±Ø¹'}</button>
       </div>
     </form>
   );
@@ -118,7 +127,7 @@ export function WarehouseForm() {
       router.push('/warehouses');
       router.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'تعذر حفظ المخزن.');
+      setMessage(error instanceof Error ? error.message : 'ØªØ¹Ø°Ø± Ø­ÙØ¸ Ø§Ù„Ù…Ø®Ø²Ù†.');
     } finally {
       setIsSaving(false);
     }
@@ -129,20 +138,20 @@ export function WarehouseForm() {
       <FormMessage message={message} />
       <div className="form-grid">
         <label>
-          كود المخزن
+          ÙƒÙˆØ¯ Ø§Ù„Ù…Ø®Ø²Ù†
           <input name="code" maxLength={50} required />
         </label>
         <label>
-          اسم المخزن
+          Ø§Ø³Ù… Ø§Ù„Ù…Ø®Ø²Ù†
           <input name="name" maxLength={160} required />
         </label>
         <label className="checkbox-field">
           <input name="isActive" type="checkbox" defaultChecked />
-          المخزن نشط
+          Ø§Ù„Ù…Ø®Ø²Ù† Ù†Ø´Ø·
         </label>
       </div>
       <div className="form-actions">
-        <button disabled={isSaving} type="submit">{isSaving ? 'جاري الحفظ...' : 'حفظ المخزن'}</button>
+        <button disabled={isSaving} type="submit">{isSaving ? 'Ø¬Ø§Ø±ÙŠ Ø§Ù„Ø­ÙØ¸...' : 'Ø­ÙØ¸ Ø§Ù„Ù…Ø®Ø²Ù†'}</button>
       </div>
     </form>
   );
@@ -172,7 +181,7 @@ export function SupplierForm() {
       router.push('/suppliers');
       router.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'تعذر حفظ المورد.');
+      setMessage(error instanceof Error ? error.message : 'ØªØ¹Ø°Ø± Ø­ÙØ¸ Ø§Ù„Ù…ÙˆØ±Ø¯.');
     } finally {
       setIsSaving(false);
     }
@@ -183,36 +192,36 @@ export function SupplierForm() {
       <FormMessage message={message} />
       <div className="form-grid">
         <label>
-          كود المورد
-          <input name="code" maxLength={50} placeholder="اختياري" />
+          ÙƒÙˆØ¯ Ø§Ù„Ù…ÙˆØ±Ø¯
+          <input name="code" maxLength={50} placeholder="Ø§Ø®ØªÙŠØ§Ø±ÙŠ" />
         </label>
         <label>
-          اسم المورد
+          Ø§Ø³Ù… Ø§Ù„Ù…ÙˆØ±Ø¯
           <input name="name" maxLength={180} required />
         </label>
         <label>
-          الهاتف
+          Ø§Ù„Ù‡Ø§ØªÙ
           <input name="phone" maxLength={40} />
         </label>
         <label>
-          مهلة الدفع بالأيام
+          Ù…Ù‡Ù„Ø© Ø§Ù„Ø¯ÙØ¹ Ø¨Ø§Ù„Ø£ÙŠØ§Ù…
           <input name="defaultDueDays" type="number" min="0" defaultValue={0} />
         </label>
         <label className="checkbox-field">
           <input name="isActive" type="checkbox" defaultChecked />
-          المورد نشط
+          Ø§Ù„Ù…ÙˆØ±Ø¯ Ù†Ø´Ø·
         </label>
       </div>
       <label>
-        العنوان
+        Ø§Ù„Ø¹Ù†ÙˆØ§Ù†
         <textarea name="address" rows={3} />
       </label>
       <label>
-        ملاحظات
+        Ù…Ù„Ø§Ø­Ø¸Ø§Øª
         <textarea name="notes" rows={3} />
       </label>
       <div className="form-actions">
-        <button disabled={isSaving} type="submit">{isSaving ? 'جاري الحفظ...' : 'حفظ المورد'}</button>
+        <button disabled={isSaving} type="submit">{isSaving ? 'Ø¬Ø§Ø±ÙŠ Ø§Ù„Ø­ÙØ¸...' : 'Ø­ÙØ¸ Ø§Ù„Ù…ÙˆØ±Ø¯'}</button>
       </div>
     </form>
   );
@@ -242,7 +251,7 @@ export function DrawerForm({ branches }: Readonly<{ branches: BranchOption[] }>)
       router.push('/drawers');
       router.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'تعذر حفظ الدرج.');
+      setMessage(error instanceof Error ? error.message : 'ØªØ¹Ø°Ø± Ø­ÙØ¸ Ø§Ù„Ø¯Ø±Ø¬.');
     } finally {
       setIsSaving(false);
     }
@@ -253,31 +262,31 @@ export function DrawerForm({ branches }: Readonly<{ branches: BranchOption[] }>)
       <FormMessage message={message} />
       <div className="form-grid">
         <label>
-          الفرع
+          Ø§Ù„ÙØ±Ø¹
           <select name="branchId" required>
-            <option value="">اختر الفرع</option>
+            <option value="">Ø§Ø®ØªØ± Ø§Ù„ÙØ±Ø¹</option>
             {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
           </select>
         </label>
         <label>
-          كود الدرج
+          ÙƒÙˆØ¯ Ø§Ù„Ø¯Ø±Ø¬
           <input name="code" maxLength={50} required />
         </label>
         <label>
-          اسم الدرج
+          Ø§Ø³Ù… Ø§Ù„Ø¯Ø±Ø¬
           <input name="name" maxLength={160} required />
         </label>
         <label className="checkbox-field">
           <input name="isActive" type="checkbox" defaultChecked />
-          الدرج نشط
+          Ø§Ù„Ø¯Ø±Ø¬ Ù†Ø´Ø·
         </label>
       </div>
       <label>
-        ملاحظات
+        Ù…Ù„Ø§Ø­Ø¸Ø§Øª
         <textarea name="notes" rows={3} />
       </label>
       <div className="form-actions">
-        <button disabled={isSaving} type="submit">{isSaving ? 'جاري الحفظ...' : 'حفظ الدرج'}</button>
+        <button disabled={isSaving} type="submit">{isSaving ? 'Ø¬Ø§Ø±ÙŠ Ø§Ù„Ø­ÙØ¸...' : 'Ø­ÙØ¸ Ø§Ù„Ø¯Ø±Ø¬'}</button>
       </div>
     </form>
   );
@@ -316,7 +325,7 @@ export function ItemForm({
       router.push('/items');
       router.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'تعذر حفظ المادة.');
+      setMessage(error instanceof Error ? error.message : 'ØªØ¹Ø°Ø± Ø­ÙØ¸ Ø§Ù„Ù…Ø§Ø¯Ø©.');
     } finally {
       setIsSaving(false);
     }
@@ -327,54 +336,54 @@ export function ItemForm({
       <FormMessage message={message} />
       <div className="form-grid">
         <label>
-          كود المادة
+          ÙƒÙˆØ¯ Ø§Ù„Ù…Ø§Ø¯Ø©
           <input name="code" maxLength={50} required />
         </label>
         <label>
-          اسم المادة
+          Ø§Ø³Ù… Ø§Ù„Ù…Ø§Ø¯Ø©
           <input name="name" maxLength={180} required />
         </label>
         <label>
-          التصنيف
+          Ø§Ù„ØªØµÙ†ÙŠÙ
           <select name="categoryId">
-            <option value="">تصنيف افتراضي</option>
+            <option value="">ØªØµÙ†ÙŠÙ Ø§ÙØªØ±Ø§Ø¶ÙŠ</option>
             {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
           </select>
         </label>
         <label>
-          الوحدة
+          Ø§Ù„ÙˆØ­Ø¯Ø©
           <select name="unitId">
-            <option value="">وحدة افتراضية</option>
+            <option value="">ÙˆØ­Ø¯Ø© Ø§ÙØªØ±Ø§Ø¶ÙŠØ©</option>
             {units.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}
           </select>
         </label>
         <label>
-          السعر الابتدائي
+          Ø§Ù„Ø³Ø¹Ø± Ø§Ù„Ø§Ø¨ØªØ¯Ø§Ø¦ÙŠ
           <input name="initialPrice" type="number" min="0" step="0.01" defaultValue={0} />
         </label>
         <label>
-          سعر التكلفة
+          Ø³Ø¹Ø± Ø§Ù„ØªÙƒÙ„ÙØ©
           <input name="costPrice" type="number" min="0" step="0.01" defaultValue={0} />
         </label>
         <label>
-          سعر البيع
+          Ø³Ø¹Ø± Ø§Ù„Ø¨ÙŠØ¹
           <input name="salePrice" type="number" min="0" step="0.01" defaultValue={0} />
         </label>
         <label className="checkbox-field">
           <input name="isActive" type="checkbox" defaultChecked />
-          المادة نشطة
+          Ø§Ù„Ù…Ø§Ø¯Ø© Ù†Ø´Ø·Ø©
         </label>
       </div>
       <label>
-        كلمات البحث
+        ÙƒÙ„Ù…Ø§Øª Ø§Ù„Ø¨Ø­Ø«
         <input name="searchKeywords" maxLength={500} />
       </label>
       <label>
-        ملاحظات
+        Ù…Ù„Ø§Ø­Ø¸Ø§Øª
         <textarea name="notes" rows={3} />
       </label>
       <div className="form-actions">
-        <button disabled={isSaving} type="submit">{isSaving ? 'جاري الحفظ...' : 'حفظ المادة'}</button>
+        <button disabled={isSaving} type="submit">{isSaving ? 'Ø¬Ø§Ø±ÙŠ Ø§Ù„Ø­ÙØ¸...' : 'Ø­ÙØ¸ Ø§Ù„Ù…Ø§Ø¯Ø©'}</button>
       </div>
     </form>
   );
@@ -388,32 +397,12 @@ type PurchaseLineDraft = {
   notes: string;
 };
 
-type PurchasePaymentDraft = {
-  paymentMethod: 'cash' | 'bank' | 'other';
-  drawerId: string;
-  bankAccountId: string;
-  amount: string;
-  referenceNumber: string;
-  notes: string;
-};
-
 function itemLabel(item: ItemOption) {
   return `${item.code} - ${item.name}`;
 }
 
 function emptyPurchaseLine(): PurchaseLineDraft {
   return { itemId: '', itemLabel: '', quantity: '1', unitPrice: '0', notes: '' };
-}
-
-function emptyPurchasePayment(): PurchasePaymentDraft {
-  return {
-    paymentMethod: 'cash',
-    drawerId: '',
-    bankAccountId: '',
-    amount: '',
-    referenceNumber: '',
-    notes: '',
-  };
 }
 
 export function PurchaseInvoiceForm({
@@ -423,6 +412,7 @@ export function PurchaseInvoiceForm({
   items,
   drawers,
   bankAccounts,
+  vaults,
 }: Readonly<{
   branches: BranchOption[];
   warehouses: WarehouseOption[];
@@ -430,12 +420,13 @@ export function PurchaseInvoiceForm({
   items: ItemOption[];
   drawers: DrawerOption[];
   bankAccounts: BankAccountOption[];
+  vaults: VaultOption[];
 }>) {
   const router = useRouter();
   const [message, setMessage] = useState<MessageState>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [lines, setLines] = useState<PurchaseLineDraft[]>([emptyPurchaseLine()]);
-  const [payments, setPayments] = useState<PurchasePaymentDraft[]>([]);
+  const [payments, setPayments] = useState<UnifiedPaymentRow[]>([]);
   const itemOptions = useMemo(() => items.map((item) => ({ ...item, label: itemLabel(item) })), [items]);
 
   function updateLine(index: number, patch: Partial<PurchaseLineDraft>) {
@@ -449,12 +440,6 @@ export function PurchaseInvoiceForm({
       itemId: matched?.id ?? '',
       unitPrice: matched ? String(matched.costPrice ?? 0) : lines[index]?.unitPrice ?? '0',
     });
-  }
-
-  function updatePayment(index: number, patch: Partial<PurchasePaymentDraft>) {
-    setPayments((current) =>
-      current.map((payment, paymentIndex) => (paymentIndex === index ? { ...payment, ...patch } : payment)),
-    );
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -487,38 +472,29 @@ export function PurchaseInvoiceForm({
     const invalidLine = payload.items.find((line) => !line.itemId || line.quantity <= 0 || line.unitPrice < 0);
     const subtotalAmount = payload.items.reduce((sum, line) => sum + line.quantity * line.unitPrice, 0);
     const totalAmount = Math.max(subtotalAmount - payload.discountAmount, 0);
-    const activePayments = payments
-      .map((payment) => ({
-        ...payment,
-        amount: draftNumber(payment.amount),
-      }))
-      .filter((payment) => payment.amount > 0);
-    const totalPaid = activePayments.reduce((sum, payment) => sum + payment.amount, 0);
+    const activePayments = activePaymentRows(payments);
+    const totalPaid = paymentRowsTotal(activePayments);
 
     if (invalidLine) {
-      setMessage('أضف مادة واحدة على الأقل مع كمية وسعر صحيحين.');
+      setMessage('Ø£Ø¶Ù Ù…Ø§Ø¯Ø© ÙˆØ§Ø­Ø¯Ø© Ø¹Ù„Ù‰ Ø§Ù„Ø£Ù‚Ù„ Ù…Ø¹ ÙƒÙ…ÙŠØ© ÙˆØ³Ø¹Ø± ØµØ­ÙŠØ­ÙŠÙ†.');
       setIsSaving(false);
       return;
     }
 
     if (totalPaid > totalAmount) {
-      setMessage('إجمالي الدفعات لا يمكن أن يتجاوز إجمالي الفاتورة.');
+      setMessage('Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ø¯ÙØ¹Ø§Øª Ù„Ø§ ÙŠÙ…ÙƒÙ† Ø£Ù† ÙŠØªØ¬Ø§ÙˆØ² Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„ÙØ§ØªÙˆØ±Ø©.');
       setIsSaving(false);
       return;
     }
 
-    const invalidPayment = activePayments.find(
-      (payment) =>
-        !['cash', 'bank'].includes(payment.paymentMethod) ||
-        (payment.paymentMethod === 'cash' && !payment.drawerId) ||
-        (payment.paymentMethod === 'bank' && !payment.bankAccountId),
-    );
+    const paymentValidationMessage = activePayments.length ? validatePaymentRows(activePayments) : null;
 
-    if (invalidPayment) {
-      setMessage('اختر الدرج للدفعات النقدية والحساب البنكي للدفعات البنكية.');
+    if (paymentValidationMessage) {
+      setMessage(paymentValidationMessage);
       setIsSaving(false);
       return;
     }
+
 
     try {
       const saved = (await submitJson('/purchase-invoices', 'POST', payload)) as { id?: string };
@@ -526,21 +502,14 @@ export function PurchaseInvoiceForm({
         await submitJson('/supplier-payments/batch', 'POST', {
           purchaseInvoiceId: saved.id,
           branchId: payload.branchId,
-          paymentDate: payload.invoiceDate,
-          payments: activePayments.map((payment) => ({
-            paymentMethod: payment.paymentMethod,
-            drawerId: payment.paymentMethod === 'cash' ? payment.drawerId : null,
-            bankAccountId: payment.paymentMethod === 'bank' ? payment.bankAccountId : null,
-            amount: payment.amount,
-            referenceNumber: payment.referenceNumber.trim() || null,
-            notes: payment.notes.trim() || null,
-          })),
+          paymentDate: activePayments[0]?.paymentDate ?? payload.invoiceDate,
+          payments: activePayments.map(toBackendPayment),
         });
       }
       router.push(saved.id ? `/purchase-invoices/${saved.id}` : '/purchase-invoices');
       router.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'تعذر حفظ فاتورة الشراء.');
+      setMessage(error instanceof Error ? error.message : 'ØªØ¹Ø°Ø± Ø­ÙØ¸ ÙØ§ØªÙˆØ±Ø© Ø§Ù„Ø´Ø±Ø§Ø¡.');
     } finally {
       setIsSaving(false);
     }
@@ -551,69 +520,69 @@ export function PurchaseInvoiceForm({
       <FormMessage message={message} />
       <div className="form-grid">
         <label>
-          رقم الفاتورة
-          <input name="invoiceNumber" maxLength={50} placeholder="يولد تلقائيا عند تركه فارغا" />
+          Ø±Ù‚Ù… Ø§Ù„ÙØ§ØªÙˆØ±Ø©
+          <input name="invoiceNumber" maxLength={50} placeholder="ÙŠÙˆÙ„Ø¯ ØªÙ„Ù‚Ø§Ø¦ÙŠØ§ Ø¹Ù†Ø¯ ØªØ±ÙƒÙ‡ ÙØ§Ø±ØºØ§" />
         </label>
         <label>
-          الوصف
+          Ø§Ù„ÙˆØµÙ
           <input name="invoiceLabel" maxLength={180} />
         </label>
         <label>
-          الفرع
+          Ø§Ù„ÙØ±Ø¹
           <select name="branchId" required>
-            <option value="">اختر الفرع</option>
+            <option value="">Ø§Ø®ØªØ± Ø§Ù„ÙØ±Ø¹</option>
             {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
           </select>
         </label>
         <label>
-          المخزن
+          Ø§Ù„Ù…Ø®Ø²Ù†
           <select name="warehouseId" required>
-            <option value="">اختر المخزن</option>
+            <option value="">Ø§Ø®ØªØ± Ø§Ù„Ù…Ø®Ø²Ù†</option>
             {warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}
           </select>
         </label>
         <label>
-          المورد
+          Ø§Ù„Ù…ÙˆØ±Ø¯
           <select name="supplierId">
-            <option value="">فاتورة متفرقة بدون مورد</option>
+            <option value="">ÙØ§ØªÙˆØ±Ø© Ù…ØªÙØ±Ù‚Ø© Ø¨Ø¯ÙˆÙ† Ù…ÙˆØ±Ø¯</option>
             {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
           </select>
         </label>
         <label>
-          تاريخ الفاتورة
+          ØªØ§Ø±ÙŠØ® Ø§Ù„ÙØ§ØªÙˆØ±Ø©
           <input name="invoiceDate" type="date" defaultValue={new Date().toISOString().slice(0, 10)} required />
         </label>
         <label>
-          تاريخ الاستحقاق
+          ØªØ§Ø±ÙŠØ® Ø§Ù„Ø§Ø³ØªØ­Ù‚Ø§Ù‚
           <input name="dueDate" type="date" />
         </label>
         <label>
-          الحالة
+          Ø§Ù„Ø­Ø§Ù„Ø©
           <select name="status" defaultValue="open">
-            <option value="draft">مسودة</option>
-            <option value="open">مفتوحة</option>
-            <option value="partially_paid">مدفوعة جزئيا</option>
-            <option value="paid">مدفوعة</option>
+            <option value="draft">Ù…Ø³ÙˆØ¯Ø©</option>
+            <option value="open">Ù…ÙØªÙˆØ­Ø©</option>
+            <option value="partially_paid">Ù…Ø¯ÙÙˆØ¹Ø© Ø¬Ø²Ø¦ÙŠØ§</option>
+            <option value="paid">Ù…Ø¯ÙÙˆØ¹Ø©</option>
           </select>
         </label>
         <label>
-          الخصم
+          Ø§Ù„Ø®ØµÙ…
           <input name="discountAmount" type="number" min="0" step="0.01" defaultValue={0} />
         </label>
       </div>
       <label>
-        ملاحظات
+        Ù…Ù„Ø§Ø­Ø¸Ø§Øª
         <textarea name="notes" rows={3} />
       </label>
 
       <section className="transfer-items-section">
         <div className="panel-heading">
           <div>
-            <h3>مواد الفاتورة</h3>
-            <span>اختر المواد من القائمة وأدخل الكمية وسعر الوحدة.</span>
+            <h3>Ù…ÙˆØ§Ø¯ Ø§Ù„ÙØ§ØªÙˆØ±Ø©</h3>
+            <span>Ø§Ø®ØªØ± Ø§Ù„Ù…ÙˆØ§Ø¯ Ù…Ù† Ø§Ù„Ù‚Ø§Ø¦Ù…Ø© ÙˆØ£Ø¯Ø®Ù„ Ø§Ù„ÙƒÙ…ÙŠØ© ÙˆØ³Ø¹Ø± Ø§Ù„ÙˆØ­Ø¯Ø©.</span>
           </div>
           <button className="secondary-button" type="button" onClick={() => setLines((current) => [...current, emptyPurchaseLine()])}>
-            إضافة مادة
+            Ø¥Ø¶Ø§ÙØ© Ù…Ø§Ø¯Ø©
           </button>
         </div>
         <div className="transfer-items-list">
@@ -621,33 +590,33 @@ export function PurchaseInvoiceForm({
             <article className="transfer-item-card" key={index}>
               <div className="transfer-item-grid">
                 <label>
-                  المادة
+                  Ø§Ù„Ù…Ø§Ø¯Ø©
                   <input list={`purchase-item-options-${index}`} value={line.itemLabel} onChange={(event) => handleItemChange(index, event.target.value)} required />
                   <datalist id={`purchase-item-options-${index}`}>
                     {itemOptions.map((item) => <option key={item.id} value={item.label} />)}
                   </datalist>
                 </label>
                 <label>
-                  الكمية
+                  Ø§Ù„ÙƒÙ…ÙŠØ©
                   <input type="number" min="0.001" step="0.001" value={line.quantity} onChange={(event) => updateLine(index, { quantity: event.target.value })} required />
                 </label>
                 <label>
-                  سعر الوحدة
+                  Ø³Ø¹Ø± Ø§Ù„ÙˆØ­Ø¯Ø©
                   <input type="number" min="0" step="0.01" value={line.unitPrice} onChange={(event) => updateLine(index, { unitPrice: event.target.value })} required />
                 </label>
                 <label>
-                  الإجمالي
+                  Ø§Ù„Ø¥Ø¬Ù…Ø§Ù„ÙŠ
                   <input disabled value={(Number(line.quantity || 0) * Number(line.unitPrice || 0)).toFixed(2)} />
                 </label>
               </div>
               <div className="transfer-item-meta">
-                <p className="field-hint">يجب اختيار المادة من القائمة المقترحة حتى يتم إرسال معرف المادة الصحيح.</p>
+                <p className="field-hint">ÙŠØ¬Ø¨ Ø§Ø®ØªÙŠØ§Ø± Ø§Ù„Ù…Ø§Ø¯Ø© Ù…Ù† Ø§Ù„Ù‚Ø§Ø¦Ù…Ø© Ø§Ù„Ù…Ù‚ØªØ±Ø­Ø© Ø­ØªÙ‰ ÙŠØªÙ… Ø¥Ø±Ø³Ø§Ù„ Ù…Ø¹Ø±Ù Ø§Ù„Ù…Ø§Ø¯Ø© Ø§Ù„ØµØ­ÙŠØ­.</p>
                 <button className="secondary-button" type="button" onClick={() => setLines((current) => current.length === 1 ? current : current.filter((_, lineIndex) => lineIndex !== index))}>
-                  حذف السطر
+                  Ø­Ø°Ù Ø§Ù„Ø³Ø·Ø±
                 </button>
               </div>
               <label>
-                ملاحظات المادة
+                Ù…Ù„Ø§Ø­Ø¸Ø§Øª Ø§Ù„Ù…Ø§Ø¯Ø©
                 <textarea rows={2} value={line.notes} onChange={(event) => updateLine(index, { notes: event.target.value })} />
               </label>
             </article>
@@ -655,118 +624,19 @@ export function PurchaseInvoiceForm({
         </div>
       </section>
 
-      <section className="transfer-items-section">
-        <div className="panel-heading">
-          <div>
-            <h3>دفعات الفاتورة</h3>
-            <span>يمكن تركها فارغة أو إضافة أكثر من دفعة نقدية وبنكية لنفس الفاتورة.</span>
-          </div>
-          <button
-            className="secondary-button"
-            type="button"
-            onClick={() => setPayments((current) => [...current, emptyPurchasePayment()])}
-          >
-            إضافة دفعة
-          </button>
-        </div>
-
-        {payments.length === 0 ? (
-          <p className="field-hint">بدون دفعات الآن. ستبقى الفاتورة مفتوحة ويمكن إضافة الدفعات لاحقا.</p>
-        ) : (
-          <div className="transfer-items-list">
-            {payments.map((payment, index) => (
-              <article className="transfer-item-card" key={index}>
-                <div className="transfer-item-grid">
-                  <label>
-                    طريقة الدفع
-                    <select
-                      value={payment.paymentMethod}
-                      onChange={(event) =>
-                        updatePayment(index, {
-                          paymentMethod: event.target.value as PurchasePaymentDraft['paymentMethod'],
-                        })
-                      }
-                    >
-                      <option value="cash">نقدا</option>
-                      <option value="bank">بنكي</option>
-                      <option value="other">أخرى</option>
-                    </select>
-                  </label>
-                  <label>
-                    المبلغ
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={payment.amount}
-                      onChange={(event) => updatePayment(index, { amount: event.target.value })}
-                    />
-                  </label>
-                  <label>
-                    الدرج النقدي
-                    <select
-                      value={payment.drawerId}
-                      onChange={(event) => updatePayment(index, { drawerId: event.target.value })}
-                      disabled={payment.paymentMethod !== 'cash'}
-                    >
-                      <option value="">اختر الدرج</option>
-                      {drawers.map((drawer) => (
-                        <option key={drawer.id} value={drawer.id}>
-                          {drawer.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    الحساب البنكي
-                    <select
-                      value={payment.bankAccountId}
-                      onChange={(event) => updatePayment(index, { bankAccountId: event.target.value })}
-                      disabled={payment.paymentMethod !== 'bank'}
-                    >
-                      <option value="">اختر الحساب</option>
-                      {bankAccounts.map((account) => (
-                        <option key={account.id} value={account.id}>
-                          {account.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    المرجع
-                    <input
-                      maxLength={120}
-                      value={payment.referenceNumber}
-                      onChange={(event) => updatePayment(index, { referenceNumber: event.target.value })}
-                    />
-                  </label>
-                </div>
-                <div className="transfer-item-meta">
-                  <p className="field-hint">الدفعات النقدية تخصم من الدرج، والدفعات البنكية تخصم من الحساب البنكي.</p>
-                  <button
-                    className="secondary-button"
-                    type="button"
-                    onClick={() => setPayments((current) => current.filter((_, paymentIndex) => paymentIndex !== index))}
-                  >
-                    حذف الدفعة
-                  </button>
-                </div>
-                <label>
-                  ملاحظات الدفعة
-                  <textarea
-                    rows={2}
-                    value={payment.notes}
-                    onChange={(event) => updatePayment(index, { notes: event.target.value })}
-                  />
-                </label>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
+      <PaymentSourceRows
+        rows={payments}
+        onChange={setPayments}
+        drawers={drawers}
+        bankAccounts={bankAccounts}
+        vaults={vaults}
+        title="دفعات الفاتورة"
+        description="يمكن تركها فارغة أو تقسيم الدفع بين الدرج، البنك، والخزنة."
+        showPaymentDate={false}
+      />
 
       <div className="form-actions">
-        <button disabled={isSaving} type="submit">{isSaving ? 'جاري الحفظ...' : 'حفظ فاتورة الشراء'}</button>
+        <button disabled={isSaving} type="submit">{isSaving ? 'Ø¬Ø§Ø±ÙŠ Ø§Ù„Ø­ÙØ¸...' : 'Ø­ÙØ¸ ÙØ§ØªÙˆØ±Ø© Ø§Ù„Ø´Ø±Ø§Ø¡'}</button>
       </div>
     </form>
   );
@@ -809,7 +679,7 @@ export function SupplierPaymentForm({
       router.push('/supplier-payments');
       router.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'تعذر حفظ دفعة المورد.');
+      setMessage(error instanceof Error ? error.message : 'ØªØ¹Ø°Ø± Ø­ÙØ¸ Ø¯ÙØ¹Ø© Ø§Ù„Ù…ÙˆØ±Ø¯.');
     } finally {
       setIsSaving(false);
     }
@@ -820,69 +690,69 @@ export function SupplierPaymentForm({
       <FormMessage message={message} />
       <div className="form-grid">
         <label>
-          رقم الدفعة
-          <input name="paymentNumber" maxLength={50} placeholder="يولد تلقائيا عند تركه فارغا" />
+          Ø±Ù‚Ù… Ø§Ù„Ø¯ÙØ¹Ø©
+          <input name="paymentNumber" maxLength={50} placeholder="ÙŠÙˆÙ„Ø¯ ØªÙ„Ù‚Ø§Ø¦ÙŠØ§ Ø¹Ù†Ø¯ ØªØ±ÙƒÙ‡ ÙØ§Ø±ØºØ§" />
         </label>
         <label>
-          فاتورة الشراء
+          ÙØ§ØªÙˆØ±Ø© Ø§Ù„Ø´Ø±Ø§Ø¡
           <select name="purchaseInvoiceId" required>
-            <option value="">اختر الفاتورة</option>
+            <option value="">Ø§Ø®ØªØ± Ø§Ù„ÙØ§ØªÙˆØ±Ø©</option>
             {invoices.map((invoice) => (
               <option key={invoice.id} value={invoice.id}>
-                {invoice.invoiceNumber} - {invoice.supplier?.name ?? 'متفرقة'} - متبقي {invoice.remainingAmount}
+                {invoice.invoiceNumber} - {invoice.supplier?.name ?? 'Ù…ØªÙØ±Ù‚Ø©'} - Ù…ØªØ¨Ù‚ÙŠ {invoice.remainingAmount}
               </option>
             ))}
           </select>
         </label>
         <label>
-          الفرع
+          Ø§Ù„ÙØ±Ø¹
           <select name="branchId" required>
-            <option value="">اختر الفرع المطابق للفاتورة</option>
+            <option value="">Ø§Ø®ØªØ± Ø§Ù„ÙØ±Ø¹ Ø§Ù„Ù…Ø·Ø§Ø¨Ù‚ Ù„Ù„ÙØ§ØªÙˆØ±Ø©</option>
             {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
           </select>
         </label>
         <label>
-          تاريخ الدفع
+          ØªØ§Ø±ÙŠØ® Ø§Ù„Ø¯ÙØ¹
           <input name="paymentDate" type="date" defaultValue={new Date().toISOString().slice(0, 10)} required />
         </label>
         <label>
-          طريقة الدفع
+          Ø·Ø±ÙŠÙ‚Ø© Ø§Ù„Ø¯ÙØ¹
           <select name="paymentMethod" defaultValue="cash" required>
-            <option value="cash">نقدا</option>
-            <option value="bank">بنكي</option>
-            <option value="other">أخرى</option>
+            <option value="cash">Ù†Ù‚Ø¯Ø§</option>
+            <option value="bank">Ø¨Ù†ÙƒÙŠ</option>
+            <option value="other">Ø£Ø®Ø±Ù‰</option>
           </select>
         </label>
         <label>
-          الدرج النقدي
+          Ø§Ù„Ø¯Ø±Ø¬ Ø§Ù„Ù†Ù‚Ø¯ÙŠ
           <select name="drawerId">
-            <option value="">غير محدد</option>
+            <option value="">ØºÙŠØ± Ù…Ø­Ø¯Ø¯</option>
             {drawers.map((drawer) => <option key={drawer.id} value={drawer.id}>{drawer.name}</option>)}
           </select>
         </label>
         <label>
-          الحساب البنكي
+          Ø§Ù„Ø­Ø³Ø§Ø¨ Ø§Ù„Ø¨Ù†ÙƒÙŠ
           <select name="bankAccountId">
-            <option value="">غير محدد</option>
+            <option value="">ØºÙŠØ± Ù…Ø­Ø¯Ø¯</option>
             {bankAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
           </select>
         </label>
         <label>
-          المبلغ
+          Ø§Ù„Ù…Ø¨Ù„Øº
           <input name="amount" type="number" min="0.01" step="0.01" required />
         </label>
         <label>
-          المرجع
+          Ø§Ù„Ù…Ø±Ø¬Ø¹
           <input name="referenceNumber" maxLength={120} />
         </label>
       </div>
-      <p className="field-hint">الدفع النقدي يحتاج درج نقدي، والدفع البنكي يحتاج حسابا بنكيا. يجب أن يطابق الفرع فرع الفاتورة.</p>
+      <p className="field-hint">Ø§Ù„Ø¯ÙØ¹ Ø§Ù„Ù†Ù‚Ø¯ÙŠ ÙŠØ­ØªØ§Ø¬ Ø¯Ø±Ø¬ Ù†Ù‚Ø¯ÙŠØŒ ÙˆØ§Ù„Ø¯ÙØ¹ Ø§Ù„Ø¨Ù†ÙƒÙŠ ÙŠØ­ØªØ§Ø¬ Ø­Ø³Ø§Ø¨Ø§ Ø¨Ù†ÙƒÙŠØ§. ÙŠØ¬Ø¨ Ø£Ù† ÙŠØ·Ø§Ø¨Ù‚ Ø§Ù„ÙØ±Ø¹ ÙØ±Ø¹ Ø§Ù„ÙØ§ØªÙˆØ±Ø©.</p>
       <label>
-        ملاحظات
+        Ù…Ù„Ø§Ø­Ø¸Ø§Øª
         <textarea name="notes" rows={3} />
       </label>
       <div className="form-actions">
-        <button disabled={isSaving} type="submit">{isSaving ? 'جاري الحفظ...' : 'حفظ دفعة المورد'}</button>
+        <button disabled={isSaving} type="submit">{isSaving ? 'Ø¬Ø§Ø±ÙŠ Ø§Ù„Ø­ÙØ¸...' : 'Ø­ÙØ¸ Ø¯ÙØ¹Ø© Ø§Ù„Ù…ÙˆØ±Ø¯'}</button>
       </div>
     </form>
   );

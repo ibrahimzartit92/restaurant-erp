@@ -268,6 +268,18 @@ export type PayrollSummary = {
   penaltiesDeductionAmount: number;
   otherDeductionAmount: number;
   netSalary: number;
+  paidAmount?: number;
+  remainingAmount?: number;
+  paymentAllocations?: {
+    paymentMethod: 'cash' | 'bank' | 'vault';
+    drawerId?: string | null;
+    bankAccountId?: string | null;
+    vaultId?: string | null;
+    amount: number | string;
+    paymentDate?: string | null;
+    referenceNumber?: string | null;
+    notes?: string | null;
+  }[] | null;
   notes?: string | null;
 };
 

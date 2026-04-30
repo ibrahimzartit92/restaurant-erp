@@ -24,6 +24,7 @@ export enum DrawerTransactionType {
   ExpenseCash = 'expense_cash',
   ExpenseCashReversal = 'expense_cash_reversal',
   EmployeeAdvanceCash = 'employee_advance_cash',
+  PayrollPaymentCash = 'payroll_payment_cash',
   SalesReturnCash = 'sales_return_cash',
   Deposit = 'deposit',
   Withdrawal = 'withdrawal',

@@ -24,6 +24,7 @@ export type ExpensePaymentAllocation = {
   bankAccountId?: string | null;
   vaultId?: string | null;
   amount: number;
+  paymentDate?: string | null;
   referenceNumber?: string | null;
   notes?: string | null;
 };

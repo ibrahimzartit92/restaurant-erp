@@ -9,6 +9,18 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { EmployeeEntity } from '../../employees/entities/employee.entity';
+import { FinancialPaymentMethod } from '../../shared/payment-allocation.dto';
+
+export type PayrollPaymentAllocation = {
+  paymentMethod: FinancialPaymentMethod;
+  drawerId?: string | null;
+  bankAccountId?: string | null;
+  vaultId?: string | null;
+  amount: number;
+  paymentDate?: string | null;
+  referenceNumber?: string | null;
+  notes?: string | null;
+};
 
 const numericTransformer = {
   to: (value?: number | null) => value ?? 0,
@@ -51,6 +63,15 @@ export class PayrollRecordEntity {
 
   @Column({ name: 'net_salary', type: 'numeric', precision: 12, scale: 2, transformer: numericTransformer })
   netSalary!: number;
+
+  @Column({ name: 'paid_amount', type: 'numeric', precision: 12, scale: 2, default: 0, transformer: numericTransformer })
+  paidAmount!: number;
+
+  @Column({ name: 'remaining_amount', type: 'numeric', precision: 12, scale: 2, default: 0, transformer: numericTransformer })
+  remainingAmount!: number;
+
+  @Column({ name: 'payment_allocations', type: 'jsonb', nullable: true })
+  paymentAllocations!: PayrollPaymentAllocation[] | null;
 
   @Column({ type: 'text', nullable: true })
   notes!: string | null;

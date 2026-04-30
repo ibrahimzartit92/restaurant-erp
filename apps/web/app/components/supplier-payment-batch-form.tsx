@@ -1,28 +1,18 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { submitJson } from '../lib/client-api';
 import type { BankAccountOption, BranchOption, DrawerOption, PurchaseInvoiceOption, VaultOption } from '../lib/types';
-
-type PaymentRow = {
-  paymentMethod: 'cash' | 'bank' | 'vault';
-  drawerId: string;
-  bankAccountId: string;
-  vaultId: string;
-  amount: string;
-  referenceNumber: string;
-  notes: string;
-};
-
-function emptyPayment(): PaymentRow {
-  return { paymentMethod: 'cash', drawerId: '', bankAccountId: '', vaultId: '', amount: '', referenceNumber: '', notes: '' };
-}
-
-function asNumber(value: string) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
+import {
+  PaymentSourceRows,
+  activePaymentRows,
+  createPaymentRow,
+  paymentRowsTotal,
+  toBackendPayment,
+  validatePaymentRows,
+  type UnifiedPaymentRow,
+} from './payment-source-rows';
 
 export function SupplierPaymentBatchForm({
   invoices,
@@ -38,49 +28,45 @@ export function SupplierPaymentBatchForm({
   vaults: VaultOption[];
 }>) {
   const router = useRouter();
-  const [rows, setRows] = useState<PaymentRow[]>([emptyPayment()]);
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState('');
+  const [rows, setRows] = useState<UnifiedPaymentRow[]>([createPaymentRow()]);
   const [message, setMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const paidTotal = rows.reduce((sum, row) => sum + asNumber(row.amount), 0);
-
-  function updateRow(index: number, patch: Partial<PaymentRow>) {
-    setRows((current) => current.map((row, rowIndex) => (rowIndex === index ? { ...row, ...patch } : row)));
-  }
+  const selectedInvoice = useMemo(
+    () => invoices.find((invoice) => invoice.id === selectedInvoiceId),
+    [invoices, selectedInvoiceId],
+  );
+  const paidTotal = paymentRowsTotal(rows);
+  const remainingAmount = Number(selectedInvoice?.remainingAmount ?? 0);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSaving(true);
     setMessage(null);
     const formData = new FormData(event.currentTarget);
-    const activeRows = rows.filter((row) => asNumber(row.amount) > 0);
-    const invalidRow = activeRows.find(
-      (row) =>
-        (row.paymentMethod === 'cash' && !row.drawerId) ||
-        (row.paymentMethod === 'bank' && !row.bankAccountId) ||
-        (row.paymentMethod === 'vault' && !row.vaultId),
-    );
+    const validationMessage = validatePaymentRows(rows);
 
-    if (activeRows.length === 0 || invalidRow) {
-      setMessage('أضف دفعة واحدة على الأقل واختر مصدر الدفع المناسب.');
+    if (validationMessage) {
+      setMessage(validationMessage);
       setIsSaving(false);
       return;
     }
 
+    if (remainingAmount > 0 && paidTotal > remainingAmount) {
+      setMessage('مجموع الدفعات لا يمكن أن يتجاوز المتبقي من الفاتورة.');
+      setIsSaving(false);
+      return;
+    }
+
+    const payments = activePaymentRows(rows).map(toBackendPayment);
+
     try {
       await submitJson('/supplier-payments/batch', 'POST', {
-        purchaseInvoiceId: String(formData.get('purchaseInvoiceId') ?? ''),
+        purchaseInvoiceId: selectedInvoiceId,
         branchId: String(formData.get('branchId') ?? ''),
-        paymentDate: String(formData.get('paymentDate') ?? ''),
+        paymentDate: payments[0]?.paymentDate ?? new Date().toISOString().slice(0, 10),
         notes: String(formData.get('notes') ?? '') || null,
-        payments: activeRows.map((row) => ({
-          paymentMethod: row.paymentMethod,
-          drawerId: row.paymentMethod === 'cash' ? row.drawerId : null,
-          bankAccountId: row.paymentMethod === 'bank' ? row.bankAccountId : null,
-          vaultId: row.paymentMethod === 'vault' ? row.vaultId : null,
-          amount: asNumber(row.amount),
-          referenceNumber: row.referenceNumber.trim() || null,
-          notes: row.notes.trim() || null,
-        })),
+        payments,
       });
       router.push('/supplier-payments');
       router.refresh();
@@ -97,7 +83,7 @@ export function SupplierPaymentBatchForm({
       <div className="form-grid">
         <label>
           فاتورة الشراء
-          <select name="purchaseInvoiceId" required>
+          <select name="purchaseInvoiceId" value={selectedInvoiceId} onChange={(event) => setSelectedInvoiceId(event.target.value)} required>
             <option value="">اختر الفاتورة</option>
             {invoices.map((invoice) => (
               <option key={invoice.id} value={invoice.id}>
@@ -108,84 +94,37 @@ export function SupplierPaymentBatchForm({
         </label>
         <label>
           الفرع
-          <select name="branchId" required>
+          <select name="branchId" defaultValue={selectedInvoice?.branchId ?? ''} required>
             <option value="">اختر الفرع المطابق للفاتورة</option>
-            {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+            {branches.map((branch) => (
+              <option key={branch.id} value={branch.id}>
+                {branch.name}
+              </option>
+            ))}
           </select>
-        </label>
-        <label>
-          تاريخ الدفع
-          <input name="paymentDate" type="date" defaultValue={new Date().toISOString().slice(0, 10)} required />
         </label>
         <label>
           إجمالي الدفعات
           <input disabled value={paidTotal.toFixed(2)} />
         </label>
+        <label>
+          المتبقي في الفاتورة
+          <input disabled value={remainingAmount.toFixed(2)} />
+        </label>
       </div>
 
-      <section className="transfer-items-section">
-        <div className="panel-heading">
-          <div>
-            <h3>دفعات المورد</h3>
-            <span>يمكن تقسيم الدفع بين الدرج، البنك، والخزنة.</span>
-          </div>
-          <button className="secondary-button" type="button" onClick={() => setRows((current) => [...current, emptyPayment()])}>
-            إضافة دفعة جديدة
-          </button>
-        </div>
-        <div className="transfer-items-list">
-          {rows.map((row, index) => (
-            <article className="transfer-item-card" key={index}>
-              <div className="transfer-item-grid">
-                <label>
-                  الطريقة
-                  <select value={row.paymentMethod} onChange={(event) => updateRow(index, { paymentMethod: event.target.value as PaymentRow['paymentMethod'] })}>
-                    <option value="cash">نقدا</option>
-                    <option value="bank">بنكي</option>
-                    <option value="vault">الخزنة</option>
-                  </select>
-                </label>
-                <label>
-                  المبلغ
-                  <input type="number" min="0" step="0.01" value={row.amount} onChange={(event) => updateRow(index, { amount: event.target.value })} />
-                </label>
-                <label>
-                  الدرج
-                  <select value={row.drawerId} disabled={row.paymentMethod !== 'cash'} onChange={(event) => updateRow(index, { drawerId: event.target.value })}>
-                    <option value="">اختر الدرج</option>
-                    {drawers.map((drawer) => <option key={drawer.id} value={drawer.id}>{drawer.name}</option>)}
-                  </select>
-                </label>
-                <label>
-                  الحساب البنكي
-                  <select value={row.bankAccountId} disabled={row.paymentMethod !== 'bank'} onChange={(event) => updateRow(index, { bankAccountId: event.target.value })}>
-                    <option value="">اختر الحساب</option>
-                    {bankAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-                  </select>
-                </label>
-                <label>
-                  الخزنة
-                  <select value={row.vaultId} disabled={row.paymentMethod !== 'vault'} onChange={(event) => updateRow(index, { vaultId: event.target.value })}>
-                    <option value="">اختر الخزنة</option>
-                    {vaults.map((vault) => <option key={vault.id} value={vault.id}>{vault.name}</option>)}
-                  </select>
-                </label>
-                <label>
-                  المرجع
-                  <input maxLength={120} value={row.referenceNumber} onChange={(event) => updateRow(index, { referenceNumber: event.target.value })} />
-                </label>
-              </div>
-              <label>
-                ملاحظات الدفعة
-                <textarea rows={2} value={row.notes} onChange={(event) => updateRow(index, { notes: event.target.value })} />
-              </label>
-              <button className="secondary-button" type="button" onClick={() => setRows((current) => current.length === 1 ? current : current.filter((_, rowIndex) => rowIndex !== index))}>
-                حذف الدفعة
-              </button>
-            </article>
-          ))}
-        </div>
-      </section>
+      <PaymentSourceRows
+        rows={rows}
+        onChange={setRows}
+        drawers={drawers}
+        bankAccounts={bankAccounts}
+        vaults={vaults}
+        title="دفعات المورد"
+        description="يمكن تقسيم الدفع بين الدرج، البنك، والخزنة مع تاريخ ومرجع لكل دفعة."
+        totalAmount={remainingAmount}
+        showRemaining
+        allowSettleRemaining
+      />
 
       <label>
         ملاحظات عامة
@@ -193,7 +132,9 @@ export function SupplierPaymentBatchForm({
       </label>
 
       <div className="form-actions">
-        <button disabled={isSaving} type="submit">{isSaving ? 'جاري الحفظ...' : 'حفظ دفعات المورد'}</button>
+        <button disabled={isSaving} type="submit">
+          {isSaving ? 'جاري الحفظ...' : 'حفظ دفعات المورد'}
+        </button>
       </div>
     </form>
   );

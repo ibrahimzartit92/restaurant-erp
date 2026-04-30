@@ -1,23 +1,45 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Not, Repository } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, Not, Repository } from 'typeorm';
+import {
+  BankAccountTransactionDirection,
+  BankAccountTransactionEntity,
+  BankAccountTransactionType,
+} from '../bank-account-transactions/entities/bank-account-transaction.entity';
+import { BankAccountEntity } from '../bank-accounts/entities/bank-account.entity';
+import {
+  DrawerTransactionDirection,
+  DrawerTransactionEntity,
+  DrawerTransactionType,
+} from '../drawer-transactions/entities/drawer-transaction.entity';
+import { DrawerEntity } from '../drawers/entities/drawer.entity';
 import { EmployeeAdvanceEntity } from '../employee-advances/entities/employee-advance.entity';
 import { EmployeePenaltyEntity } from '../employee-penalties/entities/employee-penalty.entity';
 import { EmployeesService } from '../employees/employees.service';
+import { FinancialPaymentMethod, PaymentAllocationDto } from '../shared/payment-allocation.dto';
+import { VaultTransactionDirection, VaultTransactionType } from '../vaults/entities/vault-transaction.entity';
+import { VaultsService } from '../vaults/vaults.service';
 import { CreatePayrollRecordDto } from './dto/create-payroll-record.dto';
 import { UpdatePayrollRecordDto } from './dto/update-payroll-record.dto';
-import { PayrollRecordEntity } from './entities/payroll-record.entity';
+import { PayrollPaymentAllocation, PayrollRecordEntity } from './entities/payroll-record.entity';
 
 @Injectable()
 export class PayrollService {
   constructor(
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
     @InjectRepository(PayrollRecordEntity)
     private readonly payrollRepository: Repository<PayrollRecordEntity>,
+    @InjectRepository(DrawerEntity)
+    private readonly drawerRepository: Repository<DrawerEntity>,
+    @InjectRepository(BankAccountEntity)
+    private readonly bankAccountRepository: Repository<BankAccountEntity>,
     @InjectRepository(EmployeeAdvanceEntity)
     private readonly employeeAdvanceRepository: Repository<EmployeeAdvanceEntity>,
     @InjectRepository(EmployeePenaltyEntity)
     private readonly employeePenaltyRepository: Repository<EmployeePenaltyEntity>,
     private readonly employeesService: EmployeesService,
+    private readonly vaultsService: VaultsService,
   ) {}
 
   async findAll(filters: { search?: string; employeeId?: string; payrollMonth?: string; payrollYear?: string }) {
@@ -71,6 +93,15 @@ export class PayrollService {
     const penaltiesDeductionAmount = this.roundMoney(automaticDeductions.penalties);
     const otherDeductionAmount = Number(createDto.otherDeductionAmount ?? 0);
 
+    const netSalary = this.calculateNetSalary({
+      baseSalary: Number(createDto.baseSalary),
+      allowancesAmount: Number(createDto.allowancesAmount ?? 0),
+      advancesDeductionAmount,
+      penaltiesDeductionAmount,
+      otherDeductionAmount,
+    });
+    const paymentAllocations = await this.resolvePaymentAllocations(createDto.payments, netSalary);
+    const paidAmount = this.roundMoney(paymentAllocations.reduce((sum, payment) => sum + payment.amount, 0));
     const payroll = this.payrollRepository.create({
       employeeId: createDto.employeeId,
       payrollMonth: createDto.payrollMonth,
@@ -80,17 +111,18 @@ export class PayrollService {
       advancesDeductionAmount,
       penaltiesDeductionAmount,
       otherDeductionAmount,
-      netSalary: this.calculateNetSalary({
-        baseSalary: Number(createDto.baseSalary),
-        allowancesAmount: Number(createDto.allowancesAmount ?? 0),
-        advancesDeductionAmount,
-        penaltiesDeductionAmount,
-        otherDeductionAmount,
-      }),
+      netSalary,
+      paidAmount,
+      remainingAmount: this.roundMoney(netSalary - paidAmount),
+      paymentAllocations,
       notes: this.normalizeOptionalText(createDto.notes),
     });
 
-    return this.payrollRepository.save(payroll);
+    return this.dataSource.transaction(async (manager) => {
+      const saved = await manager.getRepository(PayrollRecordEntity).save(payroll);
+      await this.recreateFinancialMovement(saved, manager);
+      return saved;
+    });
   }
 
   async update(id: string, updateDto: UpdatePayrollRecordDto) {
@@ -113,6 +145,19 @@ export class PayrollService {
     const otherDeductionAmount =
       updateDto.otherDeductionAmount !== undefined ? Number(updateDto.otherDeductionAmount) : payroll.otherDeductionAmount;
 
+    const netSalary = this.calculateNetSalary({
+      baseSalary,
+      allowancesAmount,
+      advancesDeductionAmount,
+      penaltiesDeductionAmount,
+      otherDeductionAmount,
+    });
+    const paymentAllocations = await this.resolvePaymentAllocations(
+      updateDto.payments ?? payroll.paymentAllocations ?? undefined,
+      netSalary,
+    );
+    const paidAmount = this.roundMoney(paymentAllocations.reduce((sum, payment) => sum + payment.amount, 0));
+
     Object.assign(payroll, {
       employeeId,
       payrollMonth,
@@ -122,17 +167,121 @@ export class PayrollService {
       advancesDeductionAmount,
       penaltiesDeductionAmount,
       otherDeductionAmount,
-      netSalary: this.calculateNetSalary({
-        baseSalary,
-        allowancesAmount,
-        advancesDeductionAmount,
-        penaltiesDeductionAmount,
-        otherDeductionAmount,
-      }),
+      netSalary,
+      paidAmount,
+      remainingAmount: this.roundMoney(netSalary - paidAmount),
+      paymentAllocations,
       notes: updateDto.notes !== undefined ? this.normalizeOptionalText(updateDto.notes) : payroll.notes,
     });
 
-    return this.payrollRepository.save(payroll);
+    return this.dataSource.transaction(async (manager) => {
+      const saved = await manager.getRepository(PayrollRecordEntity).save(payroll);
+      await this.recreateFinancialMovement(saved, manager);
+      return saved;
+    });
+  }
+
+  private async resolvePaymentAllocations(payments: PaymentAllocationDto[] | PayrollPaymentAllocation[] | undefined, netSalary: number) {
+    const allocations = (payments ?? [])
+      .map((payment) => ({
+        paymentMethod: payment.paymentMethod,
+        drawerId: payment.paymentMethod === FinancialPaymentMethod.Cash ? payment.drawerId ?? null : null,
+        bankAccountId: payment.paymentMethod === FinancialPaymentMethod.Bank ? payment.bankAccountId ?? null : null,
+        vaultId: payment.paymentMethod === FinancialPaymentMethod.Vault ? payment.vaultId ?? null : null,
+        amount: this.roundMoney(Number(payment.amount ?? 0)),
+        paymentDate: payment.paymentDate ?? new Date().toISOString().slice(0, 10),
+        referenceNumber: payment.referenceNumber ?? null,
+        notes: payment.notes ?? null,
+      }))
+      .filter((payment) => payment.amount > 0);
+
+    const paidTotal = this.roundMoney(allocations.reduce((sum, payment) => sum + payment.amount, 0));
+    if (paidTotal > this.roundMoney(netSalary)) {
+      throw new ConflictException('Payroll payments cannot exceed the net salary.');
+    }
+
+    for (const allocation of allocations) {
+      if (allocation.paymentMethod === FinancialPaymentMethod.Cash) {
+        if (!allocation.drawerId) throw new NotFoundException('Drawer is required for cash payroll payments.');
+        const drawer = await this.drawerRepository.findOne({ where: { id: allocation.drawerId } });
+        if (!drawer) throw new NotFoundException('Drawer was not found.');
+      }
+      if (allocation.paymentMethod === FinancialPaymentMethod.Bank) {
+        if (!allocation.bankAccountId) throw new NotFoundException('Bank account is required for payroll payments.');
+        const bankAccount = await this.bankAccountRepository.findOne({ where: { id: allocation.bankAccountId } });
+        if (!bankAccount) throw new NotFoundException('Bank account was not found.');
+      }
+      if (allocation.paymentMethod === FinancialPaymentMethod.Vault) {
+        if (!allocation.vaultId) throw new NotFoundException('Vault is required for payroll payments.');
+        await this.vaultsService.findEntityByIdOrFail(allocation.vaultId);
+      }
+    }
+
+    return allocations;
+  }
+
+  private async recreateFinancialMovement(payroll: PayrollRecordEntity, manager = this.dataSource.manager) {
+    await Promise.all([
+      manager.getRepository(DrawerTransactionEntity).delete({ sourceType: 'payroll_payment', sourceId: payroll.id }),
+      manager.getRepository(BankAccountTransactionEntity).delete({ sourceType: 'payroll_payment', sourceId: payroll.id }),
+      this.vaultsService.deleteFinancialMovement('payroll_payment', payroll.id, manager),
+    ]);
+
+    for (const allocation of payroll.paymentAllocations ?? []) {
+      const description = `دفعة راتب ${payroll.employee?.fullName ?? payroll.employeeId} ${payroll.payrollMonth}/${payroll.payrollYear}`;
+
+      if (allocation.paymentMethod === FinancialPaymentMethod.Cash && allocation.drawerId) {
+        const drawer = await manager.getRepository(DrawerEntity).findOne({ where: { id: allocation.drawerId } });
+        if (!drawer) throw new NotFoundException('Drawer was not found.');
+        await manager.getRepository(DrawerTransactionEntity).save({
+          drawerId: allocation.drawerId,
+          branchId: drawer.branchId,
+          transactionDate: allocation.paymentDate ?? new Date().toISOString().slice(0, 10),
+          transactionType: DrawerTransactionType.PayrollPaymentCash,
+          direction: DrawerTransactionDirection.Out,
+          amount: allocation.amount,
+          sourceType: 'payroll_payment',
+          sourceId: payroll.id,
+          description,
+          notes: allocation.notes ?? null,
+        });
+      }
+
+      if (allocation.paymentMethod === FinancialPaymentMethod.Bank && allocation.bankAccountId) {
+        await manager.getRepository(BankAccountTransactionEntity).save({
+          bankAccountId: allocation.bankAccountId,
+          transactionDate: allocation.paymentDate ?? new Date().toISOString().slice(0, 10),
+          transactionType: BankAccountTransactionType.PayrollPaymentBank,
+          direction: BankAccountTransactionDirection.Outgoing,
+          amount: allocation.amount,
+          branchId: payroll.employee?.defaultBranchId ?? null,
+          sourceType: 'payroll_payment',
+          sourceId: payroll.id,
+          referenceNumber: allocation.referenceNumber ?? null,
+          description,
+          notes: allocation.notes ?? null,
+        });
+      }
+
+      if (allocation.paymentMethod === FinancialPaymentMethod.Vault && allocation.vaultId) {
+        await this.vaultsService.recordTransaction(
+          {
+            vaultId: allocation.vaultId,
+            transactionDate: allocation.paymentDate ?? new Date().toISOString().slice(0, 10),
+            transactionType: VaultTransactionType.PayrollPayment,
+            direction: VaultTransactionDirection.Out,
+            amount: allocation.amount,
+            branchId: payroll.employee?.defaultBranchId ?? null,
+            sourceType: 'payroll_payment',
+            sourceId: payroll.id,
+            referenceNumber: allocation.referenceNumber ?? null,
+            description,
+            notes: allocation.notes ?? null,
+          },
+          manager,
+        );
+      }
+    }
   }
 
   private async ensureUniquePayroll(employeeId: string, payrollMonth: number, payrollYear: number, currentId?: string) {

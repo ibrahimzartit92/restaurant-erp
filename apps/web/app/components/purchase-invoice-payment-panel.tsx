@@ -4,17 +4,23 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { submitJson } from '../lib/client-api';
 import type { BankAccountOption, DrawerOption, VaultOption } from '../lib/types';
+import {
+  PaymentSourceRows,
+  activePaymentRows,
+  createPaymentRow,
+  paymentRowsTotal,
+  toBackendPayment,
+  validatePaymentRows,
+  type UnifiedPaymentRow,
+} from './payment-source-rows';
 
 type PaymentMode = 'add' | 'settle' | null;
-type PaymentMethod = 'cash' | 'bank' | 'vault';
 
 function formatMoney(value: number, currencySymbol: string, decimalPlaces: number) {
-  return (
-    new Intl.NumberFormat('ar', {
-      minimumFractionDigits: decimalPlaces,
-      maximumFractionDigits: decimalPlaces,
-    }).format(value) + ` ${currencySymbol}`
-  );
+  return `${new Intl.NumberFormat('ar', {
+    minimumFractionDigits: decimalPlaces,
+    maximumFractionDigits: decimalPlaces,
+  }).format(value)} ${currencySymbol}`.trim();
 }
 
 export function PurchaseInvoicePaymentPanel({
@@ -38,20 +44,19 @@ export function PurchaseInvoicePaymentPanel({
 }>) {
   const router = useRouter();
   const [mode, setMode] = useState<PaymentMode>(null);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
-  const [amount, setAmount] = useState('');
+  const [rows, setRows] = useState<UnifiedPaymentRow[]>([createPaymentRow()]);
   const [message, setMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   function openAddPayment() {
     setMode('add');
-    setAmount('');
+    setRows([createPaymentRow()]);
     setMessage(null);
   }
 
   function openSettleRemaining() {
     setMode('settle');
-    setAmount(String(remainingAmount));
+    setRows([createPaymentRow(undefined, String(remainingAmount))]);
     setMessage(null);
   }
 
@@ -60,56 +65,31 @@ export function PurchaseInvoicePaymentPanel({
     setIsSaving(true);
     setMessage(null);
 
-    const formData = new FormData(event.currentTarget);
-    const numericAmount = Number(amount);
-    const drawerId = String(formData.get('drawerId') ?? '') || null;
-    const bankAccountId = String(formData.get('bankAccountId') ?? '') || null;
-    const vaultId = String(formData.get('vaultId') ?? '') || null;
+    const validationMessage = validatePaymentRows(rows);
+    const paidTotal = paymentRowsTotal(rows);
 
-    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
-      setMessage('أدخل مبلغ دفعة صحيح.');
+    if (validationMessage) {
+      setMessage(validationMessage);
       setIsSaving(false);
       return;
     }
 
-    if (numericAmount > remainingAmount) {
-      setMessage('مبلغ الدفعة لا يمكن أن يتجاوز المتبقي من الفاتورة.');
+    if (paidTotal > remainingAmount) {
+      setMessage('مجموع الدفعات لا يمكن أن يتجاوز المتبقي من الفاتورة.');
       setIsSaving(false);
       return;
     }
 
-    if (paymentMethod === 'cash' && !drawerId) {
-      setMessage('اختر الدرج للدفعة النقدية.');
-      setIsSaving(false);
-      return;
-    }
-
-    if (paymentMethod === 'bank' && !bankAccountId) {
-      setMessage('اختر الحساب البنكي للدفعة البنكية.');
-      setIsSaving(false);
-      return;
-    }
-
-    if (paymentMethod === 'vault' && !vaultId) {
-      setMessage('اختر الخزنة التي سيتم الدفع منها.');
-      setIsSaving(false);
-      return;
-    }
+    const payments = activePaymentRows(rows).map(toBackendPayment);
 
     try {
-      await submitJson(`/purchase-invoices/${invoiceId}/payments`, 'POST', {
+      await submitJson(`/purchase-invoices/${invoiceId}/payments/batch`, 'POST', {
         branchId,
-        paymentDate: String(formData.get('paymentDate') ?? ''),
-        paymentMethod,
-        drawerId: paymentMethod === 'cash' ? drawerId : null,
-        bankAccountId: paymentMethod === 'bank' ? bankAccountId : null,
-        vaultId: paymentMethod === 'vault' ? vaultId : null,
-        amount: numericAmount,
-        referenceNumber: String(formData.get('referenceNumber') ?? '') || null,
-        notes: String(formData.get('notes') ?? '') || null,
+        paymentDate: payments[0]?.paymentDate ?? new Date().toISOString().slice(0, 10),
+        payments,
       });
       setMode(null);
-      setAmount('');
+      setRows([createPaymentRow()]);
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'تعذر حفظ الدفعة.');
@@ -144,81 +124,20 @@ export function PurchaseInvoicePaymentPanel({
       {mode ? (
         <form className="form-panel" onSubmit={handleSubmit}>
           {message ? <p className="notice danger">{message}</p> : null}
-          <div className="panel-heading">
-            <div>
-              <h3>{mode === 'settle' ? 'تسديد المتبقي' : 'إضافة دفعة جديدة'}</h3>
-              <span>اختر مصدر الدفع ثم احفظ الدفعة على الفاتورة الحالية.</span>
-            </div>
-          </div>
-
-          <div className="form-grid">
-            <label>
-              تاريخ الدفع
-              <input name="paymentDate" type="date" defaultValue={new Date().toISOString().slice(0, 10)} required />
-            </label>
-            <label>
-              طريقة الدفع
-              <select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as PaymentMethod)}>
-                <option value="cash">نقدا من درج</option>
-                <option value="bank">من حساب بنكي</option>
-                <option value="vault">من الخزنة</option>
-              </select>
-            </label>
-            <label>
-              المبلغ
-              <input
-                min="0.01"
-                step="0.01"
-                type="number"
-                value={amount}
-                onChange={(event) => setAmount(event.target.value)}
-                required
-              />
-            </label>
-            <label>
-              الدرج
-              <select disabled={paymentMethod !== 'cash'} name="drawerId">
-                <option value="">اختر الدرج</option>
-                {drawers.map((drawer) => (
-                  <option key={drawer.id} value={drawer.id}>
-                    {drawer.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              الحساب البنكي
-              <select disabled={paymentMethod !== 'bank'} name="bankAccountId">
-                <option value="">اختر الحساب</option>
-                {bankAccounts.map((account) => (
-                  <option key={account.id} value={account.id}>
-                    {account.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              الخزنة
-              <select disabled={paymentMethod !== 'vault'} name="vaultId">
-                <option value="">اختر الخزنة</option>
-                {vaults.map((vault) => (
-                  <option key={vault.id} value={vault.id}>
-                    {vault.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              رقم المرجع
-              <input maxLength={120} name="referenceNumber" placeholder="اختياري" />
-            </label>
-          </div>
-
-          <label>
-            ملاحظات
-            <textarea name="notes" rows={3} />
-          </label>
-
+          <PaymentSourceRows
+            rows={rows}
+            onChange={setRows}
+            drawers={drawers}
+            bankAccounts={bankAccounts}
+            vaults={vaults}
+            title={mode === 'settle' ? 'تسديد المتبقي' : 'إضافة دفعة'}
+            description="اختر مصدر الدفع لكل صف. يمكن تقسيم الدفعة بين الدرج، البنك، والخزنة."
+            totalAmount={remainingAmount}
+            currencySymbol={currencySymbol}
+            decimalPlaces={decimalPlaces}
+            showRemaining
+            allowSettleRemaining={mode !== 'settle'}
+          />
           <div className="form-actions">
             <button disabled={isSaving} type="submit">
               {isSaving ? 'جاري حفظ الدفعة...' : 'حفظ الدفعة'}

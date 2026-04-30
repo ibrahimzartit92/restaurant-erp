@@ -7,17 +7,19 @@ import type {
   DrawerOption,
   ItemOption,
   SupplierOption,
+  VaultOption,
   WarehouseOption,
 } from '../../../lib/types';
 
 export default async function NewPurchaseInvoicePage() {
-  const [branches, warehouses, suppliers, items, drawers, bankAccounts] = await Promise.all([
+  const [branches, warehouses, suppliers, items, drawers, bankAccounts, vaults] = await Promise.all([
     fetchList<BranchOption>('/branches'),
     fetchList<WarehouseOption>('/warehouses'),
     fetchList<SupplierOption>('/suppliers'),
     fetchList<ItemOption>('/items'),
     fetchList<DrawerOption>('/drawers'),
     fetchList<BankAccountOption>('/bank-accounts'),
+    fetchList<VaultOption>('/vaults'),
   ]);
 
   return (
@@ -29,6 +31,7 @@ export default async function NewPurchaseInvoicePage() {
       {items.error ? <p className="notice">{items.error}</p> : null}
       {drawers.error ? <p className="notice">{drawers.error}</p> : null}
       {bankAccounts.error ? <p className="notice">{bankAccounts.error}</p> : null}
+      {vaults.error ? <p className="notice">{vaults.error}</p> : null}
       <PurchaseInvoiceForm
         branches={branches.data}
         warehouses={warehouses.data}
@@ -36,6 +39,7 @@ export default async function NewPurchaseInvoicePage() {
         items={items.data}
         drawers={drawers.data}
         bankAccounts={bankAccounts.data}
+        vaults={vaults.data}
       />
     </>
   );

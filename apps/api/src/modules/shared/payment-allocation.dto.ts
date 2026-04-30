@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsEnum, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
+import { IsDateString, IsEnum, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
 
 export enum FinancialPaymentMethod {
   Cash = 'cash',
@@ -27,6 +27,10 @@ export class PaymentAllocationDto {
   @IsNumber()
   @Min(0.01)
   amount!: number;
+
+  @IsDateString()
+  @IsOptional()
+  paymentDate?: string | null;
 
   @IsString()
   @IsOptional()

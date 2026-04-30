@@ -178,7 +178,7 @@ export class SupplierPaymentsService {
     const normalizedPayments = paymentRows.map((payment) => ({
       purchaseInvoiceId: createSupplierPaymentBatchDto.purchaseInvoiceId,
       branchId: createSupplierPaymentBatchDto.branchId,
-      paymentDate: createSupplierPaymentBatchDto.paymentDate,
+      paymentDate: payment.paymentDate ?? createSupplierPaymentBatchDto.paymentDate,
       paymentMethod:
         payment.paymentMethod === FinancialPaymentMethod.Cash
           ? SupplierPaymentMethod.Cash

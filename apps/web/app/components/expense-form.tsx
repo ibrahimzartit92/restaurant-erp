@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { submitJson } from '../lib/client-api';
 import type {
   BankAccountOption,
@@ -11,15 +11,25 @@ import type {
   ExpenseTemplateOption,
   VaultOption,
 } from '../lib/types';
+import {
+  PaymentSourceRows,
+  activePaymentRows,
+  createPaymentRow,
+  paymentRowsTotal,
+  toBackendPayment,
+  validatePaymentRows,
+  type UnifiedPaymentRow,
+} from './payment-source-rows';
 
-type ExpensePaymentRow = {
+type ExpensePaymentAllocation = {
   paymentMethod: 'cash' | 'bank' | 'vault';
-  drawerId: string;
-  bankAccountId: string;
-  vaultId: string;
-  amount: string;
-  referenceNumber: string;
-  notes: string;
+  drawerId?: string | null;
+  bankAccountId?: string | null;
+  vaultId?: string | null;
+  amount: number | string;
+  paymentDate?: string | null;
+  referenceNumber?: string | null;
+  notes?: string | null;
 };
 
 type ExpenseFormRecord = {
@@ -33,19 +43,37 @@ type ExpenseFormRecord = {
   drawerId?: string | null;
   bankAccountId?: string | null;
   vaultId?: string | null;
-  paymentAllocations?: ExpensePaymentRow[] | null;
+  paymentAllocations?: ExpensePaymentAllocation[] | null;
   isFixed?: boolean;
   templateId?: string | null;
   notes?: string | null;
 };
 
-function emptyPaymentRow(): ExpensePaymentRow {
-  return { paymentMethod: 'cash', drawerId: '', bankAccountId: '', vaultId: '', amount: '', referenceNumber: '', notes: '' };
+function fromBackendPayment(row: ExpensePaymentAllocation, fallbackDate: string): UnifiedPaymentRow {
+  return {
+    sourceType: row.paymentMethod === 'cash' ? 'drawer' : row.paymentMethod,
+    drawerId: row.drawerId ?? '',
+    bankAccountId: row.bankAccountId ?? '',
+    vaultId: row.vaultId ?? '',
+    amount: String(row.amount ?? ''),
+    paymentDate: row.paymentDate ?? fallbackDate,
+    referenceNumber: row.referenceNumber ?? '',
+    notes: row.notes ?? '',
+  };
 }
 
-function asNumber(value: string) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
+function legacyPaymentRow(initialExpense?: ExpenseFormRecord | null): UnifiedPaymentRow {
+  const paymentDate = initialExpense?.expenseDate ?? new Date().toISOString().slice(0, 10);
+  const sourceType =
+    initialExpense?.paymentMethod === 'bank' ? 'bank' : initialExpense?.paymentMethod === 'vault' ? 'vault' : 'drawer';
+
+  return {
+    ...createPaymentRow(paymentDate, initialExpense?.amount ? String(initialExpense.amount) : ''),
+    sourceType,
+    drawerId: initialExpense?.drawerId ?? '',
+    bankAccountId: initialExpense?.bankAccountId ?? '',
+    vaultId: initialExpense?.vaultId ?? '',
+  };
 }
 
 export function ExpenseForm({
@@ -68,63 +96,42 @@ export function ExpenseForm({
   vaults: VaultOption[];
 }>) {
   const router = useRouter();
-  const initialRows =
-    initialExpense?.paymentAllocations?.length
-      ? initialExpense.paymentAllocations.map((row) => ({
-          paymentMethod: row.paymentMethod,
-          drawerId: row.drawerId ?? '',
-          bankAccountId: row.bankAccountId ?? '',
-          vaultId: row.vaultId ?? '',
-          amount: String(row.amount ?? ''),
-          referenceNumber: row.referenceNumber ?? '',
-          notes: row.notes ?? '',
-        }))
-      : [
-          {
-            ...emptyPaymentRow(),
-            paymentMethod:
-              initialExpense?.paymentMethod === 'bank'
-                ? 'bank'
-                : initialExpense?.paymentMethod === 'vault'
-                  ? 'vault'
-                  : 'cash',
-            drawerId: initialExpense?.drawerId ?? '',
-            bankAccountId: initialExpense?.bankAccountId ?? '',
-            vaultId: initialExpense?.vaultId ?? '',
-            amount: initialExpense?.amount ? String(initialExpense.amount) : '',
-          } as ExpensePaymentRow,
-        ];
-  const [paymentRows, setPaymentRows] = useState<ExpensePaymentRow[]>(initialRows);
+  const initialExpenseDate = initialExpense?.expenseDate ?? new Date().toISOString().slice(0, 10);
+  const initialRows = useMemo(
+    () =>
+      initialExpense?.paymentAllocations?.length
+        ? initialExpense.paymentAllocations.map((row) => fromBackendPayment(row, initialExpenseDate))
+        : [legacyPaymentRow(initialExpense)],
+    [initialExpense, initialExpenseDate],
+  );
+  const [amount, setAmount] = useState(String(initialExpense?.amount ?? ''));
+  const [rows, setRows] = useState<UnifiedPaymentRow[]>(initialRows);
   const [message, setMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const paidTotal = paymentRows.reduce((sum, row) => sum + asNumber(row.amount), 0);
-
-  function updatePaymentRow(index: number, patch: Partial<ExpensePaymentRow>) {
-    setPaymentRows((current) => current.map((row, rowIndex) => (rowIndex === index ? { ...row, ...patch } : row)));
-  }
+  const numericAmount = Number(amount || 0);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSaving(true);
     setMessage(null);
     const formData = new FormData(event.currentTarget);
-    const amount = Number(formData.get('amount') ?? 0);
-    const activeRows = paymentRows.filter((row) => asNumber(row.amount) > 0);
-    const invalidRow = activeRows.find(
-      (row) =>
-        (row.paymentMethod === 'cash' && !row.drawerId) ||
-        (row.paymentMethod === 'bank' && !row.bankAccountId) ||
-        (row.paymentMethod === 'vault' && !row.vaultId),
-    );
+    const validationMessage = validatePaymentRows(rows);
+    const paidTotal = paymentRowsTotal(rows);
 
-    if (Math.round((paidTotal + Number.EPSILON) * 100) / 100 !== Math.round((amount + Number.EPSILON) * 100) / 100) {
-      setMessage('يجب أن يساوي مجموع دفعات المصروف مبلغ المصروف.');
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+      setMessage('أدخل مبلغ المصروف بشكل صحيح.');
       setIsSaving(false);
       return;
     }
 
-    if (invalidRow) {
-      setMessage('اختر الدرج للدفع النقدي، الحساب البنكي للدفع البنكي، أو الخزنة للدفع من الخزنة.');
+    if (validationMessage) {
+      setMessage(validationMessage);
+      setIsSaving(false);
+      return;
+    }
+
+    if (Math.round((paidTotal + Number.EPSILON) * 100) / 100 !== Math.round((numericAmount + Number.EPSILON) * 100) / 100) {
+      setMessage('يجب أن يساوي مجموع الدفعات مبلغ المصروف.');
       setIsSaving(false);
       return;
     }
@@ -134,16 +141,8 @@ export function ExpenseForm({
       branchId: String(formData.get('branchId') ?? ''),
       expenseCategoryId: String(formData.get('expenseCategoryId') ?? '') || null,
       title: String(formData.get('title') ?? '') || null,
-      amount,
-      payments: activeRows.map((row) => ({
-        paymentMethod: row.paymentMethod,
-        drawerId: row.paymentMethod === 'cash' ? row.drawerId : null,
-        bankAccountId: row.paymentMethod === 'bank' ? row.bankAccountId : null,
-        vaultId: row.paymentMethod === 'vault' ? row.vaultId : null,
-        amount: asNumber(row.amount),
-        referenceNumber: row.referenceNumber.trim() || null,
-        notes: row.notes.trim() || null,
-      })),
+      amount: numericAmount,
+      payments: activePaymentRows(rows).map(toBackendPayment),
       isFixed: formData.get('isFixed') === 'on',
       templateId: String(formData.get('templateId') ?? '') || null,
       notes: String(formData.get('notes') ?? '') || null,
@@ -166,7 +165,10 @@ export function ExpenseForm({
 
   async function handleDelete(reverseFinancialEffect: boolean) {
     if (!initialExpense?.id) return;
-    if (!confirm(reverseFinancialEffect ? 'سيتم حذف المصروف وتسجيل حركة عكسية. هل تريد المتابعة؟' : 'سيتم حذف المصروف. هل تريد المتابعة؟')) return;
+    const confirmation = reverseFinancialEffect
+      ? 'سيتم حذف المصروف وتسجيل حركة عكسية. هل تريد المتابعة؟'
+      : 'سيتم حذف المصروف. هل تريد المتابعة؟';
+    if (!confirm(confirmation)) return;
 
     setIsSaving(true);
     setMessage(null);
@@ -188,27 +190,39 @@ export function ExpenseForm({
       <div className="form-grid">
         <label>
           التاريخ
-          <input name="expenseDate" type="date" defaultValue={initialExpense?.expenseDate ?? ''} required />
+          <input name="expenseDate" type="date" defaultValue={initialExpenseDate} required />
         </label>
         <label>
           الفرع
           <select name="branchId" defaultValue={initialExpense?.branchId ?? ''} required>
             <option value="">اختر الفرع</option>
-            {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+            {branches.map((branch) => (
+              <option key={branch.id} value={branch.id}>
+                {branch.name}
+              </option>
+            ))}
           </select>
         </label>
         <label>
           نوع المصروف
           <select name="expenseCategoryId" defaultValue={initialExpense?.expenseCategoryId ?? ''}>
             <option value="">تصنيف عام</option>
-            {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
           </select>
         </label>
         <label>
           القالب
           <select name="templateId" defaultValue={initialExpense?.templateId ?? ''}>
             <option value="">بدون قالب</option>
-            {templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}
+            {templates.map((template) => (
+              <option key={template.id} value={template.id}>
+                {template.name}
+              </option>
+            ))}
           </select>
         </label>
         <label>
@@ -217,11 +231,7 @@ export function ExpenseForm({
         </label>
         <label>
           مبلغ المصروف
-          <input name="amount" type="number" min="0.01" step="0.01" defaultValue={initialExpense?.amount ?? ''} required />
-        </label>
-        <label>
-          إجمالي الدفعات
-          <input disabled value={paidTotal.toFixed(2)} />
+          <input name="amount" type="number" min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} required />
         </label>
         <label className="checkbox-field">
           <input name="isFixed" type="checkbox" defaultChecked={initialExpense?.isFixed ?? false} />
@@ -229,69 +239,17 @@ export function ExpenseForm({
         </label>
       </div>
 
-      <section className="transfer-items-section">
-        <div className="panel-heading">
-          <div>
-            <h3>مصادر الدفع</h3>
-            <span>قسّم المصروف بين الدرج النقدي، الحساب البنكي، أو الخزنة.</span>
-          </div>
-          <button className="secondary-button" type="button" onClick={() => setPaymentRows((current) => [...current, emptyPaymentRow()])}>
-            إضافة دفعة جديدة
-          </button>
-        </div>
-        <div className="transfer-items-list">
-          {paymentRows.map((row, index) => (
-            <article className="transfer-item-card" key={index}>
-              <div className="transfer-item-grid">
-                <label>
-                  الطريقة
-                  <select value={row.paymentMethod} onChange={(event) => updatePaymentRow(index, { paymentMethod: event.target.value as ExpensePaymentRow['paymentMethod'] })}>
-                    <option value="cash">نقدا</option>
-                    <option value="bank">بنكي</option>
-                    <option value="vault">الخزنة</option>
-                  </select>
-                </label>
-                <label>
-                  المبلغ
-                  <input type="number" min="0" step="0.01" value={row.amount} onChange={(event) => updatePaymentRow(index, { amount: event.target.value })} />
-                </label>
-                <label>
-                  الدرج النقدي
-                  <select value={row.drawerId} disabled={row.paymentMethod !== 'cash'} onChange={(event) => updatePaymentRow(index, { drawerId: event.target.value })}>
-                    <option value="">اختر الدرج</option>
-                    {drawers.map((drawer) => <option key={drawer.id} value={drawer.id}>{drawer.name}</option>)}
-                  </select>
-                </label>
-                <label>
-                  الحساب البنكي
-                  <select value={row.bankAccountId} disabled={row.paymentMethod !== 'bank'} onChange={(event) => updatePaymentRow(index, { bankAccountId: event.target.value })}>
-                    <option value="">اختر الحساب</option>
-                    {bankAccounts.map((bankAccount) => <option key={bankAccount.id} value={bankAccount.id}>{bankAccount.name}</option>)}
-                  </select>
-                </label>
-                <label>
-                  الخزنة
-                  <select value={row.vaultId} disabled={row.paymentMethod !== 'vault'} onChange={(event) => updatePaymentRow(index, { vaultId: event.target.value })}>
-                    <option value="">اختر الخزنة</option>
-                    {vaults.map((vault) => <option key={vault.id} value={vault.id}>{vault.name}</option>)}
-                  </select>
-                </label>
-                <label>
-                  المرجع
-                  <input maxLength={120} value={row.referenceNumber} onChange={(event) => updatePaymentRow(index, { referenceNumber: event.target.value })} />
-                </label>
-              </div>
-              <label>
-                ملاحظات الدفعة
-                <textarea rows={2} value={row.notes} onChange={(event) => updatePaymentRow(index, { notes: event.target.value })} />
-              </label>
-              <button className="secondary-button" type="button" onClick={() => setPaymentRows((current) => current.length === 1 ? current : current.filter((_, rowIndex) => rowIndex !== index))}>
-                حذف الدفعة
-              </button>
-            </article>
-          ))}
-        </div>
-      </section>
+      <PaymentSourceRows
+        rows={rows}
+        onChange={setRows}
+        drawers={drawers}
+        bankAccounts={bankAccounts}
+        vaults={vaults}
+        totalAmount={Number.isFinite(numericAmount) ? numericAmount : 0}
+        title="مصادر دفع المصروف"
+        description="قسم المصروف بين درج، حساب بنكي، أو خزنة. يجب أن يساوي مجموع الدفعات مبلغ المصروف."
+        showRemaining
+      />
 
       <label>
         ملاحظات
@@ -299,7 +257,9 @@ export function ExpenseForm({
       </label>
 
       <div className="form-actions">
-        <button type="submit" disabled={isSaving}>{isSaving ? 'جار الحفظ...' : 'حفظ المصروف'}</button>
+        <button type="submit" disabled={isSaving}>
+          {isSaving ? 'جار الحفظ...' : 'حفظ المصروف'}
+        </button>
         {mode === 'edit' ? (
           <>
             <button className="secondary-button" type="button" disabled={isSaving} onClick={() => handleDelete(false)}>

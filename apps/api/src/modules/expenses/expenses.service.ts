@@ -353,6 +353,7 @@ export class ExpensesService {
         bankAccountId: payment.paymentMethod === FinancialPaymentMethod.Bank ? payment.bankAccountId ?? null : null,
         vaultId: payment.paymentMethod === FinancialPaymentMethod.Vault ? payment.vaultId ?? null : null,
         amount: this.roundMoney(Number(payment.amount ?? 0)),
+        paymentDate: payment.paymentDate ?? null,
         referenceNumber: payment.referenceNumber ?? null,
         notes: payment.notes ?? null,
       }))
