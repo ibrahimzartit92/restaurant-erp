@@ -17,6 +17,9 @@ import { BankAccountOpeningBalance1730000013000 } from './migrations/17300000130
 import { DrawerDefaultFloat1730000014000 } from './migrations/1730000014000-drawer-default-float';
 import { EmployeeAdvanceDrawerLink1730000015000 } from './migrations/1730000015000-employee-advance-drawer-link';
 import { MultiPaymentReversals1730000016000 } from './migrations/1730000016000-multi-payment-reversals';
+import { Vaults1730000017000 } from './migrations/1730000017000-vaults';
+import { UnifiedPayrollPayments1730000018000 } from './migrations/1730000018000-unified-payroll-payments';
+import { VaultLinkageSchemaRepair1730000019000 } from './migrations/1730000019000-vault-linkage-schema-repair';
 import { databaseEntities } from './typeorm-options';
 
 export const AppDataSource = new DataSource({
@@ -41,6 +44,9 @@ export const AppDataSource = new DataSource({
     DrawerDefaultFloat1730000014000,
     EmployeeAdvanceDrawerLink1730000015000,
     MultiPaymentReversals1730000016000,
+    Vaults1730000017000,
+    UnifiedPayrollPayments1730000018000,
+    VaultLinkageSchemaRepair1730000019000,
   ],
   synchronize: false,
 });
