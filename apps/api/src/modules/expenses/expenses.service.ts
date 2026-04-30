@@ -181,7 +181,7 @@ export class ExpensesService {
         await this.deleteFinancialMovement(expense.id, manager);
       }
       await manager.getRepository(ExpenseEntity).remove(expense);
-      await this.undoActionsService.record({
+      await this.recordUndoSafely({
         actionType: reverseFinancialEffect ? 'delete_with_vault_reversal' : 'delete_only',
         entityType: 'expense',
         entityId: expense.id,
@@ -528,5 +528,13 @@ export class ExpensesService {
       isFixed: expense.isFixed,
       notes: expense.notes,
     };
+  }
+
+  private async recordUndoSafely(action: Parameters<UndoActionsService['record']>[0]) {
+    try {
+      await this.undoActionsService.record(action);
+    } catch {
+      // Delete must remain usable even if the optional undo log table has not been migrated yet.
+    }
   }
 }

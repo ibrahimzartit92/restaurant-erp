@@ -35,6 +35,11 @@ export class EmployeesController {
     return this.employeesService.update(id, updateDto);
   }
 
+  @Post(':id/delete')
+  deleteByPost(@Param('id') id: string) {
+    return this.employeesService.remove(id);
+  }
+
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.employeesService.remove(id);

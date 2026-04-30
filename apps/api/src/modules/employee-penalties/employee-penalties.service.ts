@@ -80,7 +80,7 @@ export class EmployeePenaltiesService {
   async remove(id: string) {
     const penalty = await this.findByIdOrFail(id);
     await this.penaltyRepository.remove(penalty);
-    await this.undoActionsService.record({
+    await this.recordUndoSafely({
       actionType: 'delete_only',
       entityType: 'employee_penalty',
       entityId: penalty.id,
@@ -134,5 +134,13 @@ export class EmployeePenaltiesService {
       payrollRecordId: penalty.payrollRecordId,
       notes: penalty.notes,
     };
+  }
+
+  private async recordUndoSafely(action: Parameters<UndoActionsService['record']>[0]) {
+    try {
+      await this.undoActionsService.record(action);
+    } catch {
+      // Delete must remain usable even if the optional undo log table has not been migrated yet.
+    }
   }
 }

@@ -27,7 +27,7 @@ export function DeleteFinancialRecordButton({
     setIsDeleting(true);
     setMessage(null);
     try {
-      await submitJson(`${path}?reverse_financial_effect=${reverse}`, 'DELETE', {});
+      await submitJson(`${path}/delete?reverse_financial_effect=${reverse}`, 'POST', {});
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'تعذر حذف السجل.');

@@ -22,7 +22,7 @@ export function PurchaseInvoiceActions({
     setIsSaving(true);
     setMessage(null);
     try {
-      await submitJson(`/purchase-invoices/${invoiceId}`, 'DELETE', {});
+      await submitJson(`/purchase-invoices/${invoiceId}/delete`, 'POST', {});
       router.push('/purchase-invoices');
       router.refresh();
     } catch (error) {

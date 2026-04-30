@@ -173,7 +173,7 @@ export function ExpenseForm({
     setIsSaving(true);
     setMessage(null);
     try {
-      await submitJson(`/expenses/${initialExpense.id}?reverse_financial_effect=${reverseFinancialEffect}`, 'DELETE', {});
+      await submitJson(`/expenses/${initialExpense.id}/delete?reverse_financial_effect=${reverseFinancialEffect}`, 'POST', {});
       router.push('/expenses');
       router.refresh();
     } catch (error) {

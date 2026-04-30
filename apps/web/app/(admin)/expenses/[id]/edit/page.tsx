@@ -1,5 +1,4 @@
 import { AttachmentsPanel } from '../../../../components/attachments-panel';
-import { DeleteFinancialRecordButton } from '../../../../components/delete-financial-record-button';
 import { ExpenseForm } from '../../../../components/expense-form';
 import { PageHeader } from '../../../../components/page-header';
 import { fetchList, fetchOne } from '../../../../lib/api';
@@ -65,18 +64,6 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
         bankAccounts={bankAccounts.data}
         vaults={vaults.data}
       />
-      {expense.data ? (
-        <section className="panel">
-          <div className="panel-heading">
-            <h3>حذف المصروف</h3>
-            <span>اختر حذف فقط أو حذف مع إرجاع المبلغ إلى الخزنة.</span>
-          </div>
-          <div className="inline-actions">
-            <DeleteFinancialRecordButton path={`/expenses/${expense.data.id}`} reverse={false} label="حذف فقط" />
-            <DeleteFinancialRecordButton path={`/expenses/${expense.data.id}`} reverse label="حذف وإرجاع للخزنة" />
-          </div>
-        </section>
-      ) : null}
       {expense.data ? (
         <>
           {attachments.error ? <p className="notice">{attachments.error}</p> : null}

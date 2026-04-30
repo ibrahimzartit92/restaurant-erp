@@ -240,10 +240,13 @@ export class PurchaseInvoicesService {
     const invoice = await this.findDetails(id);
 
     if (invoice.payments.length > 0 || invoice.paidAmount > 0) {
-      throw new BadRequestException('Paid purchase invoices must be cancelled with financial reversal instead of deleted.');
+      throw new BadRequestException('لا يمكن حذف فاتورة شراء عليها دفعات. استخدم إلغاء الفاتورة بدلا من الحذف.');
     }
 
-    await this.purchaseInvoiceRepository.remove(invoice);
+    await this.dataSource.transaction(async (manager) => {
+      await manager.getRepository(PurchaseInvoiceItemEntity).delete({ purchaseInvoiceId: invoice.id });
+      await manager.getRepository(PurchaseInvoiceEntity).remove(invoice);
+    });
 
     return { id };
   }

@@ -285,7 +285,7 @@ export class SupplierPaymentsService {
         manager.getRepository(PurchaseInvoiceEntity),
         manager.getRepository(SupplierPaymentEntity),
       );
-      await this.undoActionsService.record({
+      await this.recordUndoSafely({
         actionType: reverseFinancialEffect ? 'delete_with_vault_reversal' : 'delete_only',
         entityType: 'supplier_payment',
         entityId: payment.id,
@@ -621,5 +621,13 @@ export class SupplierPaymentsService {
       referenceNumber: payment.referenceNumber,
       notes: payment.notes,
     };
+  }
+
+  private async recordUndoSafely(action: Parameters<UndoActionsService['record']>[0]) {
+    try {
+      await this.undoActionsService.record(action);
+    } catch {
+      // Delete must remain usable even if the optional undo log table has not been migrated yet.
+    }
   }
 }

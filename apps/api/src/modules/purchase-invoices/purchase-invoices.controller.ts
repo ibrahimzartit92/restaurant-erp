@@ -69,6 +69,11 @@ export class PurchaseInvoicesController {
     return this.purchaseInvoicesService.cancel(id, vaultId);
   }
 
+  @Post(':id/delete')
+  deleteByPost(@Param('id') id: string) {
+    return this.purchaseInvoicesService.remove(id);
+  }
+
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.purchaseInvoicesService.remove(id);

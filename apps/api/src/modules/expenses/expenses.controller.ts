@@ -35,6 +35,15 @@ export class ExpensesController {
     return this.expensesService.update(id, updateExpenseDto);
   }
 
+  @Post(':id/delete')
+  deleteByPost(
+    @Param('id') id: string,
+    @Query('reverse_financial_effect') reverseFinancialEffect?: string,
+    @Query('vault_id') vaultId?: string,
+  ) {
+    return this.expensesService.remove(id, reverseFinancialEffect === 'true', vaultId);
+  }
+
   @Delete(':id')
   remove(
     @Param('id') id: string,

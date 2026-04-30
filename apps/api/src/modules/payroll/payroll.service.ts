@@ -226,7 +226,7 @@ export class PayrollService {
           .execute(),
       ]);
       await manager.getRepository(PayrollRecordEntity).remove(payroll);
-      await this.undoActionsService.record({
+      await this.recordUndoSafely({
         actionType: reverseFinancialEffect ? 'delete_with_vault_reversal' : 'delete_only',
         entityType: 'payroll',
         entityId: payroll.id,
@@ -461,6 +461,14 @@ export class PayrollService {
       paymentAllocations: payroll.paymentAllocations,
       notes: payroll.notes,
     };
+  }
+
+  private async recordUndoSafely(action: Parameters<UndoActionsService['record']>[0]) {
+    try {
+      await this.undoActionsService.record(action);
+    } catch {
+      // Delete must remain usable even if the optional undo log table has not been migrated yet.
+    }
   }
 
   private resolvePaymentStatus(netSalary: number, paidAmount: number) {

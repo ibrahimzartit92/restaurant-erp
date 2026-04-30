@@ -37,6 +37,11 @@ export class EmployeePenaltiesController {
     return this.employeePenaltiesService.update(id, updateDto);
   }
 
+  @Post(':id/delete')
+  deleteByPost(@Param('id') id: string) {
+    return this.employeePenaltiesService.remove(id);
+  }
+
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.employeePenaltiesService.remove(id);

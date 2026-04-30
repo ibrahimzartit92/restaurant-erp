@@ -68,7 +68,14 @@ export function EmployeeForm({
     setMessage(null);
 
     try {
-      await submitJson(`/employees/${initialEmployee.id}`, 'DELETE', {});
+      const result = (await submitJson(`/employees/${initialEmployee.id}/delete`, 'POST', {})) as {
+        deleted?: boolean;
+        deactivated?: boolean;
+        linkedRecords?: number;
+      } | null;
+      if (result?.deactivated) {
+        window.alert(`تم إيقاف الموظف بدلا من حذفه لوجود ${result.linkedRecords ?? 0} سجلات مرتبطة.`);
+      }
       router.push('/employees');
       router.refresh();
     } catch (error) {
