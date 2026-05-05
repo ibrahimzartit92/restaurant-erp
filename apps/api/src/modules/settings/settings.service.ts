@@ -1,5 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
 import { Repository } from 'typeorm';
 import { GroupedSettingsPayload } from './dto/update-settings.dto';
 import { SettingEntity, SettingValue } from './entities/setting.entity';
@@ -21,39 +23,16 @@ export class SettingsService {
     return this.buildSettingsResponse(rows);
   }
 
-  private buildSettingsResponse(rows: SettingEntity[]) {
-    return {
-      groups: settingsRegistry.map((group) => ({
-        key: group.key,
-        title: group.title,
-        description: group.description,
-        fields: group.fields.map((field) => {
-          const row = rows.find((setting) => setting.group === group.key && setting.key === field.key);
-
-          return {
-            key: field.key,
-            label: field.label,
-            type: field.type,
-            value: row?.value ?? field.defaultValue,
-            defaultValue: field.defaultValue,
-            note: field.note ?? null,
-            options: field.options ?? null,
-            min: field.min ?? null,
-            max: field.max ?? null,
-          };
-        }),
-      })),
-    };
-  }
-
   async update(updatePayload: GroupedSettingsPayload) {
     await this.ensureRegistryRows();
 
     const definitions = flattenSettingsRegistry();
-    const definitionsByGroupAndKey = new Map(definitions.map((definition) => [`${definition.group.key}.${definition.field.key}`, definition]));
+    const definitionsByGroupAndKey = new Map(
+      definitions.map((definition) => [`${definition.group.key}.${definition.field.key}`, definition]),
+    );
 
     if (!updatePayload || typeof updatePayload !== 'object' || Array.isArray(updatePayload)) {
-      throw new BadRequestException('Invalid settings payload.');
+      throw new BadRequestException('بيانات الإعدادات غير صحيحة.');
     }
 
     await this.settingsRepository.manager.transaction(async (entityManager) => {
@@ -64,14 +43,14 @@ export class SettingsService {
 
       for (const [groupKey, groupValues] of Object.entries(updatePayload)) {
         if (!groupValues || typeof groupValues !== 'object' || Array.isArray(groupValues)) {
-          throw new BadRequestException(`Invalid settings group payload: ${groupKey}`);
+          throw new BadRequestException(`بيانات قسم الإعدادات غير صحيحة: ${groupKey}`);
         }
 
         for (const [fieldKey, rawValue] of Object.entries(groupValues)) {
           const definition = definitionsByGroupAndKey.get(`${groupKey}.${fieldKey}`);
 
           if (!definition) {
-            throw new BadRequestException(`Unknown setting: ${groupKey}.${fieldKey}`);
+            throw new BadRequestException(`إعداد غير معروف: ${groupKey}.${fieldKey}`);
           }
 
           const value = this.normalizeValue(definition.field, rawValue);
@@ -104,6 +83,24 @@ export class SettingsService {
   async createManualBackupSnapshot() {
     const now = new Date();
     const formattedDate = now.toISOString();
+    const payload = await this.buildBackupPayload(formattedDate);
+    const fileName = `restaurant-erp-backup-${formattedDate.replace(/[:.]/g, '-')}.json`;
+    const backupDir = resolve(process.env.BACKUP_DIR ?? join(process.cwd(), 'backups'));
+    const filePath = join(backupDir, fileName);
+    const serializedPayload = JSON.stringify(payload, null, 2);
+
+    await this.ensureMaintenanceBackupsTable();
+    await mkdir(backupDir, { recursive: true });
+    await writeFile(filePath, serializedPayload, 'utf8');
+
+    const [backup] = await this.settingsRepository.query(
+      `
+        INSERT INTO maintenance_backups (file_name, file_path, file_size, status, backup_type, payload)
+        VALUES ($1, $2, $3, 'success', 'manual', $4::jsonb)
+        RETURNING id, file_size AS "fileSize"
+      `,
+      [fileName, filePath, Buffer.byteLength(serializedPayload, 'utf8'), JSON.stringify(payload)],
+    );
 
     await this.update({
       maintenance: {
@@ -114,10 +111,95 @@ export class SettingsService {
     });
 
     return {
+      id: backup.id,
       status: 'success',
       backupType: 'manual',
+      fileName,
+      fileSize: backup.fileSize,
       lastBackupStatus: 'تم إنشاء نسخة يدوية بنجاح',
       lastBackupAt: formattedDate,
+    };
+  }
+
+  async listBackups() {
+    await this.ensureMaintenanceBackupsTable();
+
+    return this.settingsRepository.query(`
+      SELECT
+        id,
+        file_name AS "fileName",
+        file_size AS "fileSize",
+        status,
+        backup_type AS "backupType",
+        restore_status AS "restoreStatus",
+        restored_at AS "restoredAt",
+        created_at AS "createdAt"
+      FROM maintenance_backups
+      ORDER BY created_at DESC
+      LIMIT 20
+    `);
+  }
+
+  async restoreBackup(id: string) {
+    await this.ensureMaintenanceBackupsTable();
+    const [backup] = await this.settingsRepository.query('SELECT id, payload FROM maintenance_backups WHERE id = $1', [
+      id,
+    ]);
+
+    if (!backup) {
+      throw new BadRequestException('النسخة الاحتياطية غير موجودة.');
+    }
+
+    await this.settingsRepository.manager.transaction(async (entityManager) => {
+      const payload = backup.payload;
+
+      await this.upsertRows(entityManager, 'settings', payload.settings ?? []);
+      await this.upsertRows(entityManager, 'units', payload.units ?? []);
+      await this.upsertRows(entityManager, 'item_categories', payload.itemCategories ?? []);
+      await this.upsertRows(entityManager, 'expense_categories', payload.expenseCategories ?? []);
+      await this.upsertRows(entityManager, 'items', payload.items ?? []);
+      await entityManager.query(
+        `
+          UPDATE maintenance_backups
+          SET restored_at = now(), restore_status = 'restored'
+          WHERE id = $1
+        `,
+        [id],
+      );
+    });
+
+    await this.update({
+      maintenance: {
+        lastBackupStatus: 'تمت استعادة النسخة الاحتياطية بنجاح',
+        lastBackupAt: new Date().toISOString(),
+      },
+    });
+
+    return { status: 'success', message: 'تمت استعادة النسخة الاحتياطية بنجاح.' };
+  }
+
+  private buildSettingsResponse(rows: SettingEntity[]) {
+    return {
+      groups: settingsRegistry.map((group) => ({
+        key: group.key,
+        title: group.title,
+        description: group.description,
+        fields: group.fields.map((field) => {
+          const row = rows.find((setting) => setting.group === group.key && setting.key === field.key);
+
+          return {
+            key: field.key,
+            label: field.label,
+            type: field.type,
+            value: row?.value ?? field.defaultValue,
+            defaultValue: field.defaultValue,
+            note: field.note ?? null,
+            options: field.options ?? null,
+            min: field.min ?? null,
+            max: field.max ?? null,
+          };
+        }),
+      })),
     };
   }
 
@@ -158,22 +240,22 @@ export class SettingsService {
       await this.settingsRepository.save(missingRows);
     }
 
-    const updateTasks = definitions.map(async ({ group, field, sortOrder }) => {
-      const row = rows.find((setting) => setting.group === group.key && setting.key === field.key);
+    await Promise.all(
+      definitions.map(async ({ group, field, sortOrder }) => {
+        const row = rows.find((setting) => setting.group === group.key && setting.key === field.key);
 
-      if (!row) {
-        return;
-      }
+        if (!row) {
+          return;
+        }
 
-      row.label = field.label;
-      row.type = field.type;
-      row.note = field.note ?? null;
-      row.options = field.options ?? null;
-      row.sortOrder = sortOrder;
-      await this.settingsRepository.save(row);
-    });
-
-    await Promise.all(updateTasks);
+        row.label = field.label;
+        row.type = field.type;
+        row.note = field.note ?? null;
+        row.options = field.options ?? null;
+        row.sortOrder = sortOrder;
+        await this.settingsRepository.save(row);
+      }),
+    );
   }
 
   private async ensureSettingsTable() {
@@ -196,10 +278,87 @@ export class SettingsService {
     `);
   }
 
+  private async ensureMaintenanceBackupsTable() {
+    await this.settingsRepository.query(`CREATE EXTENSION IF NOT EXISTS pgcrypto`);
+    await this.settingsRepository.query(`
+      CREATE TABLE IF NOT EXISTS maintenance_backups (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        file_name varchar(220) NOT NULL,
+        file_path text,
+        file_size bigint,
+        status varchar(40) NOT NULL DEFAULT 'success',
+        backup_type varchar(40) NOT NULL DEFAULT 'manual',
+        payload jsonb NOT NULL,
+        restored_at timestamptz,
+        restore_status varchar(80),
+        created_at timestamptz NOT NULL DEFAULT now()
+      )
+    `);
+  }
+
+  private async buildBackupPayload(createdAt: string) {
+    await this.ensureRegistryRows();
+
+    const [settings, units, itemCategories, expenseCategories, items] = await Promise.all([
+      this.settingsRepository.query('SELECT * FROM settings ORDER BY sort_order ASC'),
+      this.settingsRepository.query('SELECT * FROM units ORDER BY name ASC'),
+      this.settingsRepository.query('SELECT * FROM item_categories ORDER BY name ASC'),
+      this.settingsRepository.query('SELECT * FROM expense_categories ORDER BY name ASC'),
+      this.settingsRepository.query('SELECT * FROM items ORDER BY name ASC'),
+    ]);
+
+    return {
+      version: 1,
+      createdAt,
+      scope: 'settings-master-data',
+      settings,
+      units,
+      itemCategories,
+      expenseCategories,
+      items,
+    };
+  }
+
+  private async upsertRows(
+    entityManager: { query: (query: string, parameters?: unknown[]) => Promise<unknown> },
+    table: string,
+    rows: Record<string, unknown>[],
+  ) {
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return;
+    }
+
+    const allowedTables = new Set(['settings', 'units', 'item_categories', 'expense_categories', 'items']);
+
+    if (!allowedTables.has(table)) {
+      throw new BadRequestException('جدول النسخة الاحتياطية غير مدعوم.');
+    }
+
+    for (const row of rows) {
+      const columns = Object.keys(row).filter((key) => !['created_at', 'updated_at'].includes(key));
+      const values = columns.map((column) => row[column]);
+      const columnSql = columns.map((column) => `"${column}"`).join(', ');
+      const placeholderSql = columns.map((_, index) => `$${index + 1}`).join(', ');
+      const updateSql = columns
+        .filter((column) => column !== 'id')
+        .map((column) => `"${column}" = EXCLUDED."${column}"`)
+        .join(', ');
+
+      await entityManager.query(
+        `
+          INSERT INTO ${table} (${columnSql})
+          VALUES (${placeholderSql})
+          ON CONFLICT (id) DO UPDATE SET ${updateSql}
+        `,
+        values,
+      );
+    }
+  }
+
   private normalizeValue(field: SettingFieldDefinition, value: SettingValue) {
     if (field.type === 'boolean') {
       if (typeof value !== 'boolean') {
-        throw new BadRequestException(`${field.label} must be true or false.`);
+        throw new BadRequestException(`${field.label} يجب أن يكون نعم أو لا.`);
       }
 
       return value;
@@ -209,15 +368,15 @@ export class SettingsService {
       const numericValue = Number(value);
 
       if (!Number.isFinite(numericValue)) {
-        throw new BadRequestException(`${field.label} must be a valid number.`);
+        throw new BadRequestException(`${field.label} يجب أن يكون رقما صحيحا.`);
       }
 
       if (field.min !== undefined && numericValue < field.min) {
-        throw new BadRequestException(`${field.label} must be at least ${field.min}.`);
+        throw new BadRequestException(`${field.label} يجب ألا يقل عن ${field.min}.`);
       }
 
       if (field.max !== undefined && numericValue > field.max) {
-        throw new BadRequestException(`${field.label} must be at most ${field.max}.`);
+        throw new BadRequestException(`${field.label} يجب ألا يزيد عن ${field.max}.`);
       }
 
       return numericValue;
@@ -226,7 +385,7 @@ export class SettingsService {
     const stringValue = value === null ? '' : String(value).trim();
 
     if (field.type === 'email' && stringValue && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(stringValue)) {
-      throw new BadRequestException(`${field.label} must be a valid email.`);
+      throw new BadRequestException(`${field.label} يجب أن يكون بريدا إلكترونيا صحيحا.`);
     }
 
     if (field.type === 'url' && stringValue) {
@@ -240,17 +399,17 @@ export class SettingsService {
             throw new Error('Unsupported URL protocol.');
           }
         } catch {
-          throw new BadRequestException(`${field.label} must be a valid URL.`);
+          throw new BadRequestException(`${field.label} يجب أن يكون رابطا صحيحا.`);
         }
       }
     }
 
     if (field.type === 'color' && !/^#[0-9a-fA-F]{6}$/.test(stringValue)) {
-      throw new BadRequestException(`${field.label} must be a valid hex color.`);
+      throw new BadRequestException(`${field.label} يجب أن يكون لون HEX صحيحا.`);
     }
 
     if (field.type === 'select' && field.options && !field.options.some((option) => option.value === stringValue)) {
-      throw new BadRequestException(`${field.label} contains an unsupported option.`);
+      throw new BadRequestException(`${field.label} يحتوي على خيار غير مدعوم.`);
     }
 
     return stringValue;

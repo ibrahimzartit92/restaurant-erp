@@ -11,7 +11,10 @@ export default async function NewItemPage() {
 
   return (
     <>
-      <PageHeader title="إضافة مادة" description="أدخل بيانات المادة وربطها بتصنيف ووحدة قبل استخدامها في الفواتير والجرد." />
+      <PageHeader
+        title="إضافة مادة"
+        description="أدخل بيانات المادة وحدد الوحدة وأسعار الشراء والتكلفة والبيع قبل استخدامها في الفواتير والجرد."
+      />
       {categories.error ? <p className="notice">{categories.error}</p> : null}
       {units.error ? <p className="notice">{units.error}</p> : null}
       <ItemForm categories={categories.data} units={units.data} />

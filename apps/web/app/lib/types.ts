@@ -46,6 +46,7 @@ export type ExpenseCategoryOption = {
   id: string;
   name: string;
   isFixed: boolean;
+  classification?: 'operating' | 'miscellaneous';
 };
 
 export type ItemCategoryOption = {
@@ -164,11 +165,15 @@ export type ItemOption = {
   id: string;
   code: string;
   name: string;
+  purchasePrice?: number;
+  initialPrice?: number;
   costPrice?: number;
+  salePrice?: number;
   isActive: boolean;
   unit?: {
     id: string;
     name: string;
+    code?: string;
   } | null;
 };
 

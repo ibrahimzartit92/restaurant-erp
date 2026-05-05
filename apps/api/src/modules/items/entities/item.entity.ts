@@ -54,6 +54,16 @@ export class ItemEntity {
   initialPrice!: number;
 
   @Column({
+    name: 'purchase_price',
+    type: 'numeric',
+    precision: 12,
+    scale: 2,
+    default: 0,
+    transformer: numericTransformer,
+  })
+  purchasePrice!: number;
+
+  @Column({
     name: 'cost_price',
     type: 'numeric',
     precision: 12,

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
 import { UpdateSettingsDto } from './dto/update-settings.dto';
 import { SettingsService } from './settings.service';
 
@@ -19,5 +19,15 @@ export class SettingsController {
   @Post('backup/manual')
   createManualBackupSnapshot() {
     return this.settingsService.createManualBackupSnapshot();
+  }
+
+  @Get('backups')
+  listBackups() {
+    return this.settingsService.listBackups();
+  }
+
+  @Post('backups/:id/restore')
+  restoreBackup(@Param('id') id: string) {
+    return this.settingsService.restoreBackup(id);
   }
 }

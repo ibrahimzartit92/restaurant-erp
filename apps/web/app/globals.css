@@ -2177,6 +2177,28 @@ tr:last-child td {
   }
 }
 
+.inline-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.link-button {
+  background: transparent;
+  border: 0;
+  color: #2563eb;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+}
+
+.danger-text,
+.link-button.danger,
+.secondary-button.danger {
+  color: #b91c1c;
+}
+
 @media (max-width: 560px) {
   .summary-grid,
   .quick-actions,

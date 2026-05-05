@@ -10,6 +10,11 @@ import {
 import { ExpenseTemplateEntity } from '../../expense-templates/entities/expense-template.entity';
 import { ExpenseEntity } from '../../expenses/entities/expense.entity';
 
+export enum ExpenseCategoryClassification {
+  Operating = 'operating',
+  Miscellaneous = 'miscellaneous',
+}
+
 @Entity('expense_categories')
 export class ExpenseCategoryEntity {
   @PrimaryGeneratedColumn('uuid')
@@ -21,6 +26,14 @@ export class ExpenseCategoryEntity {
 
   @Column({ name: 'is_fixed', type: 'boolean', default: false })
   isFixed!: boolean;
+
+  @Column({
+    type: 'enum',
+    enum: ExpenseCategoryClassification,
+    enumName: 'expense_category_classification_enum',
+    default: ExpenseCategoryClassification.Miscellaneous,
+  })
+  classification!: ExpenseCategoryClassification;
 
   @Column({ type: 'text', nullable: true })
   notes!: string | null;

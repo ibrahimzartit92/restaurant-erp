@@ -1,15 +1,21 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ILike, Not, Repository } from 'typeorm';
+import { ExpenseTemplateEntity } from '../expense-templates/entities/expense-template.entity';
+import { ExpenseEntity } from '../expenses/entities/expense.entity';
 import { CreateExpenseCategoryDto } from './dto/create-expense-category.dto';
 import { UpdateExpenseCategoryDto } from './dto/update-expense-category.dto';
-import { ExpenseCategoryEntity } from './entities/expense-category.entity';
+import { ExpenseCategoryClassification, ExpenseCategoryEntity } from './entities/expense-category.entity';
 
 @Injectable()
 export class ExpenseCategoriesService {
   constructor(
     @InjectRepository(ExpenseCategoryEntity)
     private readonly expenseCategoryRepository: Repository<ExpenseCategoryEntity>,
+    @InjectRepository(ExpenseEntity)
+    private readonly expenseRepository: Repository<ExpenseEntity>,
+    @InjectRepository(ExpenseTemplateEntity)
+    private readonly expenseTemplateRepository: Repository<ExpenseTemplateEntity>,
   ) {}
 
   findAll(search?: string) {
@@ -37,6 +43,11 @@ export class ExpenseCategoriesService {
     const category = this.expenseCategoryRepository.create({
       name: createExpenseCategoryDto.name,
       isFixed: createExpenseCategoryDto.isFixed ?? false,
+      classification:
+        createExpenseCategoryDto.classification ??
+        (createExpenseCategoryDto.isFixed
+          ? ExpenseCategoryClassification.Operating
+          : ExpenseCategoryClassification.Miscellaneous),
       notes: createExpenseCategoryDto.notes ?? null,
     });
 
@@ -57,6 +68,13 @@ export class ExpenseCategoriesService {
 
   async remove(id: string) {
     const category = await this.findByIdOrFail(id);
+    const linkedExpenses = await this.expenseRepository.count({ where: { expenseCategoryId: id } });
+    const linkedTemplates = await this.expenseTemplateRepository.count({ where: { expenseCategoryId: id } });
+
+    if (linkedExpenses > 0 || linkedTemplates > 0) {
+      throw new BadRequestException('لا يمكن حذف نوع مصروف مستخدم في مصاريف أو قوالب محفوظة.');
+    }
+
     await this.expenseCategoryRepository.remove(category);
 
     return { id };
@@ -68,7 +86,7 @@ export class ExpenseCategoriesService {
     });
 
     if (existingCategory) {
-      throw new ConflictException('An expense category with this name already exists.');
+      throw new ConflictException('يوجد نوع مصروف بنفس الاسم.');
     }
   }
 }

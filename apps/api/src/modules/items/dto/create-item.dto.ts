@@ -39,6 +39,12 @@ export class CreateItemDto {
   @IsNumber()
   @Min(0)
   @IsOptional()
+  purchasePrice?: number;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
   costPrice?: number;
 
   @Type(() => Number)

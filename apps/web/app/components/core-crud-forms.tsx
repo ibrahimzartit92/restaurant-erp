@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
@@ -25,6 +25,7 @@ import {
 } from './payment-source-rows';
 
 type MessageState = string | null;
+type PriceType = 'purchase' | 'cost' | 'sale';
 
 function text(formData: FormData, key: string) {
   return String(formData.get(key) ?? '').trim();
@@ -64,12 +65,14 @@ export function BranchForm() {
       await submitJson('/branches', 'POST', {
         code: text(formData, 'code'),
         name: text(formData, 'name'),
+        defaultOpeningBalance: numberValue(formData, 'defaultOpeningBalance'),
+        defaultCashFloat: numberValue(formData, 'defaultCashFloat'),
         isActive: formData.get('isActive') === 'on',
       });
       router.push('/branches');
       router.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'ØªØ¹Ø°Ø± Ø­ÙØ¸ Ø§Ù„ÙØ±Ø¹.');
+      setMessage(error instanceof Error ? error.message : 'تعذر حفظ الفرع.');
     } finally {
       setIsSaving(false);
     }
@@ -80,28 +83,28 @@ export function BranchForm() {
       <FormMessage message={message} />
       <div className="form-grid">
         <label>
-          ÙƒÙˆØ¯ Ø§Ù„ÙØ±Ø¹
-          <input name="code" maxLength={50} placeholder="Ø§Ø®ØªÙŠØ§Ø±ÙŠ" />
+          كود الفرع
+          <input name="code" maxLength={50} placeholder="اختياري" />
         </label>
         <label>
-          Ø§Ø³Ù… Ø§Ù„ÙØ±Ø¹
+          اسم الفرع
           <input name="name" maxLength={160} required />
         </label>
         <label>
-          Ø§Ù„Ø±ØµÙŠØ¯ Ø§Ù„Ø§ÙØªØªØ§Ø­ÙŠ Ø§Ù„Ø§ÙØªØ±Ø§Ø¶ÙŠ
+          الرصيد الافتتاحي الافتراضي
           <input name="defaultOpeningBalance" type="number" min="0" step="0.01" defaultValue={0} />
         </label>
         <label>
-          Ù…Ø¨Ù„Øº Ø§Ù„ÙÙƒØ© Ø§Ù„Ø«Ø§Ø¨Øª
+          مبلغ الفكة الثابت
           <input name="defaultCashFloat" type="number" min="0" step="0.01" defaultValue={0} />
         </label>
         <label className="checkbox-field">
           <input name="isActive" type="checkbox" defaultChecked />
-          Ø§Ù„ÙØ±Ø¹ Ù†Ø´Ø·
+          الفرع نشط
         </label>
       </div>
       <div className="form-actions">
-        <button disabled={isSaving} type="submit">{isSaving ? 'Ø¬Ø§Ø±ÙŠ Ø§Ù„Ø­ÙØ¸...' : 'Ø­ÙØ¸ Ø§Ù„ÙØ±Ø¹'}</button>
+        <button disabled={isSaving} type="submit">{isSaving ? 'جاري الحفظ...' : 'حفظ الفرع'}</button>
       </div>
     </form>
   );
@@ -127,7 +130,7 @@ export function WarehouseForm() {
       router.push('/warehouses');
       router.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'ØªØ¹Ø°Ø± Ø­ÙØ¸ Ø§Ù„Ù…Ø®Ø²Ù†.');
+      setMessage(error instanceof Error ? error.message : 'تعذر حفظ المخزن.');
     } finally {
       setIsSaving(false);
     }
@@ -138,20 +141,20 @@ export function WarehouseForm() {
       <FormMessage message={message} />
       <div className="form-grid">
         <label>
-          ÙƒÙˆØ¯ Ø§Ù„Ù…Ø®Ø²Ù†
+          كود المخزن
           <input name="code" maxLength={50} required />
         </label>
         <label>
-          Ø§Ø³Ù… Ø§Ù„Ù…Ø®Ø²Ù†
+          اسم المخزن
           <input name="name" maxLength={160} required />
         </label>
         <label className="checkbox-field">
           <input name="isActive" type="checkbox" defaultChecked />
-          Ø§Ù„Ù…Ø®Ø²Ù† Ù†Ø´Ø·
+          المخزن نشط
         </label>
       </div>
       <div className="form-actions">
-        <button disabled={isSaving} type="submit">{isSaving ? 'Ø¬Ø§Ø±ÙŠ Ø§Ù„Ø­ÙØ¸...' : 'Ø­ÙØ¸ Ø§Ù„Ù…Ø®Ø²Ù†'}</button>
+        <button disabled={isSaving} type="submit">{isSaving ? 'جاري الحفظ...' : 'حفظ المخزن'}</button>
       </div>
     </form>
   );
@@ -181,7 +184,7 @@ export function SupplierForm() {
       router.push('/suppliers');
       router.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'ØªØ¹Ø°Ø± Ø­ÙØ¸ Ø§Ù„Ù…ÙˆØ±Ø¯.');
+      setMessage(error instanceof Error ? error.message : 'تعذر حفظ المورد.');
     } finally {
       setIsSaving(false);
     }
@@ -192,36 +195,36 @@ export function SupplierForm() {
       <FormMessage message={message} />
       <div className="form-grid">
         <label>
-          ÙƒÙˆØ¯ Ø§Ù„Ù…ÙˆØ±Ø¯
-          <input name="code" maxLength={50} placeholder="Ø§Ø®ØªÙŠØ§Ø±ÙŠ" />
+          كود المورد
+          <input name="code" maxLength={50} placeholder="اختياري" />
         </label>
         <label>
-          Ø§Ø³Ù… Ø§Ù„Ù…ÙˆØ±Ø¯
+          اسم المورد
           <input name="name" maxLength={180} required />
         </label>
         <label>
-          Ø§Ù„Ù‡Ø§ØªÙ
+          الهاتف
           <input name="phone" maxLength={40} />
         </label>
         <label>
-          Ù…Ù‡Ù„Ø© Ø§Ù„Ø¯ÙØ¹ Ø¨Ø§Ù„Ø£ÙŠØ§Ù…
+          مهلة الدفع بالأيام
           <input name="defaultDueDays" type="number" min="0" defaultValue={0} />
         </label>
         <label className="checkbox-field">
           <input name="isActive" type="checkbox" defaultChecked />
-          Ø§Ù„Ù…ÙˆØ±Ø¯ Ù†Ø´Ø·
+          المورد نشط
         </label>
       </div>
       <label>
-        Ø§Ù„Ø¹Ù†ÙˆØ§Ù†
+        العنوان
         <textarea name="address" rows={3} />
       </label>
       <label>
-        Ù…Ù„Ø§Ø­Ø¸Ø§Øª
+        ملاحظات
         <textarea name="notes" rows={3} />
       </label>
       <div className="form-actions">
-        <button disabled={isSaving} type="submit">{isSaving ? 'Ø¬Ø§Ø±ÙŠ Ø§Ù„Ø­ÙØ¸...' : 'Ø­ÙØ¸ Ø§Ù„Ù…ÙˆØ±Ø¯'}</button>
+        <button disabled={isSaving} type="submit">{isSaving ? 'جاري الحفظ...' : 'حفظ المورد'}</button>
       </div>
     </form>
   );
@@ -251,7 +254,7 @@ export function DrawerForm({ branches }: Readonly<{ branches: BranchOption[] }>)
       router.push('/drawers');
       router.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'ØªØ¹Ø°Ø± Ø­ÙØ¸ Ø§Ù„Ø¯Ø±Ø¬.');
+      setMessage(error instanceof Error ? error.message : 'تعذر حفظ الدرج.');
     } finally {
       setIsSaving(false);
     }
@@ -262,31 +265,39 @@ export function DrawerForm({ branches }: Readonly<{ branches: BranchOption[] }>)
       <FormMessage message={message} />
       <div className="form-grid">
         <label>
-          Ø§Ù„ÙØ±Ø¹
+          الفرع
           <select name="branchId" required>
-            <option value="">Ø§Ø®ØªØ± Ø§Ù„ÙØ±Ø¹</option>
+            <option value="">اختر الفرع</option>
             {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
           </select>
         </label>
         <label>
-          ÙƒÙˆØ¯ Ø§Ù„Ø¯Ø±Ø¬
+          كود الدرج
           <input name="code" maxLength={50} required />
         </label>
         <label>
-          Ø§Ø³Ù… Ø§Ù„Ø¯Ø±Ø¬
+          اسم الدرج
           <input name="name" maxLength={160} required />
+        </label>
+        <label>
+          الرصيد الافتراضي
+          <input name="defaultOpeningBalance" type="number" min="0" step="0.01" defaultValue={0} />
+        </label>
+        <label>
+          الفكة الثابتة
+          <input name="defaultCashFloat" type="number" min="0" step="0.01" defaultValue={0} />
         </label>
         <label className="checkbox-field">
           <input name="isActive" type="checkbox" defaultChecked />
-          Ø§Ù„Ø¯Ø±Ø¬ Ù†Ø´Ø·
+          الدرج نشط
         </label>
       </div>
       <label>
-        Ù…Ù„Ø§Ø­Ø¸Ø§Øª
+        ملاحظات
         <textarea name="notes" rows={3} />
       </label>
       <div className="form-actions">
-        <button disabled={isSaving} type="submit">{isSaving ? 'Ø¬Ø§Ø±ÙŠ Ø§Ù„Ø­ÙØ¸...' : 'Ø­ÙØ¸ Ø§Ù„Ø¯Ø±Ø¬'}</button>
+        <button disabled={isSaving} type="submit">{isSaving ? 'جاري الحفظ...' : 'حفظ الدرج'}</button>
       </div>
     </form>
   );
@@ -295,9 +306,17 @@ export function DrawerForm({ branches }: Readonly<{ branches: BranchOption[] }>)
 export function ItemForm({
   categories,
   units,
+  initialItem,
 }: Readonly<{
   categories: ItemCategoryOption[];
   units: UnitOption[];
+  initialItem?: (ItemOption & {
+    categoryId?: string;
+    category?: ItemCategoryOption | null;
+    unitId?: string;
+    searchKeywords?: string | null;
+    notes?: string | null;
+  }) | null;
 }>) {
   const router = useRouter();
   const [message, setMessage] = useState<MessageState>(null);
@@ -310,12 +329,14 @@ export function ItemForm({
     const formData = new FormData(event.currentTarget);
 
     try {
-      await submitJson('/items', 'POST', {
+      const purchasePrice = numberValue(formData, 'purchasePrice');
+      await submitJson(initialItem?.id ? `/items/${initialItem.id}` : '/items', initialItem?.id ? 'PATCH' : 'POST', {
         code: text(formData, 'code'),
         name: text(formData, 'name'),
         categoryId: optionalText(formData, 'categoryId'),
         unitId: optionalText(formData, 'unitId'),
-        initialPrice: numberValue(formData, 'initialPrice'),
+        initialPrice: purchasePrice,
+        purchasePrice,
         costPrice: numberValue(formData, 'costPrice'),
         salePrice: numberValue(formData, 'salePrice'),
         searchKeywords: optionalText(formData, 'searchKeywords'),
@@ -325,7 +346,7 @@ export function ItemForm({
       router.push('/items');
       router.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'ØªØ¹Ø°Ø± Ø­ÙØ¸ Ø§Ù„Ù…Ø§Ø¯Ø©.');
+      setMessage(error instanceof Error ? error.message : 'تعذر حفظ المادة.');
     } finally {
       setIsSaving(false);
     }
@@ -336,54 +357,54 @@ export function ItemForm({
       <FormMessage message={message} />
       <div className="form-grid">
         <label>
-          ÙƒÙˆØ¯ Ø§Ù„Ù…Ø§Ø¯Ø©
-          <input name="code" maxLength={50} required />
+          كود المادة
+          <input name="code" maxLength={50} placeholder="اختياري" defaultValue={initialItem?.code ?? ''} />
         </label>
         <label>
-          Ø§Ø³Ù… Ø§Ù„Ù…Ø§Ø¯Ø©
-          <input name="name" maxLength={180} required />
+          اسم المادة
+          <input name="name" maxLength={180} required defaultValue={initialItem?.name ?? ''} />
         </label>
         <label>
-          Ø§Ù„ØªØµÙ†ÙŠÙ
-          <select name="categoryId">
-            <option value="">ØªØµÙ†ÙŠÙ Ø§ÙØªØ±Ø§Ø¶ÙŠ</option>
+          التصنيف
+          <select name="categoryId" defaultValue={initialItem?.categoryId ?? initialItem?.category?.id ?? ''}>
+            <option value="">تصنيف افتراضي</option>
             {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
           </select>
         </label>
         <label>
-          Ø§Ù„ÙˆØ­Ø¯Ø©
-          <select name="unitId">
-            <option value="">ÙˆØ­Ø¯Ø© Ø§ÙØªØ±Ø§Ø¶ÙŠØ©</option>
+          الوحدة
+          <select name="unitId" defaultValue={initialItem?.unitId ?? initialItem?.unit?.id ?? ''}>
+            <option value="">وحدة افتراضية</option>
             {units.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}
           </select>
         </label>
         <label>
-          Ø§Ù„Ø³Ø¹Ø± Ø§Ù„Ø§Ø¨ØªØ¯Ø§Ø¦ÙŠ
-          <input name="initialPrice" type="number" min="0" step="0.01" defaultValue={0} />
+          سعر الشراء
+          <input name="purchasePrice" type="number" min="0" step="0.01" defaultValue={initialItem?.purchasePrice ?? initialItem?.initialPrice ?? 0} />
         </label>
         <label>
-          Ø³Ø¹Ø± Ø§Ù„ØªÙƒÙ„ÙØ©
-          <input name="costPrice" type="number" min="0" step="0.01" defaultValue={0} />
+          سعر التكلفة
+          <input name="costPrice" type="number" min="0" step="0.01" defaultValue={initialItem?.costPrice ?? 0} />
         </label>
         <label>
-          Ø³Ø¹Ø± Ø§Ù„Ø¨ÙŠØ¹
-          <input name="salePrice" type="number" min="0" step="0.01" defaultValue={0} />
+          سعر البيع
+          <input name="salePrice" type="number" min="0" step="0.01" defaultValue={initialItem?.salePrice ?? 0} />
         </label>
         <label className="checkbox-field">
-          <input name="isActive" type="checkbox" defaultChecked />
-          Ø§Ù„Ù…Ø§Ø¯Ø© Ù†Ø´Ø·Ø©
+          <input name="isActive" type="checkbox" defaultChecked={initialItem?.isActive ?? true} />
+          المادة نشطة
         </label>
       </div>
       <label>
-        ÙƒÙ„Ù…Ø§Øª Ø§Ù„Ø¨Ø­Ø«
-        <input name="searchKeywords" maxLength={500} />
+        كلمات البحث
+        <input name="searchKeywords" maxLength={500} defaultValue={initialItem?.searchKeywords ?? ''} />
       </label>
       <label>
-        Ù…Ù„Ø§Ø­Ø¸Ø§Øª
-        <textarea name="notes" rows={3} />
+        ملاحظات
+        <textarea name="notes" rows={3} defaultValue={initialItem?.notes ?? ''} />
       </label>
       <div className="form-actions">
-        <button disabled={isSaving} type="submit">{isSaving ? 'Ø¬Ø§Ø±ÙŠ Ø§Ù„Ø­ÙØ¸...' : 'Ø­ÙØ¸ Ø§Ù„Ù…Ø§Ø¯Ø©'}</button>
+        <button disabled={isSaving} type="submit">{isSaving ? 'جاري الحفظ...' : initialItem?.id ? 'حفظ التعديلات' : 'حفظ المادة'}</button>
       </div>
     </form>
   );
@@ -392,6 +413,8 @@ export function ItemForm({
 type PurchaseLineDraft = {
   itemId: string;
   itemLabel: string;
+  unitName: string;
+  priceType: PriceType;
   quantity: string;
   unitPrice: string;
   notes: string;
@@ -402,7 +425,23 @@ function itemLabel(item: ItemOption) {
 }
 
 function emptyPurchaseLine(): PurchaseLineDraft {
-  return { itemId: '', itemLabel: '', quantity: '1', unitPrice: '0', notes: '' };
+  return { itemId: '', itemLabel: '', unitName: '', priceType: 'purchase', quantity: '1', unitPrice: '0', notes: '' };
+}
+
+function itemPriceByType(item: ItemOption | undefined, priceType: PriceType) {
+  if (!item) {
+    return 0;
+  }
+
+  if (priceType === 'purchase') {
+    return Number(item.purchasePrice ?? item.initialPrice ?? item.costPrice ?? 0);
+  }
+
+  if (priceType === 'sale') {
+    return Number(item.salePrice ?? 0);
+  }
+
+  return Number(item.costPrice ?? 0);
 }
 
 export function PurchaseInvoiceForm({
@@ -435,10 +474,20 @@ export function PurchaseInvoiceForm({
 
   function handleItemChange(index: number, value: string) {
     const matched = itemOptions.find((item) => item.label === value);
+    const priceType = lines[index]?.priceType ?? 'purchase';
     updateLine(index, {
       itemLabel: value,
       itemId: matched?.id ?? '',
-      unitPrice: matched ? String(matched.costPrice ?? 0) : lines[index]?.unitPrice ?? '0',
+      unitName: matched?.unit?.name ?? '',
+      unitPrice: matched ? String(itemPriceByType(matched, priceType)) : lines[index]?.unitPrice ?? '0',
+    });
+  }
+
+  function handlePriceTypeChange(index: number, priceType: PriceType) {
+    const matched = itemOptions.find((item) => item.id === lines[index]?.itemId);
+    updateLine(index, {
+      priceType,
+      unitPrice: matched ? String(itemPriceByType(matched, priceType)) : lines[index]?.unitPrice ?? '0',
     });
   }
 
@@ -476,13 +525,13 @@ export function PurchaseInvoiceForm({
     const totalPaid = paymentRowsTotal(activePayments);
 
     if (invalidLine) {
-      setMessage('Ø£Ø¶Ù Ù…Ø§Ø¯Ø© ÙˆØ§Ø­Ø¯Ø© Ø¹Ù„Ù‰ Ø§Ù„Ø£Ù‚Ù„ Ù…Ø¹ ÙƒÙ…ÙŠØ© ÙˆØ³Ø¹Ø± ØµØ­ÙŠØ­ÙŠÙ†.');
+      setMessage('أضف مادة واحدة على الأقل مع كمية وسعر صحيحين.');
       setIsSaving(false);
       return;
     }
 
     if (totalPaid > totalAmount) {
-      setMessage('Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ø¯ÙØ¹Ø§Øª Ù„Ø§ ÙŠÙ…ÙƒÙ† Ø£Ù† ÙŠØªØ¬Ø§ÙˆØ² Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„ÙØ§ØªÙˆØ±Ø©.');
+      setMessage('إجمالي الدفعات لا يمكن أن يتجاوز إجمالي الفاتورة.');
       setIsSaving(false);
       return;
     }
@@ -494,7 +543,6 @@ export function PurchaseInvoiceForm({
       setIsSaving(false);
       return;
     }
-
 
     try {
       const saved = (await submitJson('/purchase-invoices', 'POST', payload)) as { id?: string };
@@ -509,7 +557,7 @@ export function PurchaseInvoiceForm({
       router.push(saved.id ? `/purchase-invoices/${saved.id}` : '/purchase-invoices');
       router.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'ØªØ¹Ø°Ø± Ø­ÙØ¸ ÙØ§ØªÙˆØ±Ø© Ø§Ù„Ø´Ø±Ø§Ø¡.');
+      setMessage(error instanceof Error ? error.message : 'تعذر حفظ فاتورة الشراء.');
     } finally {
       setIsSaving(false);
     }
@@ -520,69 +568,69 @@ export function PurchaseInvoiceForm({
       <FormMessage message={message} />
       <div className="form-grid">
         <label>
-          Ø±Ù‚Ù… Ø§Ù„ÙØ§ØªÙˆØ±Ø©
-          <input name="invoiceNumber" maxLength={50} placeholder="ÙŠÙˆÙ„Ø¯ ØªÙ„Ù‚Ø§Ø¦ÙŠØ§ Ø¹Ù†Ø¯ ØªØ±ÙƒÙ‡ ÙØ§Ø±ØºØ§" />
+          رقم الفاتورة
+          <input name="invoiceNumber" maxLength={50} placeholder="يولد تلقائيا عند تركه فارغا" />
         </label>
         <label>
-          Ø§Ù„ÙˆØµÙ
+          الوصف
           <input name="invoiceLabel" maxLength={180} />
         </label>
         <label>
-          Ø§Ù„ÙØ±Ø¹
+          الفرع
           <select name="branchId" required>
-            <option value="">Ø§Ø®ØªØ± Ø§Ù„ÙØ±Ø¹</option>
+            <option value="">اختر الفرع</option>
             {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
           </select>
         </label>
         <label>
-          Ø§Ù„Ù…Ø®Ø²Ù†
+          المخزن
           <select name="warehouseId" required>
-            <option value="">Ø§Ø®ØªØ± Ø§Ù„Ù…Ø®Ø²Ù†</option>
+            <option value="">اختر المخزن</option>
             {warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}
           </select>
         </label>
         <label>
-          Ø§Ù„Ù…ÙˆØ±Ø¯
+          المورد
           <select name="supplierId">
-            <option value="">ÙØ§ØªÙˆØ±Ø© Ù…ØªÙØ±Ù‚Ø© Ø¨Ø¯ÙˆÙ† Ù…ÙˆØ±Ø¯</option>
+            <option value="">فاتورة متفرقة بدون مورد</option>
             {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
           </select>
         </label>
         <label>
-          ØªØ§Ø±ÙŠØ® Ø§Ù„ÙØ§ØªÙˆØ±Ø©
+          تاريخ الفاتورة
           <input name="invoiceDate" type="date" defaultValue={new Date().toISOString().slice(0, 10)} required />
         </label>
         <label>
-          ØªØ§Ø±ÙŠØ® Ø§Ù„Ø§Ø³ØªØ­Ù‚Ø§Ù‚
+          تاريخ الاستحقاق
           <input name="dueDate" type="date" />
         </label>
         <label>
-          Ø§Ù„Ø­Ø§Ù„Ø©
+          الحالة
           <select name="status" defaultValue="open">
-            <option value="draft">Ù…Ø³ÙˆØ¯Ø©</option>
-            <option value="open">Ù…ÙØªÙˆØ­Ø©</option>
-            <option value="partially_paid">Ù…Ø¯ÙÙˆØ¹Ø© Ø¬Ø²Ø¦ÙŠØ§</option>
-            <option value="paid">Ù…Ø¯ÙÙˆØ¹Ø©</option>
+            <option value="draft">مسودة</option>
+            <option value="open">مفتوحة</option>
+            <option value="partially_paid">مدفوعة جزئيا</option>
+            <option value="paid">مدفوعة</option>
           </select>
         </label>
         <label>
-          Ø§Ù„Ø®ØµÙ…
+          الخصم
           <input name="discountAmount" type="number" min="0" step="0.01" defaultValue={0} />
         </label>
       </div>
       <label>
-        Ù…Ù„Ø§Ø­Ø¸Ø§Øª
+        ملاحظات
         <textarea name="notes" rows={3} />
       </label>
 
       <section className="transfer-items-section">
         <div className="panel-heading">
           <div>
-            <h3>Ù…ÙˆØ§Ø¯ Ø§Ù„ÙØ§ØªÙˆØ±Ø©</h3>
-            <span>Ø§Ø®ØªØ± Ø§Ù„Ù…ÙˆØ§Ø¯ Ù…Ù† Ø§Ù„Ù‚Ø§Ø¦Ù…Ø© ÙˆØ£Ø¯Ø®Ù„ Ø§Ù„ÙƒÙ…ÙŠØ© ÙˆØ³Ø¹Ø± Ø§Ù„ÙˆØ­Ø¯Ø©.</span>
+            <h3>مواد الفاتورة</h3>
+            <span>اختر المادة ثم حدد نوع السعر. يظهر سعر المادة ووحدتها تلقائيا ويمكن تعديل السعر يدويا.</span>
           </div>
           <button className="secondary-button" type="button" onClick={() => setLines((current) => [...current, emptyPurchaseLine()])}>
-            Ø¥Ø¶Ø§ÙØ© Ù…Ø§Ø¯Ø©
+            إضافة مادة
           </button>
         </div>
         <div className="transfer-items-list">
@@ -590,33 +638,45 @@ export function PurchaseInvoiceForm({
             <article className="transfer-item-card" key={index}>
               <div className="transfer-item-grid">
                 <label>
-                  Ø§Ù„Ù…Ø§Ø¯Ø©
+                  المادة
                   <input list={`purchase-item-options-${index}`} value={line.itemLabel} onChange={(event) => handleItemChange(index, event.target.value)} required />
                   <datalist id={`purchase-item-options-${index}`}>
                     {itemOptions.map((item) => <option key={item.id} value={item.label} />)}
                   </datalist>
                 </label>
                 <label>
-                  Ø§Ù„ÙƒÙ…ÙŠØ©
-                  <input type="number" min="0.001" step="0.001" value={line.quantity} onChange={(event) => updateLine(index, { quantity: event.target.value })} required />
+                  الوحدة
+                  <input disabled value={line.unitName || 'غير محددة'} />
                 </label>
                 <label>
-                  Ø³Ø¹Ø± Ø§Ù„ÙˆØ­Ø¯Ø©
+                  نوع السعر
+                  <select value={line.priceType} onChange={(event) => handlePriceTypeChange(index, event.target.value as PriceType)}>
+                    <option value="purchase">سعر الشراء</option>
+                    <option value="cost">سعر التكلفة</option>
+                    <option value="sale">سعر البيع</option>
+                  </select>
+                </label>
+                <label>
+                  السعر
                   <input type="number" min="0" step="0.01" value={line.unitPrice} onChange={(event) => updateLine(index, { unitPrice: event.target.value })} required />
                 </label>
                 <label>
-                  Ø§Ù„Ø¥Ø¬Ù…Ø§Ù„ÙŠ
+                  الكمية
+                  <input type="number" min="0.001" step="0.001" value={line.quantity} onChange={(event) => updateLine(index, { quantity: event.target.value })} required />
+                </label>
+                <label>
+                  الإجمالي
                   <input disabled value={(Number(line.quantity || 0) * Number(line.unitPrice || 0)).toFixed(2)} />
                 </label>
               </div>
               <div className="transfer-item-meta">
-                <p className="field-hint">ÙŠØ¬Ø¨ Ø§Ø®ØªÙŠØ§Ø± Ø§Ù„Ù…Ø§Ø¯Ø© Ù…Ù† Ø§Ù„Ù‚Ø§Ø¦Ù…Ø© Ø§Ù„Ù…Ù‚ØªØ±Ø­Ø© Ø­ØªÙ‰ ÙŠØªÙ… Ø¥Ø±Ø³Ø§Ù„ Ù…Ø¹Ø±Ù Ø§Ù„Ù…Ø§Ø¯Ø© Ø§Ù„ØµØ­ÙŠØ­.</p>
+                <p className="field-hint">اختر المادة من القائمة المقترحة حتى يتم إرسال معرف المادة الصحيح.</p>
                 <button className="secondary-button" type="button" onClick={() => setLines((current) => current.length === 1 ? current : current.filter((_, lineIndex) => lineIndex !== index))}>
-                  Ø­Ø°Ù Ø§Ù„Ø³Ø·Ø±
+                  حذف السطر
                 </button>
               </div>
               <label>
-                Ù…Ù„Ø§Ø­Ø¸Ø§Øª Ø§Ù„Ù…Ø§Ø¯Ø©
+                ملاحظات المادة
                 <textarea rows={2} value={line.notes} onChange={(event) => updateLine(index, { notes: event.target.value })} />
               </label>
             </article>
@@ -636,7 +696,7 @@ export function PurchaseInvoiceForm({
       />
 
       <div className="form-actions">
-        <button disabled={isSaving} type="submit">{isSaving ? 'Ø¬Ø§Ø±ÙŠ Ø§Ù„Ø­ÙØ¸...' : 'Ø­ÙØ¸ ÙØ§ØªÙˆØ±Ø© Ø§Ù„Ø´Ø±Ø§Ø¡'}</button>
+        <button disabled={isSaving} type="submit">{isSaving ? 'جاري الحفظ...' : 'حفظ فاتورة الشراء'}</button>
       </div>
     </form>
   );
@@ -679,7 +739,7 @@ export function SupplierPaymentForm({
       router.push('/supplier-payments');
       router.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'ØªØ¹Ø°Ø± Ø­ÙØ¸ Ø¯ÙØ¹Ø© Ø§Ù„Ù…ÙˆØ±Ø¯.');
+      setMessage(error instanceof Error ? error.message : 'تعذر حفظ دفعة المورد.');
     } finally {
       setIsSaving(false);
     }
@@ -690,69 +750,69 @@ export function SupplierPaymentForm({
       <FormMessage message={message} />
       <div className="form-grid">
         <label>
-          Ø±Ù‚Ù… Ø§Ù„Ø¯ÙØ¹Ø©
-          <input name="paymentNumber" maxLength={50} placeholder="ÙŠÙˆÙ„Ø¯ ØªÙ„Ù‚Ø§Ø¦ÙŠØ§ Ø¹Ù†Ø¯ ØªØ±ÙƒÙ‡ ÙØ§Ø±ØºØ§" />
+          رقم الدفعة
+          <input name="paymentNumber" maxLength={50} placeholder="يولد تلقائيا عند تركه فارغا" />
         </label>
         <label>
-          ÙØ§ØªÙˆØ±Ø© Ø§Ù„Ø´Ø±Ø§Ø¡
+          فاتورة الشراء
           <select name="purchaseInvoiceId" required>
-            <option value="">Ø§Ø®ØªØ± Ø§Ù„ÙØ§ØªÙˆØ±Ø©</option>
+            <option value="">اختر الفاتورة</option>
             {invoices.map((invoice) => (
               <option key={invoice.id} value={invoice.id}>
-                {invoice.invoiceNumber} - {invoice.supplier?.name ?? 'Ù…ØªÙØ±Ù‚Ø©'} - Ù…ØªØ¨Ù‚ÙŠ {invoice.remainingAmount}
+                {invoice.invoiceNumber} - {invoice.supplier?.name ?? 'متفرقة'} - متبقي {invoice.remainingAmount}
               </option>
             ))}
           </select>
         </label>
         <label>
-          Ø§Ù„ÙØ±Ø¹
+          الفرع
           <select name="branchId" required>
-            <option value="">Ø§Ø®ØªØ± Ø§Ù„ÙØ±Ø¹ Ø§Ù„Ù…Ø·Ø§Ø¨Ù‚ Ù„Ù„ÙØ§ØªÙˆØ±Ø©</option>
+            <option value="">اختر الفرع المطابق للفاتورة</option>
             {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
           </select>
         </label>
         <label>
-          ØªØ§Ø±ÙŠØ® Ø§Ù„Ø¯ÙØ¹
+          تاريخ الدفع
           <input name="paymentDate" type="date" defaultValue={new Date().toISOString().slice(0, 10)} required />
         </label>
         <label>
-          Ø·Ø±ÙŠÙ‚Ø© Ø§Ù„Ø¯ÙØ¹
+          طريقة الدفع
           <select name="paymentMethod" defaultValue="cash" required>
-            <option value="cash">Ù†Ù‚Ø¯Ø§</option>
-            <option value="bank">Ø¨Ù†ÙƒÙŠ</option>
-            <option value="other">Ø£Ø®Ø±Ù‰</option>
+            <option value="cash">نقدا</option>
+            <option value="bank">بنكي</option>
+            <option value="other">أخرى</option>
           </select>
         </label>
         <label>
-          Ø§Ù„Ø¯Ø±Ø¬ Ø§Ù„Ù†Ù‚Ø¯ÙŠ
+          الدرج النقدي
           <select name="drawerId">
-            <option value="">ØºÙŠØ± Ù…Ø­Ø¯Ø¯</option>
+            <option value="">غير محدد</option>
             {drawers.map((drawer) => <option key={drawer.id} value={drawer.id}>{drawer.name}</option>)}
           </select>
         </label>
         <label>
-          Ø§Ù„Ø­Ø³Ø§Ø¨ Ø§Ù„Ø¨Ù†ÙƒÙŠ
+          الحساب البنكي
           <select name="bankAccountId">
-            <option value="">ØºÙŠØ± Ù…Ø­Ø¯Ø¯</option>
+            <option value="">غير محدد</option>
             {bankAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
           </select>
         </label>
         <label>
-          Ø§Ù„Ù…Ø¨Ù„Øº
+          المبلغ
           <input name="amount" type="number" min="0.01" step="0.01" required />
         </label>
         <label>
-          Ø§Ù„Ù…Ø±Ø¬Ø¹
+          المرجع
           <input name="referenceNumber" maxLength={120} />
         </label>
       </div>
-      <p className="field-hint">Ø§Ù„Ø¯ÙØ¹ Ø§Ù„Ù†Ù‚Ø¯ÙŠ ÙŠØ­ØªØ§Ø¬ Ø¯Ø±Ø¬ Ù†Ù‚Ø¯ÙŠØŒ ÙˆØ§Ù„Ø¯ÙØ¹ Ø§Ù„Ø¨Ù†ÙƒÙŠ ÙŠØ­ØªØ§Ø¬ Ø­Ø³Ø§Ø¨Ø§ Ø¨Ù†ÙƒÙŠØ§. ÙŠØ¬Ø¨ Ø£Ù† ÙŠØ·Ø§Ø¨Ù‚ Ø§Ù„ÙØ±Ø¹ ÙØ±Ø¹ Ø§Ù„ÙØ§ØªÙˆØ±Ø©.</p>
+      <p className="field-hint">الدفع النقدي يحتاج درج نقدي، والدفع البنكي يحتاج حسابا بنكيا. يجب أن يطابق الفرع فرع الفاتورة.</p>
       <label>
-        Ù…Ù„Ø§Ø­Ø¸Ø§Øª
+        ملاحظات
         <textarea name="notes" rows={3} />
       </label>
       <div className="form-actions">
-        <button disabled={isSaving} type="submit">{isSaving ? 'Ø¬Ø§Ø±ÙŠ Ø§Ù„Ø­ÙØ¸...' : 'Ø­ÙØ¸ Ø¯ÙØ¹Ø© Ø§Ù„Ù…ÙˆØ±Ø¯'}</button>
+        <button disabled={isSaving} type="submit">{isSaving ? 'جاري الحفظ...' : 'حفظ دفعة المورد'}</button>
       </div>
     </form>
   );

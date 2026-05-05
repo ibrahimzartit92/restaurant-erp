@@ -1,6 +1,7 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ILike, Not, Repository } from 'typeorm';
+import { ItemEntity } from '../items/entities/item.entity';
 import { CreateUnitDto } from './dto/create-unit.dto';
 import { UpdateUnitDto } from './dto/update-unit.dto';
 import { UnitEntity } from './entities/unit.entity';
@@ -10,6 +11,8 @@ export class UnitsService {
   constructor(
     @InjectRepository(UnitEntity)
     private readonly unitRepository: Repository<UnitEntity>,
+    @InjectRepository(ItemEntity)
+    private readonly itemRepository: Repository<ItemEntity>,
   ) {}
 
   findAll(search?: string) {
@@ -65,6 +68,12 @@ export class UnitsService {
 
   async remove(id: string) {
     const unit = await this.findByIdOrFail(id);
+    const linkedItems = await this.itemRepository.count({ where: { unitId: id } });
+
+    if (linkedItems > 0) {
+      throw new BadRequestException('لا يمكن حذف وحدة مستخدمة في مواد محفوظة.');
+    }
+
     await this.unitRepository.remove(unit);
 
     return { id };
@@ -79,7 +88,7 @@ export class UnitsService {
     });
 
     if (existingUnit) {
-      throw new ConflictException('A unit with this code already exists.');
+      throw new ConflictException('يوجد وحدة بنفس الكود.');
     }
   }
 }

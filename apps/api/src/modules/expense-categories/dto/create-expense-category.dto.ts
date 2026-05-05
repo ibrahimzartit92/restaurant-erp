@@ -1,4 +1,5 @@
-import { IsBoolean, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsIn, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { ExpenseCategoryClassification } from '../entities/expense-category.entity';
 
 export class CreateExpenseCategoryDto {
   @IsString()
@@ -9,6 +10,10 @@ export class CreateExpenseCategoryDto {
   @IsBoolean()
   @IsOptional()
   isFixed?: boolean;
+
+  @IsIn(Object.values(ExpenseCategoryClassification))
+  @IsOptional()
+  classification?: ExpenseCategoryClassification;
 
   @IsString()
   @IsOptional()

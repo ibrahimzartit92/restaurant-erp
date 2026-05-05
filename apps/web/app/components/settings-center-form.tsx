@@ -24,6 +24,17 @@ export type SettingGroup = {
   fields: SettingField[];
 };
 
+export type BackupSummary = {
+  id: string;
+  fileName: string;
+  fileSize?: number | string | null;
+  status: string;
+  backupType: string;
+  restoreStatus?: string | null;
+  restoredAt?: string | null;
+  createdAt: string;
+};
+
 type SettingsValues = Record<string, Record<string, SettingValue>>;
 
 function buildInitialValues(groups: SettingGroup[]) {

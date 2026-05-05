@@ -31,4 +31,9 @@ export class ExpenseCategoriesController {
   remove(@Param('id') id: string) {
     return this.expenseCategoriesService.remove(id);
   }
+
+  @Post(':id/delete')
+  removeViaPost(@Param('id') id: string) {
+    return this.expenseCategoriesService.remove(id);
+  }
 }

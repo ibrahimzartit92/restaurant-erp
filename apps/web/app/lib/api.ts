@@ -37,7 +37,7 @@ export async function fetchList<T>(path: string): Promise<ApiListResult<T>> {
   return (
     authorizationError ?? {
       data: [],
-      error: 'الخادم غير متاح حالياً. ستظهر البيانات هنا عند تشغيل الواجهة الخلفية.',
+      error: 'الخادم غير متاح حاليا. ستظهر البيانات هنا عند تشغيل الواجهة الخلفية.',
     }
   );
 }
@@ -73,7 +73,7 @@ export async function fetchOne<T>(path: string): Promise<{ data: T | null; error
   return (
     authorizationError ?? {
       data: null,
-      error: 'الخادم غير متاح حالياً.',
+      error: 'الخادم غير متاح حاليا.',
     }
   );
 }
@@ -96,11 +96,7 @@ export function formatMoney(value?: number | string | null) {
   return formatMoneyWithCurrency(value);
 }
 
-export function formatMoneyWithCurrency(
-  value?: number | string | null,
-  currencySymbol = 'ر.س',
-  decimalPlaces = 2,
-) {
+export function formatMoneyWithCurrency(value?: number | string | null, currencySymbol = 'ر.س', decimalPlaces = 2) {
   const numericValue = Number(value ?? 0);
   const safeDecimalPlaces = Math.min(Math.max(Math.trunc(decimalPlaces), 0), 4);
   const formattedValue = new Intl.NumberFormat('ar', {

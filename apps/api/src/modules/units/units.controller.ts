@@ -31,4 +31,9 @@ export class UnitsController {
   remove(@Param('id') id: string) {
     return this.unitsService.remove(id);
   }
+
+  @Post(':id/delete')
+  removeViaPost(@Param('id') id: string) {
+    return this.unitsService.remove(id);
+  }
 }

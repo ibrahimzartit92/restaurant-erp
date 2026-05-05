@@ -57,7 +57,8 @@ export class ItemsService {
       code,
       categoryId: category.id,
       unitId: unit.id,
-      initialPrice: createItemDto.initialPrice ?? 0,
+      initialPrice: createItemDto.initialPrice ?? createItemDto.purchasePrice ?? 0,
+      purchasePrice: createItemDto.purchasePrice ?? createItemDto.initialPrice ?? 0,
       costPrice: createItemDto.costPrice ?? 0,
       salePrice: createItemDto.salePrice ?? 0,
       searchKeywords: createItemDto.searchKeywords ?? '',
@@ -84,9 +85,17 @@ export class ItemsService {
       await this.unitsService.findByIdOrFail(updateItemDto.unitId);
     }
 
+    const purchasePrice = updateItemDto.purchasePrice ?? updateItemDto.initialPrice;
+
     Object.assign(item, {
       ...updateItemDto,
       code: code ?? item.code,
+      ...(purchasePrice !== undefined
+        ? {
+            purchasePrice,
+            initialPrice: updateItemDto.initialPrice ?? purchasePrice,
+          }
+        : {}),
     });
 
     return this.itemRepository.save(item);
