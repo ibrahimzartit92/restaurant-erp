@@ -38,6 +38,10 @@ export class UpdateExpenseTemplateDto {
   @IsOptional()
   isActive?: boolean;
 
+  @IsBoolean()
+  @IsOptional()
+  isRecurring?: boolean;
+
   @IsString()
   @IsOptional()
   notes?: string | null;

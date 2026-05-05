@@ -73,7 +73,11 @@ async function readSuccessJson(response: Response) {
   return response.json();
 }
 
-export async function submitJson(path: string, method: 'POST' | 'PATCH' | 'PUT' | 'DELETE', body: Record<string, unknown>) {
+export async function submitJson<T = unknown>(
+  path: string,
+  method: 'POST' | 'PATCH' | 'PUT' | 'DELETE',
+  body: Record<string, unknown>,
+) {
   const accessToken = readAccessTokenFromDocument();
   const response = await fetch(joinUrl(path), {
     method: 'POST',
@@ -88,7 +92,7 @@ export async function submitJson(path: string, method: 'POST' | 'PATCH' | 'PUT' 
 
   await throwIfApiError(response, 'تعذر حفظ البيانات.');
 
-  return readSuccessJson(response);
+  return (await readSuccessJson(response)) as T;
 }
 
 export async function submitFormData(path: string, formData: FormData) {

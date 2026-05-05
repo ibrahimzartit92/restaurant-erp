@@ -10,7 +10,12 @@ import type {
   VaultOption,
 } from '../../../lib/types';
 
-export default async function NewExpensePage() {
+export default async function NewExpensePage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | undefined>>;
+}) {
+  const params = (await searchParams) ?? {};
   const [branches, categories, templates, drawers, bankAccounts, vaults] = await Promise.all([
     fetchList<BranchOption>('/branches'),
     fetchList<ExpenseCategoryOption>('/expense-categories'),
@@ -22,9 +27,10 @@ export default async function NewExpensePage() {
 
   return (
     <>
-      <PageHeader title="إضافة مصروف" description="تسجيل مصروف جديد وربطه بالفرع وطريقة الدفع." />
+      <PageHeader title="إضافة مصروف" description="تسجيل مصروف جديد وربطه بالفرع ومصدر الدفع المناسب." />
       <ExpenseForm
         mode="create"
+        initialTemplateId={params.templateId}
         branches={branches.data}
         categories={categories.data}
         templates={templates.data}

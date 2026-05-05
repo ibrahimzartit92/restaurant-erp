@@ -37,6 +37,7 @@ export type UserSummary = {
   branchAccess: BranchAccess;
   permissions: string[];
   isActive: boolean;
+  mustChangePassword?: boolean;
   notes?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -80,6 +81,18 @@ export type PurchaseInvoiceOption = {
 export type ExpenseTemplateOption = {
   id: string;
   name: string;
+  branchId?: string | null;
+  expenseCategoryId?: string | null;
+  defaultAmount?: number;
+  paymentMethod?: 'cash' | 'bank' | 'vault' | 'other';
+  drawerId?: string | null;
+  bankAccountId?: string | null;
+  vaultId?: string | null;
+  isActive?: boolean;
+  isRecurring?: boolean;
+  notes?: string | null;
+  branch?: BranchOption | null;
+  expenseCategory?: ExpenseCategoryOption | null;
 };
 
 export type DrawerOption = {

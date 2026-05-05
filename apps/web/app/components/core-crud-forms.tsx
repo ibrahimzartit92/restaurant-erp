@@ -308,7 +308,7 @@ export function ItemForm({
   categories,
   units,
   initialItem,
-  currencySymbol = 'ر.س',
+  currencySymbol = '',
 }: Readonly<{
   categories: ItemCategoryOption[];
   units: UnitOption[];
@@ -458,7 +458,7 @@ export function PurchaseInvoiceForm({
   drawers,
   bankAccounts,
   vaults,
-  currencySymbol = 'ر.س',
+  currencySymbol = '',
   decimalPlaces = 2,
 }: Readonly<{
   branches: BranchOption[];

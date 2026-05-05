@@ -20,4 +20,13 @@ export class AuthController {
   me(@CurrentUser() user: unknown) {
     return user;
   }
+
+  @RequireAuth()
+  @Post('change-password')
+  changePassword(
+    @CurrentUser() user: { id: string },
+    @Body() body: { currentPassword?: string; newPassword?: string },
+  ) {
+    return this.authService.changePassword(user.id, body.currentPassword ?? '', body.newPassword ?? '');
+  }
 }

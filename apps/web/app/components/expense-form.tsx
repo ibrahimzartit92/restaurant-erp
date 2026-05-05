@@ -18,6 +18,7 @@ import {
   paymentRowsTotal,
   toBackendPayment,
   validatePaymentRows,
+  type PaymentSourceType,
   type UnifiedPaymentRow,
 } from './payment-source-rows';
 
@@ -79,6 +80,7 @@ function legacyPaymentRow(initialExpense?: ExpenseFormRecord | null): UnifiedPay
 export function ExpenseForm({
   mode,
   initialExpense,
+  initialTemplateId,
   branches,
   categories,
   templates,
@@ -88,6 +90,7 @@ export function ExpenseForm({
 }: Readonly<{
   mode: 'create' | 'edit';
   initialExpense?: ExpenseFormRecord | null;
+  initialTemplateId?: string;
   branches: BranchOption[];
   categories: ExpenseCategoryOption[];
   templates: ExpenseTemplateOption[];
@@ -96,15 +99,29 @@ export function ExpenseForm({
   vaults: VaultOption[];
 }>) {
   const router = useRouter();
+  const initialTemplate = templates.find((template) => template.id === initialTemplateId);
   const initialExpenseDate = initialExpense?.expenseDate ?? new Date().toISOString().slice(0, 10);
   const initialRows = useMemo(
     () =>
       initialExpense?.paymentAllocations?.length
         ? initialExpense.paymentAllocations.map((row) => fromBackendPayment(row, initialExpenseDate))
+        : initialTemplate && mode === 'create'
+          ? [
+              {
+                ...createPaymentRow(initialExpenseDate, initialTemplate.defaultAmount ? String(initialTemplate.defaultAmount) : ''),
+                sourceType: (
+                  initialTemplate.paymentMethod === 'bank'
+                    ? 'bank'
+                    : initialTemplate.paymentMethod === 'vault'
+                      ? 'vault'
+                      : 'drawer'
+                ) as PaymentSourceType,
+              },
+            ]
         : [legacyPaymentRow(initialExpense)],
-    [initialExpense, initialExpenseDate],
+    [initialExpense, initialExpenseDate, initialTemplate, mode],
   );
-  const [amount, setAmount] = useState(String(initialExpense?.amount ?? ''));
+  const [amount, setAmount] = useState(String(initialExpense?.amount ?? initialTemplate?.defaultAmount ?? ''));
   const [rows, setRows] = useState<UnifiedPaymentRow[]>(initialRows);
   const [message, setMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -194,7 +211,7 @@ export function ExpenseForm({
         </label>
         <label>
           الفرع
-          <select name="branchId" defaultValue={initialExpense?.branchId ?? ''} required>
+          <select name="branchId" defaultValue={initialExpense?.branchId ?? initialTemplate?.branchId ?? ''} required>
             <option value="">اختر الفرع</option>
             {branches.map((branch) => (
               <option key={branch.id} value={branch.id}>
@@ -205,7 +222,7 @@ export function ExpenseForm({
         </label>
         <label>
           نوع المصروف
-          <select name="expenseCategoryId" defaultValue={initialExpense?.expenseCategoryId ?? ''}>
+          <select name="expenseCategoryId" defaultValue={initialExpense?.expenseCategoryId ?? initialTemplate?.expenseCategoryId ?? ''}>
             <option value="">تصنيف عام</option>
             {categories.map((category) => (
               <option key={category.id} value={category.id}>
@@ -216,7 +233,7 @@ export function ExpenseForm({
         </label>
         <label>
           القالب
-          <select name="templateId" defaultValue={initialExpense?.templateId ?? ''}>
+          <select name="templateId" defaultValue={initialExpense?.templateId ?? initialTemplateId ?? ''}>
             <option value="">بدون قالب</option>
             {templates.map((template) => (
               <option key={template.id} value={template.id}>
@@ -227,7 +244,7 @@ export function ExpenseForm({
         </label>
         <label>
           العنوان
-          <input name="title" defaultValue={initialExpense?.title ?? ''} placeholder="اختياري" />
+          <input name="title" defaultValue={initialExpense?.title ?? initialTemplate?.name ?? ''} placeholder="اختياري" />
         </label>
         <label>
           مبلغ المصروف
@@ -253,7 +270,7 @@ export function ExpenseForm({
 
       <label>
         ملاحظات
-        <textarea name="notes" defaultValue={initialExpense?.notes ?? ''} rows={4} />
+        <textarea name="notes" defaultValue={initialExpense?.notes ?? initialTemplate?.notes ?? ''} rows={4} />
       </label>
 
       <div className="form-actions">

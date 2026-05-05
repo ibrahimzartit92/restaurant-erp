@@ -8,6 +8,8 @@ import { ExpenseEntity } from '../expenses/entities/expense.entity';
 import { PayrollRecordEntity } from '../payroll/entities/payroll-record.entity';
 import { PurchaseInvoiceEntity } from '../purchase-invoices/entities/purchase-invoice.entity';
 import { SettingsModule } from '../settings/settings.module';
+import { VaultTransactionEntity } from '../vaults/entities/vault-transaction.entity';
+import { VaultEntity } from '../vaults/entities/vault.entity';
 import { DashboardController } from './dashboard.controller';
 import { DashboardService } from './dashboard.service';
 
@@ -22,6 +24,8 @@ import { DashboardService } from './dashboard.service';
       ExpenseEntity,
       PayrollRecordEntity,
       PurchaseInvoiceEntity,
+      VaultEntity,
+      VaultTransactionEntity,
     ]),
   ],
   controllers: [DashboardController],

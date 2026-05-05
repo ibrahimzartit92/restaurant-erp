@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ILike, Repository } from 'typeorm';
 import { BankAccountEntity } from '../bank-accounts/entities/bank-account.entity';
@@ -56,9 +56,12 @@ export class ExpenseTemplatesService {
     const template = this.expenseTemplateRepository.create({
       ...createExpenseTemplateDto,
       branchId: createExpenseTemplateDto.branchId ?? null,
+      defaultAmount: createExpenseTemplateDto.defaultAmount ?? 0,
+      paymentMethod: createExpenseTemplateDto.paymentMethod ?? ExpensePaymentMethod.Cash,
       drawerId: createExpenseTemplateDto.drawerId ?? null,
       bankAccountId: createExpenseTemplateDto.bankAccountId ?? null,
       isActive: createExpenseTemplateDto.isActive ?? true,
+      isRecurring: createExpenseTemplateDto.isRecurring ?? false,
       notes: createExpenseTemplateDto.notes ?? null,
     });
 
@@ -85,7 +88,7 @@ export class ExpenseTemplatesService {
   private async validateReferences(data: {
     branchId?: string | null;
     expenseCategoryId: string;
-    paymentMethod: ExpensePaymentMethod;
+    paymentMethod?: ExpensePaymentMethod;
     drawerId?: string | null;
     bankAccountId?: string | null;
   }) {
@@ -104,26 +107,22 @@ export class ExpenseTemplatesService {
     }
 
     if (data.paymentMethod === ExpensePaymentMethod.Cash) {
-      if (!data.drawerId) {
-        throw new BadRequestException('Cash expenses require drawerId.');
-      }
+      if (data.drawerId) {
+        const drawer = await this.drawerRepository.findOne({ where: { id: data.drawerId } });
 
-      const drawer = await this.drawerRepository.findOne({ where: { id: data.drawerId } });
-
-      if (!drawer) {
-        throw new NotFoundException('Drawer was not found.');
+        if (!drawer) {
+          throw new NotFoundException('Drawer was not found.');
+        }
       }
     }
 
     if (data.paymentMethod === ExpensePaymentMethod.Bank) {
-      if (!data.bankAccountId) {
-        throw new BadRequestException('Bank expenses require bankAccountId.');
-      }
+      if (data.bankAccountId) {
+        const bankAccount = await this.bankAccountRepository.findOne({ where: { id: data.bankAccountId } });
 
-      const bankAccount = await this.bankAccountRepository.findOne({ where: { id: data.bankAccountId } });
-
-      if (!bankAccount) {
-        throw new NotFoundException('Bank account was not found.');
+        if (!bankAccount) {
+          throw new NotFoundException('Bank account was not found.');
+        }
       }
     }
   }

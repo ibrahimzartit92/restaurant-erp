@@ -14,6 +14,7 @@ export type DashboardMetricKey =
   | 'operating_net'
   | 'net_after_purchases'
   | 'bank_balance'
+  | 'vault_balance'
   | 'supplier_due';
 
 export type DashboardMetric = {

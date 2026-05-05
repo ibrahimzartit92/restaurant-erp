@@ -67,7 +67,7 @@ export function BranchTransferForm({
   warehouses,
   items,
   initialTransfer,
-  currencySymbol = 'ر.س',
+  currencySymbol = '',
   decimalPlaces = 2,
 }: Readonly<{
   mode: 'create' | 'edit';

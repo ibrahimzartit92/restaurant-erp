@@ -30,7 +30,7 @@ export function PurchaseInvoicePaymentPanel({
   drawers,
   bankAccounts,
   vaults,
-  currencySymbol = 'ر.س',
+  currencySymbol = '',
   decimalPlaces = 2,
 }: Readonly<{
   invoiceId: string;

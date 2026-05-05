@@ -80,7 +80,7 @@ export function PaymentSourceRows({
   title = 'مصادر الدفع',
   description = 'يمكن تقسيم الدفع بين الدرج، الحساب البنكي، والخزنة.',
   totalAmount,
-  currencySymbol = 'ر.س',
+  currencySymbol = '',
   decimalPlaces = 2,
   showRemaining = false,
   showPaymentDate = true,

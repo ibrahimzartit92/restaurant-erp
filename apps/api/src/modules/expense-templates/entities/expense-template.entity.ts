@@ -69,6 +69,9 @@ export class ExpenseTemplateEntity {
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive!: boolean;
 
+  @Column({ name: 'is_recurring', type: 'boolean', default: false })
+  isRecurring!: boolean;
+
   @Column({ type: 'text', nullable: true })
   notes!: string | null;
 

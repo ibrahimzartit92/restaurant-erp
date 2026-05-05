@@ -130,6 +130,15 @@ export async function getMoneyFormatter() {
   return (value?: number | string | null) => formatMoneyWithCurrency(value, currencySymbol, decimalPlaces);
 }
 
+export async function getInactivityTimeoutMinutes() {
+  const result = await fetchOne<SettingsResponse>('/settings');
+  const accessGroup = result.data?.groups.find((group) => group.key === 'access');
+  const timeoutField = accessGroup?.fields.find((field) => field.key === 'inactivityTimeoutMinutes');
+  const timeoutMinutes = Number(timeoutField?.value ?? timeoutField?.defaultValue ?? 30);
+
+  return Number.isFinite(timeoutMinutes) && timeoutMinutes >= 1 ? timeoutMinutes : 30;
+}
+
 export function formatDate(value?: string | null) {
   if (!value) {
     return 'غير محدد';

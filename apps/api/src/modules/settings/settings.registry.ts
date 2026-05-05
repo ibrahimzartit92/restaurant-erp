@@ -164,6 +164,7 @@ export const settingsRegistry: SettingGroupDefinition[] = [
       { key: 'settingsAdminOnly', label: 'هل الإعدادات محصورة بالأدمن', type: 'boolean', defaultValue: true },
       { key: 'hideMenuItemsByPermissions', label: 'هل إخفاء عناصر القائمة حسب الصلاحيات مفعل', type: 'boolean', defaultValue: true },
       { key: 'restrictActionsByPermissions', label: 'هل الأزرار والإجراءات تتقيد بالصلاحيات', type: 'boolean', defaultValue: true },
+      { key: 'inactivityTimeoutMinutes', label: 'مدة تسجيل الخروج التلقائي بالدقائق', type: 'number', defaultValue: 30, min: 5, max: 240 },
     ],
   },
   {

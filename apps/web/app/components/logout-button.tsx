@@ -8,7 +8,7 @@ export function LogoutButton() {
 
   function logout() {
     clearAccessTokenFromDocument();
-    router.push('/login');
+    router.replace('/login');
     router.refresh();
   }
 

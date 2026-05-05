@@ -15,7 +15,7 @@ type RequestWithUser = {
   headers: {
     authorization?: string;
   };
-  user?: Awaited<ReturnType<UsersService['toSafeUser']>>;
+  user?: Awaited<ReturnType<UsersService['toSafeUser']>> & { mustChangePassword?: boolean };
 };
 
 @Injectable()
@@ -57,7 +57,7 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     try {
-      const payload = await this.jwtService.verifyAsync<{ sub: string }>(token, {
+      const payload = await this.jwtService.verifyAsync<{ sub: string; mustChangePassword?: boolean }>(token, {
         secret: process.env.JWT_SECRET ?? 'change_this_secret_before_production',
       });
       const user = await this.usersService.findSafeById(payload.sub);
@@ -66,7 +66,7 @@ export class JwtAuthGuard implements CanActivate {
         throw new UnauthorizedException('This user is inactive or unavailable.');
       }
 
-      request.user = user;
+      request.user = { ...user, mustChangePassword: payload.mustChangePassword ?? false };
       return true;
     } catch (error) {
       if (error instanceof UnauthorizedException) {

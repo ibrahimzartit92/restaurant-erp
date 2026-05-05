@@ -18,10 +18,12 @@ export class CreateExpenseTemplateDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0)
-  defaultAmount!: number;
+  @IsOptional()
+  defaultAmount?: number;
 
   @IsEnum(ExpensePaymentMethod)
-  paymentMethod!: ExpensePaymentMethod;
+  @IsOptional()
+  paymentMethod?: ExpensePaymentMethod;
 
   @IsUUID()
   @IsOptional()
@@ -34,6 +36,10 @@ export class CreateExpenseTemplateDto {
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  isRecurring?: boolean;
 
   @IsString()
   @IsOptional()

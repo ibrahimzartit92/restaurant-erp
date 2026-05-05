@@ -34,9 +34,9 @@ export function LoginForm() {
 
       await throwIfApiError(response, 'تعذر تسجيل الدخول.');
 
-      const data = (await response.json()) as { accessToken: string };
+      const data = (await response.json()) as { accessToken: string; user?: { mustChangePassword?: boolean } };
       writeAccessTokenToDocument(data.accessToken);
-      router.push('/');
+      router.push(data.user?.mustChangePassword ? '/change-password' : '/');
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'تعذر تسجيل الدخول.');
@@ -50,7 +50,7 @@ export function LoginForm() {
       {message ? <p className="notice danger">{message}</p> : null}
 
       <label>
-        اسم المستخدم أو البريد الإلكتروني
+        اسم المستخدم
         <input name="login" type="text" placeholder="admin" required />
       </label>
       <label>
@@ -61,7 +61,7 @@ export function LoginForm() {
         {isSubmitting ? 'جار تسجيل الدخول...' : 'دخول'}
       </button>
       <span className="login-hint">
-        الحساب الافتراضي لأول دخول هو admin / admin، ويمكن تغييره لاحقا من إدارة المستخدمين.
+        الحساب الافتراضي لأول دخول هو admin / admin، وسيطلب النظام تغييره مباشرة بعد الدخول.
       </span>
     </form>
   );

@@ -148,6 +148,20 @@ export class UsersService {
     return this.toSafeUser(userWithRelations);
   }
 
+  async setPassword(id: string, password: string) {
+    const user = await this.userRepository.findOne({ where: { id } });
+
+    if (!user) {
+      throw new NotFoundException('The selected user was not found.');
+    }
+
+    user.passwordHash = await bcrypt.hash(password, 12);
+    const savedUser = await this.userRepository.save(user);
+    const userWithRelations = await this.userRepository.findOneOrFail({ where: { id: savedUser.id } });
+
+    return this.toSafeUser(userWithRelations);
+  }
+
   toSafeUser(user: UserEntity) {
     const permissions = [...new Set(user.role.permissions.map((permission) => permission.code))];
 

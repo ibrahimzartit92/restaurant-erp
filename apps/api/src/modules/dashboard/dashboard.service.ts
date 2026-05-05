@@ -13,6 +13,11 @@ import { PayrollRecordEntity } from '../payroll/entities/payroll-record.entity';
 import { PurchaseInvoiceEntity } from '../purchase-invoices/entities/purchase-invoice.entity';
 import { SettingsService } from '../settings/settings.service';
 import {
+  VaultTransactionDirection,
+  VaultTransactionEntity,
+} from '../vaults/entities/vault-transaction.entity';
+import { VaultEntity } from '../vaults/entities/vault.entity';
+import {
   DashboardBranchComparison,
   DashboardFilters,
   DashboardMetric,
@@ -52,17 +57,22 @@ export class DashboardService {
     private readonly bankAccountsRepository: Repository<BankAccountEntity>,
     @InjectRepository(BankAccountTransactionEntity)
     private readonly bankTransactionsRepository: Repository<BankAccountTransactionEntity>,
+    @InjectRepository(VaultEntity)
+    private readonly vaultsRepository: Repository<VaultEntity>,
+    @InjectRepository(VaultTransactionEntity)
+    private readonly vaultTransactionsRepository: Repository<VaultTransactionEntity>,
     private readonly settingsService: SettingsService,
   ) {}
 
   async getDashboard(filters: DashboardFilters): Promise<DashboardResult> {
     const range = this.resolveRange(filters);
     const previousPeriod = this.previousEquivalentRange(range);
-    const [branches, currentData, previousData, bankBalance, openInvoices] = await Promise.all([
+    const [branches, currentData, previousData, bankBalance, vaultBalance, openInvoices] = await Promise.all([
       this.branchesRepository.find({ order: { name: 'ASC' } }),
       this.loadPeriodData(range, filters.branchId),
       this.loadPeriodData(previousPeriod, filters.branchId),
       this.getBankBalance(filters.branchId),
+      this.getVaultBalance(filters.branchId),
       this.getOpenInvoices(filters.branchId),
     ]);
 
@@ -114,6 +124,7 @@ export class DashboardService {
         this.metric('operating_net', 'صافي التشغيل', operatingNet, previousOperatingNet),
         this.metric('net_after_purchases', 'الصافي بعد المشتريات', netAfterPurchases, previousNetAfterPurchases),
         this.metric('bank_balance', 'الرصيد البنكي الحالي', bankBalance, bankBalance),
+        this.metric('vault_balance', 'رصيد الخزنة الحالي', vaultBalance, vaultBalance),
         this.metric('supplier_due', 'المستحقات للموردين', supplierDue, previousSupplierDue),
       ],
       charts: {
@@ -196,7 +207,7 @@ export class DashboardService {
       .createQueryBuilder('invoice')
       .leftJoinAndSelect('invoice.branch', 'branch')
       .leftJoinAndSelect('invoice.supplier', 'supplier')
-      .where('invoice.status IN (:...statuses)', { statuses: ['open', 'partially_paid'] })
+      .where('invoice.status IN (:...statuses)', { statuses: ['open', 'unpaid', 'partially_paid'] })
       .andWhere('invoice.remaining_amount > 0')
       .orderBy('invoice.dueDate', 'ASC', 'NULLS LAST')
       .addOrderBy('invoice.invoiceDate', 'ASC');
@@ -236,6 +247,26 @@ export class DashboardService {
 
     return this.round(
       accounts.reduce((sum, account) => sum + Number(account.openingBalance ?? 0) + (movementByAccount.get(account.id) ?? 0), 0),
+    );
+  }
+
+  private async getVaultBalance(branchId?: string) {
+    const vaults = await this.vaultsRepository.find({ where: { isActive: true } });
+    const rows = await this.vaultTransactionsRepository
+      .createQueryBuilder('transaction')
+      .select('transaction.vault_id', 'vaultId')
+      .addSelect(
+        'COALESCE(SUM(CASE WHEN transaction.direction = :incoming THEN transaction.amount ELSE -transaction.amount END), 0)',
+        'movementTotal',
+      )
+      .where(branchId ? 'transaction.branch_id = :branchId' : '1=1', { branchId })
+      .groupBy('transaction.vault_id')
+      .setParameter('incoming', VaultTransactionDirection.In)
+      .getRawMany<{ vaultId: string; movementTotal: string }>();
+    const movementByVault = new Map(rows.map((row) => [row.vaultId, Number(row.movementTotal ?? 0)]));
+
+    return this.round(
+      vaults.reduce((sum, vault) => sum + Number(vault.openingBalance ?? 0) + (movementByVault.get(vault.id) ?? 0), 0),
     );
   }
 
@@ -443,9 +474,7 @@ export class DashboardService {
 
   private toCsv(dashboard: DashboardResult, settings: { currencySymbol: string; decimalPlaces: number }) {
     const escape = (value: string | number | null) => `"${String(value ?? '').replace(/"/g, '""')}"`;
-    const metricRows = dashboard.metrics.map((metric) =>
-      [metric.label, this.formatMoney(metric.value, settings), this.formatMoney(metric.changeAmount, settings)].map(escape).join(','),
-    );
+    const metricRows = dashboard.metrics.map((metric) => [metric.label, this.formatMoney(metric.value, settings)].map(escape).join(','));
     const invoiceRows = dashboard.openInvoices.map((invoice) =>
       [
         invoice.invoiceNumber,
@@ -460,7 +489,7 @@ export class DashboardService {
         .join(','),
     );
 
-    return `\uFEFF"المؤشر","القيمة","التغير عن الفترة السابقة"\n${metricRows.join('\n')}\n\n"الفاتورة","المورد","الفرع","التاريخ","الاستحقاق","المتبقي","الحالة"\n${invoiceRows.join('\n')}`;
+    return `\uFEFF"المؤشر","القيمة"\n${metricRows.join('\n')}\n\n"الفاتورة","المورد","الفرع","التاريخ","الاستحقاق","المتبقي","الحالة"\n${invoiceRows.join('\n')}`;
   }
 
   private toPrintableHtml(dashboard: DashboardResult, settings: { currencySymbol: string; decimalPlaces: number }) {
@@ -471,7 +500,7 @@ export class DashboardService {
 <title>لوحة الإدارة</title>
 <style>body{font-family:Arial,Tahoma,sans-serif;margin:24px;color:#17212b}table{width:100%;border-collapse:collapse;font-size:12px;margin-top:14px}th,td{border:1px solid #d9e0e7;padding:8px;text-align:right}th{background:#f4f7fb}.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.card{border:1px solid #d9e0e7;border-radius:8px;padding:12px}.card span{display:block;color:#667085;font-size:12px}.card strong{font-size:18px}</style>
 </head><body><h1>لوحة الإدارة</h1><p>${escape(dashboard.filters.dateFrom)} - ${escape(dashboard.filters.dateTo)}</p>
-<section class="cards">${dashboard.metrics.map((metric) => `<div class="card"><span>${escape(metric.label)}</span><strong>${escape(this.formatMoney(metric.value, settings))}</strong><span>التغير: ${escape(this.formatMoney(metric.changeAmount, settings))}</span></div>`).join('')}</section>
+<section class="cards">${dashboard.metrics.map((metric) => `<div class="card"><span>${escape(metric.label)}</span><strong>${escape(this.formatMoney(metric.value, settings))}</strong></div>`).join('')}</section>
 <h2>الفواتير المفتوحة</h2><table><thead><tr><th>الفاتورة</th><th>المورد</th><th>الفرع</th><th>التاريخ</th><th>الاستحقاق</th><th>المتبقي</th><th>الحالة</th></tr></thead>
 <tbody>${dashboard.openInvoices.map((invoice) => `<tr><td>${escape(invoice.invoiceNumber)}</td><td>${escape(invoice.supplierName)}</td><td>${escape(invoice.branchName)}</td><td>${escape(invoice.invoiceDate)}</td><td>${escape(invoice.dueDate ?? '')}</td><td>${escape(this.formatMoney(invoice.remainingAmount, settings))}</td><td>${escape(invoice.status)}</td></tr>`).join('')}</tbody></table>
 </body></html>`;
