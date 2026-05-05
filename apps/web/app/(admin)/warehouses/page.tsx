@@ -13,8 +13,9 @@ type WarehouseRow = {
 
 const columns: DataColumn<WarehouseRow>[] = [
   { key: 'code', label: 'الكود', render: (row) => row.code },
-  { key: 'name', label: 'اسم المخزن', render: (row) => row.name },
+  { key: 'name', label: 'اسم المخزن', render: (row) => <Link className="text-link" href={`/warehouses/${row.id}`}>{row.name}</Link> },
   { key: 'isActive', label: 'الحالة', render: (row) => <StatusBadge value={row.isActive} /> },
+  { key: 'actions', label: 'إجراءات', render: (row) => <Link className="text-link" href={`/warehouses/${row.id}`}>المخزون الحالي</Link> },
 ];
 
 export default async function WarehousesPage() {
@@ -22,10 +23,14 @@ export default async function WarehousesPage() {
 
   return (
     <>
-      <PageHeader title="المخازن" description="متابعة مخازن الفروع ومراكز التخزين." />
+      <PageHeader title="المخازن" description="متابعة مخازن الفروع ومراكز التخزين مع رصيد كل مادة." />
       <div className="page-toolbar">
-        <span />
-        <Link className="primary-button" href="/warehouses/new">مخزن جديد</Link>
+        <Link className="secondary-button" href="/stock-movements">
+          حركات المخزون
+        </Link>
+        <Link className="primary-button" href="/warehouses/new">
+          مخزن جديد
+        </Link>
       </div>
       {result.error ? <p className="notice">{result.error}</p> : null}
       <DataTable columns={columns} rows={result.data} emptyTitle="لا توجد مخازن" emptyText="أضف مخزنا حتى يمكن استخدامه في فواتير الشراء والتحويلات والجرد." />

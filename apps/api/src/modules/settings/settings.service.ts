@@ -204,6 +204,7 @@ export class SettingsService {
       'branch_transfers',
       'stock_count_items',
       'stock_counts',
+      'stock_movements',
       'undo_actions',
     ];
 
@@ -382,6 +383,7 @@ export class SettingsService {
       'branch_transfers',
       'stock_count_items',
       'stock_counts',
+      'stock_movements',
     ];
     const [settings, units, itemCategories, expenseCategories, items] = await Promise.all([
       this.settingsRepository.query('SELECT * FROM settings ORDER BY sort_order ASC'),

@@ -8,6 +8,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Not, Repository } from 'typeorm';
 import { BranchesService } from '../branches/branches.service';
 import { ItemsService } from '../items/items.service';
+import { StockMovementType } from '../stock-movements/entities/stock-movement.entity';
+import { StockMovementsService } from '../stock-movements/stock-movements.service';
 import { WarehousesService } from '../warehouses/warehouses.service';
 import { CreateTransferDto } from './dto/create-transfer.dto';
 import { UpdateTransferDto } from './dto/update-transfer.dto';
@@ -24,6 +26,7 @@ export class TransfersService {
     private readonly branchesService: BranchesService,
     private readonly warehousesService: WarehousesService,
     private readonly itemsService: ItemsService,
+    private readonly stockMovementsService: StockMovementsService,
   ) {}
 
   findAll(filters: {
@@ -106,7 +109,10 @@ export class TransfersService {
       items: items.map((item) => this.transferItemRepository.create(item)),
     });
 
-    return this.transferRepository.save(transfer);
+    const savedTransfer = await this.transferRepository.save(transfer);
+    await this.syncTransferStockMovements(savedTransfer);
+
+    return savedTransfer;
   }
 
   async update(id: string, updateTransferDto: UpdateTransferDto) {
@@ -152,7 +158,46 @@ export class TransfersService {
     await this.transferItemRepository.delete({ branchTransferId: transfer.id });
     transfer.items = items.map((item) => this.transferItemRepository.create(item));
 
-    return this.transferRepository.save(transfer);
+    const savedTransfer = await this.transferRepository.save(transfer);
+    await this.syncTransferStockMovements(savedTransfer);
+
+    return savedTransfer;
+  }
+
+  private async syncTransferStockMovements(transfer: TransferEntity) {
+    if (transfer.status !== BranchTransferStatus.Completed) {
+      await this.stockMovementsService.replaceSourceMovements('branch_transfer', transfer.id, []);
+      return;
+    }
+
+    await this.stockMovementsService.replaceSourceMovements('branch_transfer', transfer.id, [
+      ...transfer.items.map((item) => ({
+        movementDate: transfer.transferDate,
+        warehouseId: transfer.fromWarehouseId,
+        itemId: item.itemId,
+        unitId: null,
+        movementType: StockMovementType.TransferOut,
+        quantityOut: item.quantity,
+        sourceType: 'branch_transfer',
+        sourceId: transfer.id,
+        sourceLineId: item.id,
+        referenceNumber: transfer.transferNumber,
+        notes: transfer.notes,
+      })),
+      ...transfer.items.map((item) => ({
+        movementDate: transfer.transferDate,
+        warehouseId: transfer.toWarehouseId,
+        itemId: item.itemId,
+        unitId: null,
+        movementType: StockMovementType.TransferIn,
+        quantityIn: item.quantity,
+        sourceType: 'branch_transfer',
+        sourceId: transfer.id,
+        sourceLineId: item.id,
+        referenceNumber: transfer.transferNumber,
+        notes: transfer.notes,
+      })),
+    ]);
   }
 
   private async validateReferences(data: CreateTransferDto) {

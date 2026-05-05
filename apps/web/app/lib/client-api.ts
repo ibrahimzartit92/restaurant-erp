@@ -23,6 +23,10 @@ function joinUrl(path: string) {
   return `/api/write${path.startsWith('/') ? path : `/${path}`}`;
 }
 
+function joinReadUrl(path: string) {
+  return `/api${path.startsWith('/') ? path : `/${path}`}`;
+}
+
 function formatBackendMessage(body: ApiErrorBody | string | null, fallbackMessage: string) {
   if (!body) {
     return fallbackMessage;
@@ -102,4 +106,19 @@ export async function submitFormData(path: string, formData: FormData) {
   await throwIfApiError(response, 'تعذر رفع الملف.');
 
   return readSuccessJson(response);
+}
+
+export async function fetchClientJson<T>(path: string, fallbackMessage = 'تعذر تحميل البيانات.') {
+  const accessToken = readAccessTokenFromDocument();
+  const response = await fetch(joinReadUrl(path), {
+    method: 'GET',
+    credentials: 'same-origin',
+    headers: {
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
+  });
+
+  await throwIfApiError(response, fallbackMessage);
+
+  return (await readSuccessJson(response)) as T;
 }

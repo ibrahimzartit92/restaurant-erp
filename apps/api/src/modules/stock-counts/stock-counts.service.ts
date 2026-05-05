@@ -7,6 +7,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Not, Repository } from 'typeorm';
 import { BranchesService } from '../branches/branches.service';
 import { ItemsService } from '../items/items.service';
+import { StockMovementType } from '../stock-movements/entities/stock-movement.entity';
+import { StockMovementsService } from '../stock-movements/stock-movements.service';
 import { WarehousesService } from '../warehouses/warehouses.service';
 import { CreateStockCountDto } from './dto/create-stock-count.dto';
 import { UpdateStockCountDto } from './dto/update-stock-count.dto';
@@ -23,6 +25,7 @@ export class StockCountsService {
     private readonly branchesService: BranchesService,
     private readonly warehousesService: WarehousesService,
     private readonly itemsService: ItemsService,
+    private readonly stockMovementsService: StockMovementsService,
   ) {}
 
   findAll(filters: {
@@ -99,7 +102,10 @@ export class StockCountsService {
       items: items.map((item) => this.stockCountItemRepository.create(item)),
     });
 
-    return this.stockCountRepository.save(stockCount);
+    const savedStockCount = await this.stockCountRepository.save(stockCount);
+    await this.syncStockCountMovements(savedStockCount);
+
+    return savedStockCount;
   }
 
   async update(id: string, updateDto: UpdateStockCountDto) {
@@ -135,7 +141,36 @@ export class StockCountsService {
     await this.stockCountItemRepository.delete({ stockCountId: stockCount.id });
     stockCount.items = items.map((item) => this.stockCountItemRepository.create(item));
 
-    return this.stockCountRepository.save(stockCount);
+    const savedStockCount = await this.stockCountRepository.save(stockCount);
+    await this.syncStockCountMovements(savedStockCount);
+
+    return savedStockCount;
+  }
+
+  private async syncStockCountMovements(stockCount: StockCountEntity) {
+    if (stockCount.status !== StockCountStatus.Completed) {
+      await this.stockMovementsService.replaceSourceMovements('stock_count', stockCount.id, []);
+      return;
+    }
+
+    const adjustments = stockCount.items
+      .filter((item) => Number(item.differenceQuantity) !== 0)
+      .map((item) => ({
+        movementDate: stockCount.countDate,
+        warehouseId: stockCount.warehouseId,
+        itemId: item.itemId,
+        unitId: null,
+        movementType: StockMovementType.StockCountAdjustment,
+        quantityIn: item.differenceQuantity > 0 ? item.differenceQuantity : 0,
+        quantityOut: item.differenceQuantity < 0 ? Math.abs(item.differenceQuantity) : 0,
+        sourceType: 'stock_count',
+        sourceId: stockCount.id,
+        sourceLineId: item.id,
+        referenceNumber: stockCount.countNumber,
+        notes: item.notes ?? stockCount.notes,
+      }));
+
+    await this.stockMovementsService.replaceSourceMovements('stock_count', stockCount.id, adjustments);
   }
 
   private async validateReferences(branchId: string, warehouseId: string) {

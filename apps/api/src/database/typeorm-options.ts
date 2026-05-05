@@ -27,6 +27,7 @@ import { SupplierPaymentEntity } from '../modules/supplier-payments/entities/sup
 import { SupplierEntity } from '../modules/suppliers/entities/supplier.entity';
 import { StockCountItemEntity } from '../modules/stock-counts/entities/stock-count-item.entity';
 import { StockCountEntity } from '../modules/stock-counts/entities/stock-count.entity';
+import { StockMovementEntity } from '../modules/stock-movements/entities/stock-movement.entity';
 import { UnitEntity } from '../modules/units/entities/unit.entity';
 import { UndoActionEntity } from '../modules/undo-actions/entities/undo-action.entity';
 import { UserEntity } from '../modules/users/entities/user.entity';
@@ -65,6 +66,7 @@ export const databaseEntities = [
   SupplierRepresentativeEntity,
   StockCountEntity,
   StockCountItemEntity,
+  StockMovementEntity,
   TransferEntity,
   BranchTransferItemEntity,
   UnitEntity,

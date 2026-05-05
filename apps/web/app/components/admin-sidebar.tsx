@@ -53,6 +53,7 @@ const navigationSections: NavigationSection[] = [
       { href: '/items', label: 'المواد', mark: 'و', permissionCodes: ['view_items'] },
       { href: '/units', label: 'وحدات القياس', mark: 'ق' },
       { href: '/warehouses', label: 'المخازن', mark: 'خ', permissionCodes: ['view_warehouses'] },
+      { href: '/stock-movements', label: 'حركات المخزون', mark: 'ح' },
       { href: '/transfers', label: 'التحويل بين الفروع', mark: 'ت' },
       { href: '/stock-counts', label: 'الجرد', mark: 'ج' },
     ],

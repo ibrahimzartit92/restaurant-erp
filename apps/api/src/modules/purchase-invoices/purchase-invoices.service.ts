@@ -6,6 +6,8 @@ import { ItemEntity } from '../items/entities/item.entity';
 import { PurchaseInvoiceItemEntity } from '../purchase-invoice-items/entities/purchase-invoice-item.entity';
 import { SupplierRepresentativeEntity } from '../supplier-representatives/entities/supplier-representative.entity';
 import { SupplierPaymentsService } from '../supplier-payments/supplier-payments.service';
+import { StockMovementType } from '../stock-movements/entities/stock-movement.entity';
+import { StockMovementsService } from '../stock-movements/stock-movements.service';
 import { SupplierEntity } from '../suppliers/entities/supplier.entity';
 import { WarehouseEntity } from '../warehouses/entities/warehouse.entity';
 import { CreatePurchaseInvoiceDto } from './dto/create-purchase-invoice.dto';
@@ -39,6 +41,7 @@ export class PurchaseInvoicesService {
     @InjectRepository(ItemEntity)
     private readonly itemRepository: Repository<ItemEntity>,
     private readonly supplierPaymentsService: SupplierPaymentsService,
+    private readonly stockMovementsService: StockMovementsService,
   ) {}
 
   findAll(filters: PurchaseInvoiceFilters) {
@@ -177,7 +180,25 @@ export class PurchaseInvoicesService {
         }),
       );
 
-      await itemRepository.save(lines);
+      const savedLines = await itemRepository.save(lines);
+      await this.stockMovementsService.replaceSourceMovements(
+        'purchase_invoice',
+        savedInvoice.id,
+        savedLines.map((line) => ({
+          movementDate: savedInvoice.invoiceDate,
+          warehouseId: savedInvoice.warehouseId,
+          itemId: line.itemId,
+          unitId: null,
+          movementType: StockMovementType.PurchaseIn,
+          quantityIn: line.quantity,
+          sourceType: 'purchase_invoice',
+          sourceId: savedInvoice.id,
+          sourceLineId: line.id,
+          referenceNumber: savedInvoice.invoiceNumber,
+          notes: savedInvoice.notes,
+        })),
+        manager,
+      );
 
       return invoiceRepository.findOneOrFail({
         where: { id: savedInvoice.id },
@@ -244,6 +265,7 @@ export class PurchaseInvoicesService {
     }
 
     await this.dataSource.transaction(async (manager) => {
+      await this.stockMovementsService.replaceSourceMovements('purchase_invoice', invoice.id, [], manager);
       await manager.getRepository(PurchaseInvoiceItemEntity).delete({ purchaseInvoiceId: invoice.id });
       await manager.getRepository(PurchaseInvoiceEntity).remove(invoice);
     });
@@ -271,6 +293,7 @@ export class PurchaseInvoicesService {
         await this.supplierPaymentsService.reversePaymentsForInvoice(invoice.id, manager, vaultId);
       }
 
+      await this.stockMovementsService.replaceSourceMovements('purchase_invoice', invoice.id, [], manager);
       invoice.status = PurchaseInvoiceStatus.Cancelled;
       invoice.remainingAmount = 0;
 

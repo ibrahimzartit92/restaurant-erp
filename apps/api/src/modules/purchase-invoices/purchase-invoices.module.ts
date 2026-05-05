@@ -6,6 +6,7 @@ import { PurchaseInvoiceItemEntity } from '../purchase-invoice-items/entities/pu
 import { SupplierRepresentativeEntity } from '../supplier-representatives/entities/supplier-representative.entity';
 import { SupplierPaymentsModule } from '../supplier-payments/supplier-payments.module';
 import { SupplierEntity } from '../suppliers/entities/supplier.entity';
+import { StockMovementsModule } from '../stock-movements/stock-movements.module';
 import { WarehouseEntity } from '../warehouses/entities/warehouse.entity';
 import { PurchaseInvoiceEntity } from './entities/purchase-invoice.entity';
 import { PurchaseInvoicesController } from './purchase-invoices.controller';
@@ -23,6 +24,7 @@ import { PurchaseInvoicesService } from './purchase-invoices.service';
       WarehouseEntity,
     ]),
     SupplierPaymentsModule,
+    StockMovementsModule,
   ],
   controllers: [PurchaseInvoicesController],
   providers: [PurchaseInvoicesService],

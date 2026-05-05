@@ -2,14 +2,23 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestj
 import { CreateWarehouseDto } from './dto/create-warehouse.dto';
 import { UpdateWarehouseDto } from './dto/update-warehouse.dto';
 import { WarehousesService } from './warehouses.service';
+import { StockMovementsService } from '../stock-movements/stock-movements.service';
 
 @Controller('warehouses')
 export class WarehousesController {
-  constructor(private readonly warehousesService: WarehousesService) {}
+  constructor(
+    private readonly warehousesService: WarehousesService,
+    private readonly stockMovementsService: StockMovementsService,
+  ) {}
 
   @Get()
   findAll(@Query('search') search?: string) {
     return this.warehousesService.findAll(search);
+  }
+
+  @Get(':id/current-stock')
+  currentStock(@Param('id') id: string) {
+    return this.stockMovementsService.currentStock(id);
   }
 
   @Get(':id')

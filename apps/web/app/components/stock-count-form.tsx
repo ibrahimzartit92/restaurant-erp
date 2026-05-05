@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { submitJson } from '../lib/client-api';
+import { fetchClientJson, submitJson } from '../lib/client-api';
 import type {
   BranchOption,
   ItemOption,
@@ -59,6 +59,7 @@ export function StockCountForm({
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [warehouseStock, setWarehouseStock] = useState<Record<string, number>>({});
   const [countItems, setCountItems] = useState<StockCountItemDraft[]>(
     initialStockCount?.items.length
       ? initialStockCount.items.map((item) => ({
@@ -99,7 +100,32 @@ export function StockCountForm({
     updateCountItem(index, {
       itemLabel,
       itemId: matchedItem?.id ?? '',
+      systemQuantity: matchedItem?.id ? String(warehouseStock[matchedItem.id] ?? 0) : '0',
     });
+  }
+
+  async function loadWarehouseStock(warehouseId: string) {
+    if (!warehouseId) {
+      setWarehouseStock({});
+      return;
+    }
+
+    try {
+      const rows = await fetchClientJson<{ itemId: string; quantity: string | number }[]>(
+        `/stock-movements/current-stock?warehouseId=${warehouseId}`,
+        'تعذر تحميل الرصيد النظري للمخزن.',
+      );
+      const nextStock = Object.fromEntries(rows.map((row) => [row.itemId, Number(row.quantity ?? 0)]));
+      setWarehouseStock(nextStock);
+      setCountItems((currentItems) =>
+        currentItems.map((item) => ({
+          ...item,
+          systemQuantity: item.itemId ? String(nextStock[item.itemId] ?? 0) : item.systemQuantity,
+        })),
+      );
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'تعذر تحميل الرصيد النظري للمخزن.');
+    }
   }
 
   function addCountItem() {
@@ -210,7 +236,12 @@ export function StockCountForm({
         </label>
         <label>
           المخزن
-          <select defaultValue={initialStockCount?.warehouseId ?? ''} name="warehouseId" required>
+          <select
+            defaultValue={initialStockCount?.warehouseId ?? ''}
+            name="warehouseId"
+            onChange={(event) => loadWarehouseStock(event.target.value)}
+            required
+          >
             <option value="">اختر المخزن</option>
             {warehouses.map((warehouse) => (
               <option key={warehouse.id} value={warehouse.id}>
@@ -218,6 +249,7 @@ export function StockCountForm({
               </option>
             ))}
           </select>
+          <small className="field-hint">يتم تحميل الكمية النظرية الحالية عند اختيار المخزن.</small>
         </label>
         <label>
           الحالة

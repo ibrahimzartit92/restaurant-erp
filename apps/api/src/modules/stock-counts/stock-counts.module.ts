@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BranchesModule } from '../branches/branches.module';
 import { ItemsModule } from '../items/items.module';
+import { StockMovementsModule } from '../stock-movements/stock-movements.module';
 import { WarehousesModule } from '../warehouses/warehouses.module';
 import { StockCountItemEntity } from './entities/stock-count-item.entity';
 import { StockCountEntity } from './entities/stock-count.entity';
@@ -14,6 +15,7 @@ import { StockCountsService } from './stock-counts.service';
     BranchesModule,
     WarehousesModule,
     ItemsModule,
+    StockMovementsModule,
   ],
   controllers: [StockCountsController],
   providers: [StockCountsService],

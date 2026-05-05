@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BranchesModule } from '../branches/branches.module';
 import { ItemsModule } from '../items/items.module';
+import { StockMovementsModule } from '../stock-movements/stock-movements.module';
 import { WarehousesModule } from '../warehouses/warehouses.module';
 import { TransfersController } from './transfers.controller';
 import { TransfersService } from './transfers.service';
@@ -14,6 +15,7 @@ import { TransferEntity } from './entities/transfer.entity';
     BranchesModule,
     WarehousesModule,
     ItemsModule,
+    StockMovementsModule,
   ],
   controllers: [TransfersController],
   providers: [TransfersService],
