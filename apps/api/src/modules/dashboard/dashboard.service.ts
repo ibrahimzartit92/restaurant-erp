@@ -10,7 +10,7 @@ import { BranchEntity } from '../branches/entities/branch.entity';
 import { DailySaleEntity } from '../daily-sales/entities/daily-sale.entity';
 import { ExpenseEntity } from '../expenses/entities/expense.entity';
 import { PayrollRecordEntity } from '../payroll/entities/payroll-record.entity';
-import { PurchaseInvoiceEntity } from '../purchase-invoices/entities/purchase-invoice.entity';
+import { PurchaseInvoiceEntity, PurchaseInvoiceStatus } from '../purchase-invoices/entities/purchase-invoice.entity';
 import { SettingsService } from '../settings/settings.service';
 import {
   VaultTransactionDirection,
@@ -92,8 +92,9 @@ export class DashboardService {
     const netAfterPurchases = operatingNet - totals.purchases;
     const previousNetAfterPurchases = previousOperatingNet - previousTotals.purchases;
     const supplierDue = openInvoices.reduce((sum, invoice) => sum + invoice.remainingAmount, 0);
+    const openPurchaseInvoiceStatuses = [PurchaseInvoiceStatus.Open, PurchaseInvoiceStatus.PartiallyPaid];
     const previousSupplierDue = previousData.invoices
-      .filter((invoice) => ['open', 'partially_paid'].includes(invoice.status))
+      .filter((invoice) => openPurchaseInvoiceStatuses.includes(invoice.status))
       .reduce((sum, invoice) => sum + Number(invoice.remainingAmount ?? 0), 0);
 
     return {
@@ -207,7 +208,9 @@ export class DashboardService {
       .createQueryBuilder('invoice')
       .leftJoinAndSelect('invoice.branch', 'branch')
       .leftJoinAndSelect('invoice.supplier', 'supplier')
-      .where('invoice.status IN (:...statuses)', { statuses: ['open', 'unpaid', 'partially_paid'] })
+      .where('invoice.status IN (:...statuses)', {
+        statuses: [PurchaseInvoiceStatus.Open, PurchaseInvoiceStatus.PartiallyPaid],
+      })
       .andWhere('invoice.remaining_amount > 0')
       .orderBy('invoice.dueDate', 'ASC', 'NULLS LAST')
       .addOrderBy('invoice.invoiceDate', 'ASC');
