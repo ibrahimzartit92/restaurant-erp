@@ -1,6 +1,14 @@
+import { redirect } from 'next/navigation';
 import { LoginForm } from '../components/login-form';
+import { getCurrentUser } from '../lib/server-auth';
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  const currentUser = await getCurrentUser();
+
+  if (currentUser) {
+    redirect('/');
+  }
+
   return (
     <main className="login-page">
       <section className="login-panel" aria-label="تسجيل الدخول">

@@ -1,6 +1,6 @@
 import { ItemForm } from '../../../../components/core-crud-forms';
 import { PageHeader } from '../../../../components/page-header';
-import { fetchList, fetchOne } from '../../../../lib/api';
+import { fetchList, fetchOne, getCurrencySettings } from '../../../../lib/api';
 import type { ItemCategoryOption, ItemOption, UnitOption } from '../../../../lib/types';
 
 type ItemDetails = ItemOption & {
@@ -13,10 +13,11 @@ type ItemDetails = ItemOption & {
 
 export default async function EditItemPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [item, categories, units] = await Promise.all([
+  const [item, categories, units, currency] = await Promise.all([
     fetchOne<ItemDetails>(`/items/${id}`),
     fetchList<ItemCategoryOption>('/item-categories'),
     fetchList<UnitOption>('/units'),
+    getCurrencySettings(),
   ]);
 
   return (
@@ -25,7 +26,9 @@ export default async function EditItemPage({ params }: { params: Promise<{ id: s
       {item.error ? <p className="notice">{item.error}</p> : null}
       {categories.error ? <p className="notice">{categories.error}</p> : null}
       {units.error ? <p className="notice">{units.error}</p> : null}
-      {item.data ? <ItemForm categories={categories.data} units={units.data} initialItem={item.data} /> : null}
+      {item.data ? (
+        <ItemForm categories={categories.data} units={units.data} initialItem={item.data} currencySymbol={currency.currencySymbol} />
+      ) : null}
     </>
   );
 }

@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { submitJson } from '../lib/client-api';
+import { formatMoneyWithCurrency } from '../lib/money';
 import type { BranchOption, BranchTransferSummary, ItemOption, WarehouseOption } from '../lib/types';
 
 type PriceType = 'purchase' | 'cost' | 'sale';
@@ -66,12 +67,16 @@ export function BranchTransferForm({
   warehouses,
   items,
   initialTransfer,
+  currencySymbol = 'ر.س',
+  decimalPlaces = 2,
 }: Readonly<{
   mode: 'create' | 'edit';
   branches: BranchOption[];
   warehouses: WarehouseOption[];
   items: ItemOption[];
   initialTransfer?: BranchTransferSummary | null;
+  currencySymbol?: string;
+  decimalPlaces?: number;
 }>) {
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
@@ -307,7 +312,7 @@ export function BranchTransferForm({
                   </label>
                   <label>
                     الإجمالي
-                    <input disabled type="text" value={lineTotal.toFixed(2)} />
+                    <input disabled type="text" value={formatMoneyWithCurrency(lineTotal, currencySymbol, decimalPlaces)} />
                   </label>
                 </div>
 
@@ -334,7 +339,7 @@ export function BranchTransferForm({
         </article>
         <article className="summary-card">
           <p>إجمالي تكلفة التحويل</p>
-          <strong>{totalCostAmount.toFixed(2)}</strong>
+          <strong>{formatMoneyWithCurrency(totalCostAmount, currencySymbol, decimalPlaces)}</strong>
           <span>مجموع تكلفة جميع المواد</span>
         </article>
       </section>

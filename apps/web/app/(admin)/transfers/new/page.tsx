@@ -1,19 +1,20 @@
 import { BranchTransferForm } from '../../../components/branch-transfer-form';
 import { PageHeader } from '../../../components/page-header';
-import { fetchList } from '../../../lib/api';
+import { fetchList, getCurrencySettings } from '../../../lib/api';
 import type { BranchOption, ItemOption, WarehouseOption } from '../../../lib/types';
 
 export default async function NewTransferPage() {
-  const [branchesResult, warehousesResult, itemsResult] = await Promise.all([
+  const [branchesResult, warehousesResult, itemsResult, currencySettings] = await Promise.all([
     fetchList<BranchOption>('/branches'),
     fetchList<WarehouseOption>('/warehouses'),
     fetchList<ItemOption>('/items'),
+    getCurrencySettings(),
   ]);
 
   return (
     <>
       <PageHeader
-        title="صفحة إضافة تحويل جديد"
+        title="إضافة تحويل جديد"
         description="سجل تحويل مواد بين فرعين مع تحديد المخزن المصدر والمستهدف والمواد والكميات والتكلفة."
       />
       {branchesResult.error || warehousesResult.error || itemsResult.error ? (
@@ -24,6 +25,8 @@ export default async function NewTransferPage() {
         items={itemsResult.data}
         mode="create"
         warehouses={warehousesResult.data}
+        currencySymbol={currencySettings.currencySymbol}
+        decimalPlaces={currencySettings.decimalPlaces}
       />
     </>
   );

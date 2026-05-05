@@ -1,4 +1,5 @@
 import type { UserSummary } from '../lib/types';
+import { LogoutButton } from './logout-button';
 
 export function TopHeader({ currentUser }: Readonly<{ currentUser: UserSummary | null }>) {
   return (
@@ -16,6 +17,7 @@ export function TopHeader({ currentUser }: Readonly<{ currentUser: UserSummary |
           <span className="user-avatar">{currentUser?.fullName?.slice(0, 1) ?? 'إ'}</span>
           <span>{currentUser?.fullName ?? 'الإدارة'}</span>
         </div>
+        <LogoutButton />
       </div>
     </header>
   );

@@ -2,6 +2,9 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { InjectRepository } from '@nestjs/typeorm';
 import { ILike, Not, Repository } from 'typeorm';
 import { ItemCategoriesService } from '../item-categories/item-categories.service';
+import { PurchaseInvoiceItemEntity } from '../purchase-invoice-items/entities/purchase-invoice-item.entity';
+import { StockCountItemEntity } from '../stock-counts/entities/stock-count-item.entity';
+import { BranchTransferItemEntity } from '../transfers/entities/transfer-item.entity';
 import { UnitsService } from '../units/units.service';
 import { CreateItemDto } from './dto/create-item.dto';
 import { UpdateItemDto } from './dto/update-item.dto';
@@ -12,6 +15,12 @@ export class ItemsService {
   constructor(
     @InjectRepository(ItemEntity)
     private readonly itemRepository: Repository<ItemEntity>,
+    @InjectRepository(PurchaseInvoiceItemEntity)
+    private readonly purchaseInvoiceItemRepository: Repository<PurchaseInvoiceItemEntity>,
+    @InjectRepository(BranchTransferItemEntity)
+    private readonly branchTransferItemRepository: Repository<BranchTransferItemEntity>,
+    @InjectRepository(StockCountItemEntity)
+    private readonly stockCountItemRepository: Repository<StockCountItemEntity>,
     private readonly itemCategoriesService: ItemCategoriesService,
     private readonly unitsService: UnitsService,
   ) {}
@@ -103,9 +112,27 @@ export class ItemsService {
 
   async remove(id: string) {
     const item = await this.findByIdOrFail(id);
+    const [invoiceLines, transferLines, stockCountLines] = await Promise.all([
+      this.purchaseInvoiceItemRepository.count({ where: { itemId: id } }),
+      this.branchTransferItemRepository.count({ where: { itemId: id } }),
+      this.stockCountItemRepository.count({ where: { itemId: id } }),
+    ]);
+
+    if (invoiceLines > 0 || transferLines > 0 || stockCountLines > 0) {
+      item.isActive = false;
+      await this.itemRepository.save(item);
+
+      return {
+        id,
+        deleted: false,
+        deactivated: true,
+        message: 'المادة مرتبطة بسجلات سابقة، لذلك تم تعطيلها بدلا من حذفها حفاظا على التاريخ.',
+      };
+    }
+
     await this.itemRepository.remove(item);
 
-    return { id };
+    return { id, deleted: true, deactivated: false };
   }
 
   private async ensureCodeIsAvailable(code: string, currentId?: string) {

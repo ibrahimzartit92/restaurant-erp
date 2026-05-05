@@ -2199,6 +2199,40 @@ tr:last-child td {
   color: #b91c1c;
 }
 
+.sr-only {
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  width: 1px;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.price-autosave-cell {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 132px;
+}
+
+.price-autosave-cell input {
+  max-width: 132px;
+}
+
+.price-autosave-cell small,
+.price-autosave-cell em {
+  color: #64748b;
+  font-size: 12px;
+  font-style: normal;
+}
+
+.price-autosave-cell .danger-text {
+  color: #b91c1c;
+}
+
 @media (max-width: 560px) {
   .summary-grid,
   .quick-actions,

@@ -1,6 +1,6 @@
 import { PurchaseInvoiceForm } from '../../../components/core-crud-forms';
 import { PageHeader } from '../../../components/page-header';
-import { fetchList } from '../../../lib/api';
+import { fetchList, getCurrencySettings } from '../../../lib/api';
 import type {
   BankAccountOption,
   BranchOption,
@@ -12,7 +12,7 @@ import type {
 } from '../../../lib/types';
 
 export default async function NewPurchaseInvoicePage() {
-  const [branches, warehouses, suppliers, items, drawers, bankAccounts, vaults] = await Promise.all([
+  const [branches, warehouses, suppliers, items, drawers, bankAccounts, vaults, currencySettings] = await Promise.all([
     fetchList<BranchOption>('/branches'),
     fetchList<WarehouseOption>('/warehouses'),
     fetchList<SupplierOption>('/suppliers'),
@@ -20,6 +20,7 @@ export default async function NewPurchaseInvoicePage() {
     fetchList<DrawerOption>('/drawers'),
     fetchList<BankAccountOption>('/bank-accounts'),
     fetchList<VaultOption>('/vaults'),
+    getCurrencySettings(),
   ]);
 
   return (
@@ -40,6 +41,8 @@ export default async function NewPurchaseInvoicePage() {
         drawers={drawers.data}
         bankAccounts={bankAccounts.data}
         vaults={vaults.data}
+        currencySymbol={currencySettings.currencySymbol}
+        decimalPlaces={currencySettings.decimalPlaces}
       />
     </>
   );

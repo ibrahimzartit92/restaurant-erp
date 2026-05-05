@@ -31,4 +31,9 @@ export class ItemsController {
   remove(@Param('id') id: string) {
     return this.itemsService.remove(id);
   }
+
+  @Post(':id/delete')
+  removeViaPost(@Param('id') id: string) {
+    return this.itemsService.remove(id);
+  }
 }

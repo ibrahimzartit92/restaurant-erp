@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { submitJson } from '../lib/client-api';
+import { formatMoneyWithCurrency } from '../lib/money';
 import type {
   BankAccountOption,
   BranchOption,
@@ -307,9 +308,11 @@ export function ItemForm({
   categories,
   units,
   initialItem,
+  currencySymbol = 'ر.س',
 }: Readonly<{
   categories: ItemCategoryOption[];
   units: UnitOption[];
+  currencySymbol?: string;
   initialItem?: (ItemOption & {
     categoryId?: string;
     category?: ItemCategoryOption | null;
@@ -381,14 +384,17 @@ export function ItemForm({
         <label>
           سعر الشراء
           <input name="purchasePrice" type="number" min="0" step="0.01" defaultValue={initialItem?.purchasePrice ?? initialItem?.initialPrice ?? 0} />
+          <small className="field-hint">العملة المستخدمة: {currencySymbol}</small>
         </label>
         <label>
           سعر التكلفة
           <input name="costPrice" type="number" min="0" step="0.01" defaultValue={initialItem?.costPrice ?? 0} />
+          <small className="field-hint">العملة المستخدمة: {currencySymbol}</small>
         </label>
         <label>
           سعر البيع
           <input name="salePrice" type="number" min="0" step="0.01" defaultValue={initialItem?.salePrice ?? 0} />
+          <small className="field-hint">العملة المستخدمة: {currencySymbol}</small>
         </label>
         <label className="checkbox-field">
           <input name="isActive" type="checkbox" defaultChecked={initialItem?.isActive ?? true} />
@@ -452,6 +458,8 @@ export function PurchaseInvoiceForm({
   drawers,
   bankAccounts,
   vaults,
+  currencySymbol = 'ر.س',
+  decimalPlaces = 2,
 }: Readonly<{
   branches: BranchOption[];
   warehouses: WarehouseOption[];
@@ -460,6 +468,8 @@ export function PurchaseInvoiceForm({
   drawers: DrawerOption[];
   bankAccounts: BankAccountOption[];
   vaults: VaultOption[];
+  currencySymbol?: string;
+  decimalPlaces?: number;
 }>) {
   const router = useRouter();
   const [message, setMessage] = useState<MessageState>(null);
@@ -666,7 +676,7 @@ export function PurchaseInvoiceForm({
                 </label>
                 <label>
                   الإجمالي
-                  <input disabled value={(Number(line.quantity || 0) * Number(line.unitPrice || 0)).toFixed(2)} />
+                  <input disabled value={formatMoneyWithCurrency(Number(line.quantity || 0) * Number(line.unitPrice || 0), currencySymbol, decimalPlaces)} />
                 </label>
               </div>
               <div className="transfer-item-meta">

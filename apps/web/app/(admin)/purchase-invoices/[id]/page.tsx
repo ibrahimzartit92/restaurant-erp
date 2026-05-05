@@ -5,7 +5,7 @@ import { PageHeader } from '../../../components/page-header';
 import { PurchaseInvoiceActions } from '../../../components/purchase-invoice-actions';
 import { PurchaseInvoicePaymentPanel } from '../../../components/purchase-invoice-payment-panel';
 import { StatusBadge } from '../../../components/status-badge';
-import { fetchList, fetchOne, formatDate, formatMoney, getCurrencySettings } from '../../../lib/api';
+import { fetchList, fetchOne, formatDate, getMoneyFormatter, getCurrencySettings } from '../../../lib/api';
 import type { AttachmentSummary, BankAccountOption, DrawerOption, VaultOption } from '../../../lib/types';
 
 type PurchaseInvoiceDetails = {
@@ -43,38 +43,21 @@ type PurchaseInvoiceDetails = {
     bankAccount?: { name: string } | null;
     vault?: { name: string } | null;
     referenceNumber?: string | null;
-    notes?: string | null;
   }[];
 };
 
-const itemColumns: DataColumn<PurchaseInvoiceDetails['items'][number]>[] = [
-  { key: 'code', label: 'كود المادة', render: (row) => row.item?.code ?? 'غير محدد' },
-  { key: 'name', label: 'المادة', render: (row) => row.item?.name ?? 'غير محدد' },
-  { key: 'quantity', label: 'الكمية', render: (row) => row.quantity },
-  { key: 'unitPrice', label: 'سعر الوحدة', render: (row) => formatMoney(row.unitPrice) },
-  { key: 'lineTotal', label: 'الإجمالي', render: (row) => formatMoney(row.lineTotal) },
-  { key: 'notes', label: 'ملاحظات', render: (row) => row.notes ?? 'بدون ملاحظات' },
-];
-
-const paymentColumns: DataColumn<PurchaseInvoiceDetails['payments'][number]>[] = [
-  { key: 'paymentNumber', label: 'رقم الدفعة', render: (row) => row.paymentNumber },
-  { key: 'paymentDate', label: 'التاريخ', render: (row) => formatDate(row.paymentDate) },
-  { key: 'amount', label: 'المبلغ', render: (row) => formatMoney(row.amount) },
-  { key: 'paymentMethod', label: 'الطريقة', render: (row) => <StatusBadge value={row.paymentMethod} /> },
-  { key: 'source', label: 'المصدر', render: (row) => row.drawer?.name ?? row.bankAccount?.name ?? row.vault?.name ?? 'غير محدد' },
-  { key: 'referenceNumber', label: 'المرجع', render: (row) => row.referenceNumber ?? 'غير محدد' },
-];
-
 export default async function PurchaseInvoiceDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [invoiceResult, attachmentsResult, drawersResult, bankAccountsResult, vaultsResult, currencySettings] = await Promise.all([
-    fetchOne<PurchaseInvoiceDetails>(`/purchase-invoices/${id}`),
-    fetchList<AttachmentSummary>(`/attachments?entity_type=purchase_invoice&entity_id=${id}`),
-    fetchList<DrawerOption>('/drawers'),
-    fetchList<BankAccountOption>('/bank-accounts'),
-    fetchList<VaultOption>('/vaults'),
-    getCurrencySettings(),
-  ]);
+  const [invoiceResult, attachmentsResult, drawersResult, bankAccountsResult, vaultsResult, currencySettings, formatMoney] =
+    await Promise.all([
+      fetchOne<PurchaseInvoiceDetails>(`/purchase-invoices/${id}`),
+      fetchList<AttachmentSummary>(`/attachments?entity_type=purchase_invoice&entity_id=${id}`),
+      fetchList<DrawerOption>('/drawers'),
+      fetchList<BankAccountOption>('/bank-accounts'),
+      fetchList<VaultOption>('/vaults'),
+      getCurrencySettings(),
+      getMoneyFormatter(),
+    ]);
 
   if (!invoiceResult.data) {
     notFound();
@@ -82,6 +65,22 @@ export default async function PurchaseInvoiceDetailsPage({ params }: { params: P
 
   const invoice = invoiceResult.data;
   const isCancelled = invoice.status === 'cancelled';
+  const itemColumns: DataColumn<PurchaseInvoiceDetails['items'][number]>[] = [
+    { key: 'code', label: 'كود المادة', render: (row) => row.item?.code ?? 'غير محدد' },
+    { key: 'name', label: 'المادة', render: (row) => row.item?.name ?? 'غير محدد' },
+    { key: 'quantity', label: 'الكمية', render: (row) => row.quantity },
+    { key: 'unitPrice', label: 'سعر الوحدة', render: (row) => formatMoney(row.unitPrice) },
+    { key: 'lineTotal', label: 'الإجمالي', render: (row) => formatMoney(row.lineTotal) },
+    { key: 'notes', label: 'ملاحظات', render: (row) => row.notes ?? 'بدون ملاحظات' },
+  ];
+  const paymentColumns: DataColumn<PurchaseInvoiceDetails['payments'][number]>[] = [
+    { key: 'paymentNumber', label: 'رقم الدفعة', render: (row) => row.paymentNumber },
+    { key: 'paymentDate', label: 'التاريخ', render: (row) => formatDate(row.paymentDate) },
+    { key: 'amount', label: 'المبلغ', render: (row) => formatMoney(row.amount) },
+    { key: 'paymentMethod', label: 'الطريقة', render: (row) => <StatusBadge value={row.paymentMethod} /> },
+    { key: 'source', label: 'المصدر', render: (row) => row.drawer?.name ?? row.bankAccount?.name ?? row.vault?.name ?? 'غير محدد' },
+    { key: 'referenceNumber', label: 'المرجع', render: (row) => row.referenceNumber ?? 'غير محدد' },
+  ];
 
   return (
     <>
@@ -105,9 +104,7 @@ export default async function PurchaseInvoiceDetailsPage({ params }: { params: P
         </article>
         <article className="summary-card">
           <p>حالة الفاتورة</p>
-          <strong>
-            <StatusBadge value={invoice.status} />
-          </strong>
+          <strong><StatusBadge value={invoice.status} /></strong>
           <span>{invoice.invoiceNumber}</span>
         </article>
       </section>
@@ -138,11 +135,7 @@ export default async function PurchaseInvoiceDetailsPage({ params }: { params: P
               <span>إجراءات الفاتورة منفصلة عن إجراءات الدفع.</span>
             </div>
           </div>
-          <PurchaseInvoiceActions
-            invoiceId={invoice.id}
-            hasPayments={invoice.payments.length > 0 || Number(invoice.paidAmount) > 0}
-            isCancelled={isCancelled}
-          />
+          <PurchaseInvoiceActions invoiceId={invoice.id} hasPayments={invoice.payments.length > 0 || Number(invoice.paidAmount) > 0} isCancelled={isCancelled} />
         </article>
       </section>
 

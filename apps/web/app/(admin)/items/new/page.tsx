@@ -1,12 +1,13 @@
 import { ItemForm } from '../../../components/core-crud-forms';
 import { PageHeader } from '../../../components/page-header';
-import { fetchList } from '../../../lib/api';
+import { fetchList, getCurrencySettings } from '../../../lib/api';
 import type { ItemCategoryOption, UnitOption } from '../../../lib/types';
 
 export default async function NewItemPage() {
-  const [categories, units] = await Promise.all([
+  const [categories, units, currency] = await Promise.all([
     fetchList<ItemCategoryOption>('/item-categories'),
     fetchList<UnitOption>('/units'),
+    getCurrencySettings(),
   ]);
 
   return (
@@ -17,7 +18,7 @@ export default async function NewItemPage() {
       />
       {categories.error ? <p className="notice">{categories.error}</p> : null}
       {units.error ? <p className="notice">{units.error}</p> : null}
-      <ItemForm categories={categories.data} units={units.data} />
+      <ItemForm categories={categories.data} units={units.data} currencySymbol={currency.currencySymbol} />
     </>
   );
 }

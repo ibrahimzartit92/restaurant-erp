@@ -2,7 +2,6 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { buildClientApiUrl } from '../lib/api-url';
 import { clearAccessTokenFromDocument, writeAccessTokenToDocument } from '../lib/auth';
 import { throwIfApiError } from '../lib/client-api';
 
@@ -21,7 +20,7 @@ export function LoginForm() {
     try {
       clearAccessTokenFromDocument();
 
-      const response = await fetch(buildClientApiUrl('/auth/login'), {
+      const response = await fetch('/api/auth/login', {
         method: 'POST',
         credentials: 'same-origin',
         headers: {
@@ -52,20 +51,18 @@ export function LoginForm() {
 
       <label>
         اسم المستخدم أو البريد الإلكتروني
-        <input name="login" type="text" placeholder="admin أو admin@example.com" required />
+        <input name="login" type="text" placeholder="admin" required />
       </label>
       <label>
         كلمة المرور
-        <input name="password" type="password" placeholder="••••••••" required />
+        <input name="password" type="password" placeholder="********" required />
       </label>
       <button type="submit" disabled={isSubmitting}>
         {isSubmitting ? 'جار تسجيل الدخول...' : 'دخول'}
       </button>
-      <LinkHint />
+      <span className="login-hint">
+        الحساب الافتراضي لأول دخول هو admin / admin، ويمكن تغييره لاحقا من إدارة المستخدمين.
+      </span>
     </form>
   );
-}
-
-function LinkHint() {
-  return <span className="login-hint">بعد تسجيل الدخول ستظهر الصفحات المحمية حسب الصلاحيات الممنوحة للحساب.</span>;
 }

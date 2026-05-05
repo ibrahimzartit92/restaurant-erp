@@ -178,6 +178,71 @@ export class SettingsService {
     return { status: 'success', message: 'تمت استعادة النسخة الاحتياطية بنجاح.' };
   }
 
+  async resetOperationalData(body: { confirmation?: string }) {
+    if (body?.confirmation !== 'RESET') {
+      throw new BadRequestException('اكتب RESET لتأكيد إعادة ضبط البيانات التشغيلية.');
+    }
+
+    const backup = await this.createManualBackupSnapshot();
+    const operationalTables = [
+      'attachments',
+      'supplier_payments',
+      'purchase_invoice_items',
+      'purchase_invoices',
+      'expenses',
+      'daily_sales',
+      'drawer_transactions',
+      'drawer_daily_sessions',
+      'bank_account_transactions',
+      'vault_transactions',
+      'payroll_payments',
+      'payroll_records',
+      'employee_advances',
+      'employee_penalties',
+      'attendance_files',
+      'branch_transfer_items',
+      'branch_transfers',
+      'stock_count_items',
+      'stock_counts',
+      'undo_actions',
+    ];
+
+    await this.settingsRepository.manager.transaction(async (entityManager) => {
+      const existingTables = await entityManager.query<{ table_name: string }[]>(
+        `
+          SELECT table_name
+          FROM information_schema.tables
+          WHERE table_schema = 'public'
+            AND table_name = ANY($1)
+        `,
+        [operationalTables],
+      );
+      const tablesToReset = operationalTables.filter((table) =>
+        existingTables.some((row) => row.table_name === table),
+      );
+
+      if (tablesToReset.length === 0) {
+        return;
+      }
+
+      const tableSql = tablesToReset.map((table) => `"${table}"`).join(', ');
+      await entityManager.query(`TRUNCATE TABLE ${tableSql} RESTART IDENTITY CASCADE`);
+    });
+
+    await this.update({
+      maintenance: {
+        lastBackupStatus: 'تم إنشاء نسخة احتياطية قبل إعادة ضبط البيانات التشغيلية',
+        lastBackupAt: new Date().toISOString(),
+      },
+    });
+
+    return {
+      status: 'success',
+      backupId: backup.id,
+      message: 'تم إنشاء نسخة احتياطية ثم إعادة ضبط البيانات التشغيلية بنجاح.',
+    };
+  }
+
   private buildSettingsResponse(rows: SettingEntity[]) {
     return {
       groups: settingsRegistry.map((group) => ({
@@ -299,6 +364,25 @@ export class SettingsService {
   private async buildBackupPayload(createdAt: string) {
     await this.ensureRegistryRows();
 
+    const operationalTables = [
+      'supplier_payments',
+      'purchase_invoice_items',
+      'purchase_invoices',
+      'expenses',
+      'daily_sales',
+      'drawer_transactions',
+      'drawer_daily_sessions',
+      'bank_account_transactions',
+      'vault_transactions',
+      'payroll_records',
+      'employee_advances',
+      'employee_penalties',
+      'attendance_files',
+      'branch_transfer_items',
+      'branch_transfers',
+      'stock_count_items',
+      'stock_counts',
+    ];
     const [settings, units, itemCategories, expenseCategories, items] = await Promise.all([
       this.settingsRepository.query('SELECT * FROM settings ORDER BY sort_order ASC'),
       this.settingsRepository.query('SELECT * FROM units ORDER BY name ASC'),
@@ -306,17 +390,39 @@ export class SettingsService {
       this.settingsRepository.query('SELECT * FROM expense_categories ORDER BY name ASC'),
       this.settingsRepository.query('SELECT * FROM items ORDER BY name ASC'),
     ]);
+    const operationalData = Object.fromEntries(
+      await Promise.all(operationalTables.map(async (table) => [table, await this.readTableRows(table)])),
+    );
 
     return {
-      version: 1,
+      version: 2,
       createdAt,
-      scope: 'settings-master-data',
+      scope: 'settings-master-operational-snapshot',
       settings,
       units,
       itemCategories,
       expenseCategories,
       items,
+      operationalData,
     };
+  }
+
+  private async readTableRows(table: string) {
+    const [tableExists] = await this.settingsRepository.query(
+      `
+        SELECT 1
+        FROM information_schema.tables
+        WHERE table_schema = 'public'
+          AND table_name = $1
+      `,
+      [table],
+    );
+
+    if (!tableExists) {
+      return [];
+    }
+
+    return this.settingsRepository.query(`SELECT * FROM "${table}"`);
   }
 
   private async upsertRows(

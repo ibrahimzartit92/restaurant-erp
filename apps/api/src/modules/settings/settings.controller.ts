@@ -30,4 +30,9 @@ export class SettingsController {
   restoreBackup(@Param('id') id: string) {
     return this.settingsService.restoreBackup(id);
   }
+
+  @Post('maintenance/reset-operational')
+  resetOperationalData(@Body() body: { confirmation?: string }) {
+    return this.settingsService.resetOperationalData(body);
+  }
 }
