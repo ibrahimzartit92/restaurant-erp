@@ -12,6 +12,8 @@ import { EmployeeAdvanceEntity } from '../employee-advances/entities/employee-ad
 import { ExpenseEntity } from '../expenses/entities/expense.entity';
 import { PayrollRecordEntity } from '../payroll/entities/payroll-record.entity';
 import { PurchaseInvoiceEntity, PurchaseInvoiceStatus } from '../purchase-invoices/entities/purchase-invoice.entity';
+import { ReportExportService } from '../reports/report-export.service';
+import { ReportResult } from '../reports/reports.types';
 import { SettingsService } from '../settings/settings.service';
 import {
   VaultTransactionDirection,
@@ -66,6 +68,7 @@ export class DashboardService {
     @InjectRepository(VaultTransactionEntity)
     private readonly vaultTransactionsRepository: Repository<VaultTransactionEntity>,
     private readonly settingsService: SettingsService,
+    private readonly reportExportService: ReportExportService,
   ) {}
 
   async getDashboard(filters: DashboardFilters): Promise<DashboardResult> {
@@ -183,20 +186,73 @@ export class DashboardService {
   async exportDashboard(filters: DashboardFilters, format: 'excel' | 'pdf') {
     const dashboard = await this.getDashboard(filters);
     const currencySettings = await this.getCurrencySettings();
-    const filename = `dashboard-${dashboard.filters.dateFrom}-${dashboard.filters.dateTo}`;
+    const report = await this.dashboardToReport(dashboard);
+    return this.reportExportService.exportReport(report, format, currencySettings);
+  }
 
-    if (format === 'excel') {
-      return {
-        body: this.toCsv(dashboard, currencySettings),
-        contentType: 'text/csv; charset=utf-8',
-        filename: `${filename}.csv`,
-      };
-    }
+  private async dashboardToReport(dashboard: DashboardResult): Promise<ReportResult> {
+    const branch = dashboard.filters.branchId
+      ? await this.branchesRepository.findOne({ where: { id: dashboard.filters.branchId } })
+      : null;
+    const includePayroll = dashboard.metrics.some((metric) => metric.key === 'total_payroll');
+    const rows = dashboard.charts.timeSeries.map((point) => ({
+      date: point.date,
+      sales: point.sales,
+      purchases: point.purchases,
+      operatingExpenses: point.operatingExpenses,
+      miscellaneousExpenses: point.miscellaneousExpenses,
+      ...(includePayroll ? { payroll: point.payroll } : {}),
+      employeeAdvances: point.employeeAdvances,
+      profit: point.netAfterPurchases,
+    }));
+    const columns = [
+      { key: 'date', label: 'التاريخ', type: 'date' as const },
+      { key: 'sales', label: 'إجمالي المبيعات', type: 'money' as const },
+      { key: 'purchases', label: 'إجمالي المشتريات', type: 'money' as const },
+      { key: 'operatingExpenses', label: 'مصروفات تشغيلية', type: 'money' as const },
+      { key: 'miscellaneousExpenses', label: 'مصروفات متفرقة', type: 'money' as const },
+      ...(includePayroll ? [{ key: 'payroll', label: 'الرواتب', type: 'money' as const }] : []),
+      { key: 'employeeAdvances', label: 'سلف الموظفين', type: 'money' as const },
+      { key: 'profit', label: 'الربح', type: 'money' as const },
+    ];
 
     return {
-      body: this.toPrintableHtml(dashboard, currencySettings),
-      contentType: 'text/html; charset=utf-8',
-      filename: `${filename}.html`,
+      key: 'dashboard',
+      title: 'تقرير لوحة الإدارة',
+      description: 'ملخص يومي للمبيعات والمشتريات والمصاريف والربح حسب فلاتر لوحة الإدارة.',
+      generatedAt: dashboard.generatedAt,
+      filters: {
+        branchId: dashboard.filters.branchId ?? undefined,
+        dateFrom: dashboard.filters.dateFrom,
+        dateTo: dashboard.filters.dateTo,
+      },
+      filterSummary: [
+        { label: 'الفرع', value: branch?.name ?? 'كل الفروع' },
+        { label: 'الفترة', value: this.periodLabel(dashboard.filters.period) },
+        { label: 'من تاريخ', value: dashboard.filters.dateFrom },
+        { label: 'إلى تاريخ', value: dashboard.filters.dateTo },
+        { label: 'تاريخ التصدير', value: new Date(dashboard.generatedAt).toLocaleString('ar') },
+      ],
+      columns,
+      rows,
+      summaries: [
+        this.reportMoneySummary('sales', 'إجمالي المبيعات', rows.reduce((sum, row) => sum + Number(row.sales ?? 0), 0)),
+        this.reportMoneySummary('purchases', 'إجمالي المشتريات', rows.reduce((sum, row) => sum + Number(row.purchases ?? 0), 0)),
+        this.reportMoneySummary(
+          'expenses',
+          'إجمالي المصاريف',
+          rows.reduce(
+            (sum, row) =>
+              sum +
+              Number(row.operatingExpenses ?? 0) +
+              Number(row.miscellaneousExpenses ?? 0) +
+              Number((row as { payroll?: number }).payroll ?? 0) +
+              Number(row.employeeAdvances ?? 0),
+            0,
+          ),
+        ),
+        this.reportMoneySummary('profit', 'صافي الربح', rows.reduce((sum, row) => sum + Number(row.profit ?? 0), 0)),
+      ],
     };
   }
 
@@ -457,6 +513,21 @@ export class DashboardService {
       changePercent: roundedPreviousValue === 0 ? null : this.round((changeAmount / Math.abs(roundedPreviousValue)) * 100),
       type: 'money',
     };
+  }
+
+  private reportMoneySummary(key: string, label: string, value: number) {
+    return { key, label, value: this.round(value), type: 'money' as const };
+  }
+
+  private periodLabel(period: string) {
+    const labels: Record<string, string> = {
+      today: 'اليوم',
+      this_week: 'هذا الأسبوع',
+      this_month: 'هذا الشهر',
+      this_year: 'هذه السنة',
+    };
+
+    return labels[period] ?? 'نطاق مخصص';
   }
 
   private resolveRange(filters: DashboardFilters): Range {

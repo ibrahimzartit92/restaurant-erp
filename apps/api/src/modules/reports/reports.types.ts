@@ -1,4 +1,5 @@
 export type ReportKey =
+  | 'dashboard'
   | 'daily-sales'
   | 'expenses'
   | 'purchases'
@@ -36,6 +37,11 @@ export type ReportSummary = {
   type?: 'money' | 'number' | 'text';
 };
 
+export type ReportFilterSummary = {
+  label: string;
+  value: string;
+};
+
 export type ReportRow = Record<string, string | number | null>;
 
 export type ReportResult = {
@@ -44,6 +50,7 @@ export type ReportResult = {
   description: string;
   generatedAt: string;
   filters: ReportFilters;
+  filterSummary?: ReportFilterSummary[];
   summaries: ReportSummary[];
   columns: ReportColumn[];
   rows: ReportRow[];

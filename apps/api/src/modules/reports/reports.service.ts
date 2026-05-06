@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { InjectRepository } from '@nestjs/typeorm';
 import { ObjectLiteral, Repository, SelectQueryBuilder } from 'typeorm';
 import { BankAccountTransactionEntity } from '../bank-account-transactions/entities/bank-account-transaction.entity';
+import { BranchEntity } from '../branches/entities/branch.entity';
 import { DailySaleEntity } from '../daily-sales/entities/daily-sale.entity';
 import { DrawerDailySessionEntity } from '../drawer-daily-sessions/entities/drawer-daily-session.entity';
 import { EmployeeAdvanceEntity } from '../employee-advances/entities/employee-advance.entity';
@@ -10,16 +11,18 @@ import { ExpenseEntity } from '../expenses/entities/expense.entity';
 import { PayrollRecordEntity } from '../payroll/entities/payroll-record.entity';
 import { PurchaseInvoiceEntity } from '../purchase-invoices/entities/purchase-invoice.entity';
 import { SettingsService } from '../settings/settings.service';
+import { ReportExportService } from './report-export.service';
 import { StockCountEntity } from '../stock-counts/entities/stock-count.entity';
 import { SupplierPaymentEntity } from '../supplier-payments/entities/supplier-payment.entity';
 import { TransferEntity } from '../transfers/entities/transfer.entity';
 import { ReportColumn, ReportFilters, ReportKey, ReportResult, ReportRow, ReportSummary } from './reports.types';
 
 type ReportBuilder = (filters: ReportFilters) => Promise<ReportResult>;
+type BuiltReportKey = Exclude<ReportKey, 'dashboard'>;
 
 @Injectable()
 export class ReportsService {
-  private readonly builders: Record<ReportKey, ReportBuilder> = {
+  private readonly builders: Record<BuiltReportKey, ReportBuilder> = {
     'daily-sales': (filters) => this.dailySales(filters),
     expenses: (filters) => this.expenses(filters),
     purchases: (filters) => this.purchases(filters),
@@ -36,6 +39,8 @@ export class ReportsService {
   constructor(
     @InjectRepository(DailySaleEntity)
     private readonly dailySalesRepository: Repository<DailySaleEntity>,
+    @InjectRepository(BranchEntity)
+    private readonly branchesRepository: Repository<BranchEntity>,
     @InjectRepository(ExpenseEntity)
     private readonly expensesRepository: Repository<ExpenseEntity>,
     @InjectRepository(PurchaseInvoiceEntity)
@@ -57,6 +62,7 @@ export class ReportsService {
     @InjectRepository(EmployeePenaltyEntity)
     private readonly penaltiesRepository: Repository<EmployeePenaltyEntity>,
     private readonly settingsService: SettingsService,
+    private readonly reportExportService: ReportExportService,
   ) {}
 
   getCatalog() {
@@ -76,7 +82,7 @@ export class ReportsService {
   }
 
   async getReport(key: string, filters: ReportFilters) {
-    const builder = this.builders[key as ReportKey];
+    const builder = this.builders[key as BuiltReportKey];
 
     if (!builder) {
       throw new NotFoundException('Report was not found.');
@@ -88,20 +94,7 @@ export class ReportsService {
   async exportReport(key: string, filters: ReportFilters, format: 'excel' | 'pdf') {
     const report = await this.getReport(key, filters);
     const currencySettings = await this.getCurrencySettings();
-
-    if (format === 'excel') {
-      return {
-        body: this.toCsv(report, currencySettings),
-        contentType: 'text/csv; charset=utf-8',
-        filename: `${report.key}-${new Date().toISOString().slice(0, 10)}.csv`,
-      };
-    }
-
-    return {
-      body: this.toPrintableHtml(report, currencySettings),
-      contentType: 'text/html; charset=utf-8',
-      filename: `${report.key}-${new Date().toISOString().slice(0, 10)}.html`,
-    };
+    return this.reportExportService.exportReport(report, format, currencySettings);
   }
 
   private cleanFilters(filters: ReportFilters): ReportFilters {
@@ -153,6 +146,19 @@ export class ReportsService {
     return { key, label, value, type: 'number' };
   }
 
+  private async buildFilterSummary(filters: ReportFilters, extras: { label: string; value: string }[] = []) {
+    const branch = filters.branchId ? await this.branchesRepository.findOne({ where: { id: filters.branchId } }) : null;
+
+    return [
+      { label: 'الفرع', value: branch?.name ?? 'كل الفروع' },
+      { label: 'من تاريخ', value: filters.dateFrom ?? 'غير محدد' },
+      { label: 'إلى تاريخ', value: filters.dateTo ?? 'غير محدد' },
+      ...extras,
+      ...(filters.search ? [{ label: 'بحث', value: filters.search }] : []),
+      { label: 'تاريخ التصدير', value: new Date().toLocaleString('ar') },
+    ];
+  }
+
   private round(value: number) {
     return Math.round((value + Number.EPSILON) * 100) / 100;
   }
@@ -195,33 +201,52 @@ export class ReportsService {
     if (filters.branchId) query.andWhere('sale.branch_id = :branchId', { branchId: filters.branchId });
     this.applyDateRange(query, 'sale.sales_date', filters);
 
-    const rows = (await query.getMany()).map((sale) => ({
-      date: sale.salesDate,
-      branch: sale.branch?.name ?? '',
-      cash: sale.cashSalesAmount,
-      bank: sale.bankSalesAmount,
-      delivery: sale.deliverySalesAmount,
-      website: sale.websiteSalesAmount,
-      tips: sale.tipsAmount,
-      returns: sale.salesReturnAmount,
-      net: sale.netSalesAmount,
-    }));
+    const sales = await query.getMany();
+    const branchLabel = filters.branchId ? sales[0]?.branch?.name ?? '' : 'كل الفروع';
+    const dailyRows = new Map<string, ReportRow>();
 
-    return this.baseResult(
+    for (const sale of sales) {
+      const row = dailyRows.get(sale.salesDate) ?? {
+        date: sale.salesDate,
+        branch: branchLabel,
+        cash: 0,
+        bank: 0,
+        delivery: 0,
+        website: 0,
+        tips: 0,
+        returns: 0,
+        net: 0,
+        notes: '',
+      };
+      row.cash = this.round(Number(row.cash ?? 0) + Number(sale.cashSalesAmount ?? 0));
+      row.bank = this.round(Number(row.bank ?? 0) + Number(sale.bankSalesAmount ?? 0));
+      row.delivery = this.round(Number(row.delivery ?? 0) + Number(sale.deliverySalesAmount ?? 0));
+      row.website = this.round(Number(row.website ?? 0) + Number(sale.websiteSalesAmount ?? 0));
+      row.tips = this.round(Number(row.tips ?? 0) + Number(sale.tipsAmount ?? 0));
+      row.returns = this.round(Number(row.returns ?? 0) + Number(sale.salesReturnAmount ?? 0));
+      row.net = this.round(Number(row.net ?? 0) + Number(sale.netSalesAmount ?? 0));
+      row.notes = [row.notes, sale.notes].filter(Boolean).join(' / ');
+      dailyRows.set(sale.salesDate, row);
+    }
+
+    const rows = [...dailyRows.values()].sort((first, second) => String(first.date).localeCompare(String(second.date)));
+
+    const report = this.baseResult(
       'daily-sales',
       'تقرير المبيعات اليومية',
-      'مبيعات الفروع اليومية حسب قنوات التحصيل.',
+      'ملخص يومي للمبيعات حسب قنوات التحصيل ضمن الفلاتر المختارة.',
       filters,
       [
         { key: 'date', label: 'التاريخ', type: 'date' },
         { key: 'branch', label: 'الفرع' },
-        { key: 'cash', label: 'نقدي', type: 'money' },
-        { key: 'bank', label: 'بنكي', type: 'money' },
-        { key: 'delivery', label: 'توصيل', type: 'money' },
-        { key: 'website', label: 'موقع', type: 'money' },
+        { key: 'cash', label: 'مبيعات نقدية', type: 'money' },
+        { key: 'bank', label: 'مبيعات بنكية', type: 'money' },
+        { key: 'delivery', label: 'مبيعات التوصيل', type: 'money' },
+        { key: 'website', label: 'مبيعات الموقع', type: 'money' },
         { key: 'tips', label: 'إكراميات', type: 'money' },
         { key: 'returns', label: 'مرتجعات', type: 'money' },
-        { key: 'net', label: 'الصافي', type: 'money' },
+        { key: 'net', label: 'صافي المبيعات', type: 'money' },
+        { key: 'notes', label: 'ملاحظات' },
       ],
       rows,
       [
@@ -231,6 +256,8 @@ export class ReportsService {
         this.moneySummary('net', 'صافي المبيعات', this.sum(rows, 'net')),
       ],
     );
+    report.filterSummary = await this.buildFilterSummary(filters);
+    return report;
   }
 
   private async expenses(filters: ReportFilters) {
@@ -250,36 +277,68 @@ export class ReportsService {
     }
     this.applyDateRange(query, 'expense.expense_date', filters);
 
-    const rows = (await query.getMany()).map((expense) => ({
-      number: expense.expenseNumber,
-      date: expense.expenseDate,
-      branch: expense.branch?.name ?? '',
-      category: expense.expenseCategory?.name ?? '',
-      title: expense.title,
-      paymentMethod: expense.paymentMethod,
-      amount: expense.amount,
-    }));
+    const expenses = await query.getMany();
+    const branchLabel = filters.branchId ? expenses[0]?.branch?.name ?? '' : 'كل الفروع';
+    const dailyRows = new Map<string, ReportRow>();
 
-    return this.baseResult(
+    for (const expense of expenses) {
+      const row = dailyRows.get(expense.expenseDate) ?? {
+        date: expense.expenseDate,
+        branch: branchLabel,
+        operating: 0,
+        miscellaneous: 0,
+        cash: 0,
+        bank: 0,
+        other: 0,
+        total: 0,
+        count: 0,
+        notes: '',
+      };
+      const amount = Number(expense.amount ?? 0);
+      const isOperating = Boolean(expense.isFixed || expense.expenseCategory?.isFixed);
+      row.operating = this.round(Number(row.operating ?? 0) + (isOperating ? amount : 0));
+      row.miscellaneous = this.round(Number(row.miscellaneous ?? 0) + (isOperating ? 0 : amount));
+      row.cash = this.round(Number(row.cash ?? 0) + (expense.paymentMethod === 'cash' ? amount : 0));
+      row.bank = this.round(Number(row.bank ?? 0) + (expense.paymentMethod === 'bank' ? amount : 0));
+      row.other = this.round(Number(row.other ?? 0) + (!['cash', 'bank'].includes(expense.paymentMethod) ? amount : 0));
+      row.total = this.round(Number(row.total ?? 0) + amount);
+      row.count = Number(row.count ?? 0) + 1;
+      row.notes = [row.notes, expense.title].filter(Boolean).join(' / ');
+      dailyRows.set(expense.expenseDate, row);
+    }
+
+    const rows = [...dailyRows.values()].sort((first, second) => String(first.date).localeCompare(String(second.date)));
+
+    const report = this.baseResult(
       'expenses',
       'تقرير المصاريف',
-      'مصاريف التشغيل مع التصنيف وطريقة الدفع.',
+      'ملخص يومي للمصاريف حسب التصنيف وطريقة الدفع ضمن الفلاتر المختارة.',
       filters,
       [
-        { key: 'number', label: 'رقم المصروف' },
         { key: 'date', label: 'التاريخ', type: 'date' },
         { key: 'branch', label: 'الفرع' },
-        { key: 'category', label: 'التصنيف' },
-        { key: 'title', label: 'العنوان' },
-        { key: 'paymentMethod', label: 'طريقة الدفع', type: 'status' },
-        { key: 'amount', label: 'المبلغ', type: 'money' },
+        { key: 'operating', label: 'مصروفات تشغيلية', type: 'money' },
+        { key: 'miscellaneous', label: 'مصروفات متفرقة', type: 'money' },
+        { key: 'cash', label: 'نقدي', type: 'money' },
+        { key: 'bank', label: 'بنكي', type: 'money' },
+        { key: 'other', label: 'أخرى', type: 'money' },
+        { key: 'total', label: 'إجمالي المصاريف', type: 'money' },
+        { key: 'count', label: 'عدد الحركات', type: 'number' },
+        { key: 'notes', label: 'تفاصيل مختصرة' },
       ],
       rows,
       [
-        this.numberSummary('count', 'عدد المصاريف', rows.length),
-        this.moneySummary('total', 'إجمالي المصاريف', this.sum(rows, 'amount')),
+        this.numberSummary('count', 'عدد الأيام', rows.length),
+        this.moneySummary('operating', 'إجمالي التشغيلية', this.sum(rows, 'operating')),
+        this.moneySummary('miscellaneous', 'إجمالي المتفرقة', this.sum(rows, 'miscellaneous')),
+        this.moneySummary('total', 'إجمالي المصاريف', this.sum(rows, 'total')),
       ],
     );
+    report.filterSummary = await this.buildFilterSummary(filters, [
+      ...(filters.categoryId ? [{ label: 'التصنيف', value: filters.categoryId }] : []),
+      ...(filters.paymentMethod ? [{ label: 'طريقة الدفع', value: filters.paymentMethod }] : []),
+    ]);
+    return report;
   }
 
   private async purchases(filters: ReportFilters) {

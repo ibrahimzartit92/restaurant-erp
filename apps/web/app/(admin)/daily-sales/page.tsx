@@ -41,13 +41,25 @@ export default async function DailySalesPage({
       date_to: params.date_to,
     })}`,
   );
+  const exportQuery = buildQuery({
+    branch_id: params.branch_id,
+    date_from: params.date_from,
+    date_to: params.date_to,
+  });
+  const exportBase = `/api/reports/daily-sales/export${exportQuery}`;
+  const excelHref = `${exportBase}${exportQuery ? '&' : '?'}format=excel`;
+  const pdfHref = `${exportBase}${exportQuery ? '&' : '?'}format=pdf`;
 
   return (
     <>
       <PageHeader title="المبيعات اليومية" description="تسجيل مبيعات الفروع اليومية وحساب صافي المبيعات." />
       <div className="page-toolbar">
         <ListFilters showBranch showDateRange />
-        <Link className="primary-button" href="/daily-sales/new">مبيعات يومية جديدة</Link>
+        <div className="inline-actions">
+          <a className="secondary-button" href={excelHref}>Excel</a>
+          <a className="secondary-button" href={pdfHref}>PDF</a>
+          <Link className="primary-button" href="/daily-sales/new">مبيعات يومية جديدة</Link>
+        </div>
       </div>
       {result.error ? <p className="notice">{result.error}</p> : null}
       <DataTable
