@@ -61,11 +61,7 @@ export class DailySalesService {
   }
 
   async findByIdOrFail(id: string) {
-    const dailySale = await this.dailySaleRepository.findOne({ where: { id } });
-
-    if (!dailySale) {
-      throw new NotFoundException('Daily sales record was not found.');
-    }
+    const dailySale = await this.findEntityByIdOrFail(id);
 
     const vaultTransfer = await this.dataSource.manager.getRepository(VaultTransactionEntity).findOne({
       where: { sourceType: 'daily_sale_vault_transfer', sourceId: dailySale.id },
@@ -76,6 +72,40 @@ export class DailySalesService {
       vaultTransferVaultId: vaultTransfer?.vaultId ?? null,
       vaultTransferAmount: vaultTransfer?.amount ?? 0,
       vaultTransferNotes: vaultTransfer?.notes ?? null,
+    };
+  }
+
+  async getCashSummary(filters: { branchId?: string; salesDate?: string }) {
+    if (!filters.branchId || !filters.salesDate) {
+      return {
+        drawerId: null,
+        cashOutflowsFromDrawer: 0,
+      };
+    }
+
+    const drawer = await this.drawerRepository.findOne({ where: { branchId: filters.branchId } });
+    if (!drawer) {
+      return {
+        drawerId: null,
+        cashOutflowsFromDrawer: 0,
+      };
+    }
+
+    const transactions = await this.dataSource.manager.getRepository(DrawerTransactionEntity).find({
+      where: { drawerId: drawer.id, transactionDate: filters.salesDate },
+    });
+    const cashOutflowsFromDrawer = transactions
+      .filter(
+        (transaction) =>
+          transaction.direction === DrawerTransactionDirection.Out &&
+          transaction.transactionType !== DrawerTransactionType.TransferToVault,
+      )
+      .reduce((sum, transaction) => sum + Number(transaction.amount ?? 0), 0);
+
+    return {
+      drawerId: drawer.id,
+      drawerName: drawer.name,
+      cashOutflowsFromDrawer: this.roundMoney(cashOutflowsFromDrawer),
     };
   }
 
@@ -110,7 +140,7 @@ export class DailySalesService {
   }
 
   async update(id: string, updateDailySaleDto: UpdateDailySaleDto) {
-    const dailySale = await this.findByIdOrFail(id);
+    const dailySale = await this.findEntityByIdOrFail(id);
     const branchId = updateDailySaleDto.branchId ?? dailySale.branchId;
     const salesDate = updateDailySaleDto.salesDate ?? dailySale.salesDate;
 
@@ -138,13 +168,23 @@ export class DailySalesService {
   }
 
   async remove(id: string) {
-    const dailySale = await this.findByIdOrFail(id);
+    const dailySale = await this.findEntityByIdOrFail(id);
     await this.dataSource.transaction(async (manager) => {
       await this.deleteFinancialMovement(dailySale.id, manager);
       await manager.getRepository(DailySaleEntity).remove(dailySale);
     });
 
     return { id };
+  }
+
+  private async findEntityByIdOrFail(id: string) {
+    const dailySale = await this.dailySaleRepository.findOne({ where: { id } });
+
+    if (!dailySale) {
+      throw new NotFoundException('Daily sales record was not found.');
+    }
+
+    return dailySale;
   }
 
   private async resolveFinancialReferences(data: {
@@ -252,8 +292,6 @@ export class DailySalesService {
 
       if (!drawer) throw new NotFoundException('Drawer was not found.');
       if (!vault) throw new NotFoundException('Vault was not found.');
-
-      await this.ensureTransferWithinAvailableDailyCash(dailySale.drawerId, dailySale.salesDate, transferAmount, manager);
 
       const description = `تحويل نقد مبيعات ${dailySale.salesDate} من الدرج إلى الخزنة`;
       await manager.getRepository(DrawerTransactionEntity).save({

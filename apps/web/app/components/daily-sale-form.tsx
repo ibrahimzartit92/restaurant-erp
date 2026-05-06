@@ -1,8 +1,8 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
-import { submitJson } from '../lib/client-api';
+import { useEffect, useMemo, useState } from 'react';
+import { fetchClientJson, submitJson } from '../lib/client-api';
 import type { BankAccountOption, BranchOption, DrawerOption, VaultOption } from '../lib/types';
 
 type DailySaleRecord = {
@@ -23,6 +23,16 @@ type DailySaleRecord = {
   vaultTransferNotes?: string | null;
 };
 
+type CashSummary = {
+  drawerId: string | null;
+  drawerName?: string;
+  cashOutflowsFromDrawer: number;
+};
+
+function money(value: number) {
+  return new Intl.NumberFormat('ar', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value || 0));
+}
+
 export function DailySaleForm({
   mode,
   initialDailySale,
@@ -41,6 +51,41 @@ export function DailySaleForm({
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [branchId, setBranchId] = useState(initialDailySale?.branchId ?? '');
+  const [salesDate, setSalesDate] = useState(initialDailySale?.salesDate ?? '');
+  const [drawerId, setDrawerId] = useState(initialDailySale?.drawerId ?? '');
+  const [cashSalesAmount, setCashSalesAmount] = useState(String(initialDailySale?.cashSalesAmount ?? 0));
+  const [actualCashReceived, setActualCashReceived] = useState(String(initialDailySale?.vaultTransferAmount ?? 0));
+  const [cashSummary, setCashSummary] = useState<CashSummary>({
+    drawerId: initialDailySale?.drawerId ?? null,
+    cashOutflowsFromDrawer: 0,
+  });
+  const cashSales = Number(cashSalesAmount || 0);
+  const receivedCash = Number(actualCashReceived || 0);
+  const netExpectedCash = useMemo(
+    () => Math.round((cashSales - Number(cashSummary.cashOutflowsFromDrawer ?? 0) + Number.EPSILON) * 100) / 100,
+    [cashSales, cashSummary.cashOutflowsFromDrawer],
+  );
+  const cashDifference = Math.round((receivedCash - netExpectedCash + Number.EPSILON) * 100) / 100;
+
+  useEffect(() => {
+    if (!branchId || !salesDate) return;
+    let isActive = true;
+    const params = new URLSearchParams({ branch_id: branchId, sales_date: salesDate });
+    fetchClientJson<CashSummary>(`/daily-sales/cash-summary?${params.toString()}`)
+      .then((summary) => {
+        if (!isActive) return;
+        setCashSummary(summary);
+        if (summary.drawerId) setDrawerId(summary.drawerId);
+      })
+      .catch(() => {
+        if (isActive) setCashSummary({ drawerId: null, cashOutflowsFromDrawer: 0 });
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [branchId, salesDate]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -49,10 +94,10 @@ export function DailySaleForm({
 
     const formData = new FormData(event.currentTarget);
     const payload = {
-      branchId: String(formData.get('branchId') ?? ''),
-      salesDate: String(formData.get('salesDate') ?? ''),
-      cashSalesAmount: Number(formData.get('cashSalesAmount') ?? 0),
-      drawerId: String(formData.get('drawerId') ?? '') || null,
+      branchId,
+      salesDate,
+      cashSalesAmount: cashSales,
+      drawerId: drawerId || null,
       bankSalesAmount: Number(formData.get('bankSalesAmount') ?? 0),
       bankAccountId: String(formData.get('bankAccountId') ?? '') || null,
       deliverySalesAmount: Number(formData.get('deliverySalesAmount') ?? 0),
@@ -61,12 +106,12 @@ export function DailySaleForm({
       salesReturnAmount: Number(formData.get('salesReturnAmount') ?? 0),
       notes: String(formData.get('notes') ?? '') || null,
       vaultTransferVaultId: String(formData.get('vaultTransferVaultId') ?? '') || null,
-      vaultTransferAmount: Number(formData.get('vaultTransferAmount') ?? 0),
+      vaultTransferAmount: receivedCash,
       vaultTransferNotes: String(formData.get('vaultTransferNotes') ?? '') || null,
     };
 
-    if (payload.vaultTransferAmount > 0 && payload.vaultTransferAmount > payload.cashSalesAmount) {
-      setMessage('لا يمكن تحويل مبلغ إلى الخزنة أكبر من المبيعات النقدية المسجلة لهذا اليوم.');
+    if (receivedCash > 0 && !payload.vaultTransferVaultId) {
+      setMessage('اختر الخزنة التي سيتم تحويل النقد المستلم إليها.');
       setIsSaving(false);
       return;
     }
@@ -93,7 +138,7 @@ export function DailySaleForm({
       <div className="form-grid">
         <label>
           الفرع
-          <select name="branchId" defaultValue={initialDailySale?.branchId ?? ''} required>
+          <select name="branchId" value={branchId} onChange={(event) => setBranchId(event.target.value)} required>
             <option value="">اختر الفرع</option>
             {branches.map((branch) => (
               <option key={branch.id} value={branch.id}>
@@ -104,15 +149,15 @@ export function DailySaleForm({
         </label>
         <label>
           التاريخ
-          <input name="salesDate" type="date" defaultValue={initialDailySale?.salesDate ?? ''} required />
+          <input name="salesDate" type="date" value={salesDate} onChange={(event) => setSalesDate(event.target.value)} required />
         </label>
         <label>
           مبيعات نقدية
-          <input name="cashSalesAmount" type="number" min="0" step="0.01" defaultValue={initialDailySale?.cashSalesAmount ?? 0} />
+          <input name="cashSalesAmount" type="number" min="0" step="0.01" value={cashSalesAmount} onChange={(event) => setCashSalesAmount(event.target.value)} />
         </label>
         <label>
           الدرج النقدي
-          <select name="drawerId" defaultValue={initialDailySale?.drawerId ?? ''}>
+          <select name="drawerId" value={drawerId} onChange={(event) => setDrawerId(event.target.value)}>
             <option value="">اختر الدرج عند وجود مبيعات نقدية</option>
             {drawers.map((drawer) => (
               <option key={drawer.id} value={drawer.id}>
@@ -157,11 +202,38 @@ export function DailySaleForm({
       <section className="panel subtle-panel">
         <div className="panel-heading">
           <div>
-            <h3>تحويل نقد المبيعات إلى الخزنة</h3>
-            <span>اختياري: عند إدخال مبلغ هنا سيتم تسجيل خروج من الدرج ودخول مرتبط إلى الخزنة.</span>
+            <h3>تسليم نقد المبيعات إلى الخزنة</h3>
+            <span>أدخل المبلغ المستلم فعليًا من المحاسب، وسيتم تحويل نفس المبلغ تلقائيًا إلى الخزنة.</span>
           </div>
         </div>
+        <section className="summary-grid drawer-cash-summary">
+          <article className="summary-card">
+            <p>المبيعات النقدية</p>
+            <strong>{money(cashSales)}</strong>
+          </article>
+          <article className="summary-card">
+            <p>المصاريف النقدية من الدرج</p>
+            <strong>{money(cashSummary.cashOutflowsFromDrawer)}</strong>
+          </article>
+          <article className="summary-card">
+            <p>الصافي النقدي المتوقع</p>
+            <strong>{money(netExpectedCash)}</strong>
+          </article>
+          <article className={cashDifference < 0 ? 'summary-card danger' : cashDifference > 0 ? 'summary-card success' : 'summary-card'}>
+            <p>الفرق</p>
+            <strong>{money(cashDifference)}</strong>
+            <span>{cashDifference < 0 ? 'عجز' : cashDifference > 0 ? 'زيادة' : 'مطابق'}</span>
+          </article>
+        </section>
         <div className="form-grid">
+          <label>
+            المبلغ المستلم من المحاسب
+            <input type="number" min="0" step="0.01" value={actualCashReceived} onChange={(event) => setActualCashReceived(event.target.value)} />
+          </label>
+          <label>
+            المبلغ المحول إلى الخزنة
+            <input disabled value={money(receivedCash)} />
+          </label>
           <label>
             الخزنة
             <select name="vaultTransferVaultId" defaultValue={initialDailySale?.vaultTransferVaultId ?? ''}>
@@ -172,10 +244,6 @@ export function DailySaleForm({
                 </option>
               ))}
             </select>
-          </label>
-          <label>
-            المبلغ المحول إلى الخزنة
-            <input name="vaultTransferAmount" type="number" min="0" step="0.01" defaultValue={initialDailySale?.vaultTransferAmount ?? 0} />
           </label>
           <label>
             ملاحظات التحويل

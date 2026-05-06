@@ -16,6 +16,11 @@ export class DailySalesController {
     return this.dailySalesService.findAll({ branchId, dateFrom, dateTo });
   }
 
+  @Get('cash-summary')
+  cashSummary(@Query('branch_id') branchId: string, @Query('sales_date') salesDate: string) {
+    return this.dailySalesService.getCashSummary({ branchId, salesDate });
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.dailySalesService.findByIdOrFail(id);
