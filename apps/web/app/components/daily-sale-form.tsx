@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { submitJson } from '../lib/client-api';
-import type { BankAccountOption, BranchOption, DrawerOption } from '../lib/types';
+import type { BankAccountOption, BranchOption, DrawerOption, VaultOption } from '../lib/types';
 
 type DailySaleRecord = {
   id?: string;
@@ -18,6 +18,9 @@ type DailySaleRecord = {
   tipsAmount?: number;
   salesReturnAmount?: number;
   notes?: string | null;
+  vaultTransferVaultId?: string | null;
+  vaultTransferAmount?: number;
+  vaultTransferNotes?: string | null;
 };
 
 export function DailySaleForm({
@@ -26,12 +29,14 @@ export function DailySaleForm({
   branches,
   drawers,
   bankAccounts,
+  vaults,
 }: Readonly<{
   mode: 'create' | 'edit';
   initialDailySale?: DailySaleRecord | null;
   branches: BranchOption[];
   drawers: DrawerOption[];
   bankAccounts: BankAccountOption[];
+  vaults: VaultOption[];
 }>) {
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
@@ -55,7 +60,16 @@ export function DailySaleForm({
       tipsAmount: Number(formData.get('tipsAmount') ?? 0),
       salesReturnAmount: Number(formData.get('salesReturnAmount') ?? 0),
       notes: String(formData.get('notes') ?? '') || null,
+      vaultTransferVaultId: String(formData.get('vaultTransferVaultId') ?? '') || null,
+      vaultTransferAmount: Number(formData.get('vaultTransferAmount') ?? 0),
+      vaultTransferNotes: String(formData.get('vaultTransferNotes') ?? '') || null,
     };
+
+    if (payload.vaultTransferAmount > 0 && payload.vaultTransferAmount > payload.cashSalesAmount) {
+      setMessage('لا يمكن تحويل مبلغ إلى الخزنة أكبر من المبيعات النقدية المسجلة لهذا اليوم.');
+      setIsSaving(false);
+      return;
+    }
 
     try {
       await submitJson(
@@ -139,6 +153,36 @@ export function DailySaleForm({
           <input name="salesReturnAmount" type="number" min="0" step="0.01" defaultValue={initialDailySale?.salesReturnAmount ?? 0} />
         </label>
       </div>
+
+      <section className="panel subtle-panel">
+        <div className="panel-heading">
+          <div>
+            <h3>تحويل نقد المبيعات إلى الخزنة</h3>
+            <span>اختياري: عند إدخال مبلغ هنا سيتم تسجيل خروج من الدرج ودخول مرتبط إلى الخزنة.</span>
+          </div>
+        </div>
+        <div className="form-grid">
+          <label>
+            الخزنة
+            <select name="vaultTransferVaultId" defaultValue={initialDailySale?.vaultTransferVaultId ?? ''}>
+              <option value="">بدون تحويل</option>
+              {vaults.map((vault) => (
+                <option key={vault.id} value={vault.id}>
+                  {vault.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            المبلغ المحول إلى الخزنة
+            <input name="vaultTransferAmount" type="number" min="0" step="0.01" defaultValue={initialDailySale?.vaultTransferAmount ?? 0} />
+          </label>
+          <label>
+            ملاحظات التحويل
+            <input name="vaultTransferNotes" defaultValue={initialDailySale?.vaultTransferNotes ?? ''} placeholder="اختياري" />
+          </label>
+        </div>
+      </section>
 
       <label>
         ملاحظات

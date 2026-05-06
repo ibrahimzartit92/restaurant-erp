@@ -314,7 +314,8 @@ export class DrawerDailySessionsService {
     const cashSales = this.roundMoney(movementTotals.cashSales ?? 0);
     const transferredToVault = this.roundMoney(movementTotals.transferredToVault ?? 0);
     const dailyCashOutflows = this.roundMoney(movementTotals.dailyCashOutflows ?? Math.max(outflows - transferredToVault, 0));
-    const theoreticalBalance = this.roundMoney(session.openingBalance + inflows - outflows);
+    const operationalNetCash = this.roundMoney(inflows - outflows);
+    const theoreticalBalance = this.roundMoney(session.openingBalance + operationalNetCash);
     const amountToWithdraw = this.roundMoney(
       Math.max((session.closingBalance ?? theoreticalBalance) - session.requiredClosingFloat, 0),
     );
@@ -329,9 +330,10 @@ export class DrawerDailySessionsService {
         cashSales,
         dailyCashOutflows,
         transferredToVault,
+        operationalNetCash,
         requiredClosingFloat: this.roundMoney(session.requiredClosingFloat),
         expectedCashInDrawer: theoreticalBalance,
-        expectedTransferableToVault: this.roundMoney(Math.max(theoreticalBalance - session.requiredClosingFloat, 0)),
+        expectedTransferableToVault: this.roundMoney(Math.max(operationalNetCash, 0)),
       },
       amountToWithdraw,
       expectedWithdrawalAmount: this.roundMoney(Math.max(theoreticalBalance - session.requiredClosingFloat, 0)),

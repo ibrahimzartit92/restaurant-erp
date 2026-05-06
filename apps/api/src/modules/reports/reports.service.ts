@@ -698,6 +698,9 @@ export class ReportsService {
       penalties: payroll.penaltiesDeductionAmount,
       otherDeductions: payroll.otherDeductionAmount,
       netSalary: payroll.netSalary,
+      paidAmount: payroll.paidAmount,
+      remainingAmount: payroll.remainingAmount,
+      paymentStatus: payroll.paymentStatus,
     }));
 
     return this.baseResult(
@@ -715,6 +718,9 @@ export class ReportsService {
         { key: 'penalties', label: 'العقوبات', type: 'money' },
         { key: 'otherDeductions', label: 'خصومات أخرى', type: 'money' },
         { key: 'netSalary', label: 'الصافي', type: 'money' },
+        { key: 'paidAmount', label: 'المدفوع', type: 'money' },
+        { key: 'remainingAmount', label: 'المتبقي', type: 'money' },
+        { key: 'paymentStatus', label: 'حالة الدفع', type: 'status' },
       ],
       rows,
       [
@@ -722,6 +728,8 @@ export class ReportsService {
         this.moneySummary('baseSalary', 'إجمالي الأساسي', this.sum(rows, 'baseSalary')),
         this.moneySummary('deductions', 'إجمالي الاستقطاعات', this.sum(rows, 'advances') + this.sum(rows, 'penalties') + this.sum(rows, 'otherDeductions')),
         this.moneySummary('netSalary', 'إجمالي الصافي', this.sum(rows, 'netSalary')),
+        this.moneySummary('paidAmount', 'إجمالي المدفوع', this.sum(rows, 'paidAmount')),
+        this.moneySummary('remainingAmount', 'إجمالي مستحقات الرواتب', this.sum(rows, 'remainingAmount')),
       ],
     );
   }

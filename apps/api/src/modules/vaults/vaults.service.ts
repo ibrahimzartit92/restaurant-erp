@@ -185,6 +185,7 @@ export class VaultsService {
       const description = this.describeTransfer(dto.transferKind, vault.name, drawer?.name, bankAccount?.name);
 
       if (drawer) {
+        await this.ensureDrawerTransferWithinAvailableCash(drawer.id, dto.transactionDate, amount, manager);
         await manager.getRepository(DrawerTransactionEntity).save({
           drawerId: drawer.id,
           branchId: dto.branchId ?? drawer.branchId,
@@ -370,6 +371,28 @@ export class VaultsService {
     return labels[kind];
   }
 
+  private async ensureDrawerTransferWithinAvailableCash(
+    drawerId: string,
+    transactionDate: string,
+    requestedTransfer: number,
+    manager = this.dataSource.manager,
+  ) {
+    const rows = await manager.getRepository(DrawerTransactionEntity).find({ where: { drawerId, transactionDate } });
+    const inflows = rows
+      .filter((row) => row.direction === DrawerTransactionDirection.In)
+      .reduce((sum, row) => sum + Number(row.amount ?? 0), 0);
+    const outflows = rows
+      .filter((row) => row.direction === DrawerTransactionDirection.Out)
+      .reduce((sum, row) => sum + Number(row.amount ?? 0), 0);
+    const available = this.roundMoney(inflows - outflows);
+
+    if (requestedTransfer > available) {
+      throw new BadRequestException(
+        `لا يمكن إيداع مبلغ أكبر من صافي النقد المتاح في الدرج لهذا اليوم. المتاح للتحويل: ${available}.`,
+      );
+    }
+  }
+
   private async ensureCodeIsAvailable(code: string, currentId?: string) {
     const existingVault = await this.vaultRepository.findOne({
       where: { code, ...(currentId ? { id: Not(currentId) } : {}) },
@@ -380,5 +403,9 @@ export class VaultsService {
   private normalizeOptionalText(value?: string | null) {
     const normalizedValue = value?.trim();
     return normalizedValue ? normalizedValue : null;
+  }
+
+  private roundMoney(value: number) {
+    return Math.round((value + Number.EPSILON) * 100) / 100;
   }
 }

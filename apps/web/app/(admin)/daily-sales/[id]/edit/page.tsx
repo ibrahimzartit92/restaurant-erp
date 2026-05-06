@@ -1,11 +1,11 @@
 import { DailySaleForm } from '../../../../components/daily-sale-form';
 import { PageHeader } from '../../../../components/page-header';
 import { fetchList, fetchOne } from '../../../../lib/api';
-import type { BankAccountOption, BranchOption, DrawerOption } from '../../../../lib/types';
+import type { BankAccountOption, BranchOption, DrawerOption, VaultOption } from '../../../../lib/types';
 
 export default async function EditDailySalePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [dailySale, branches, drawers, bankAccounts] = await Promise.all([
+  const [dailySale, branches, drawers, bankAccounts, vaults] = await Promise.all([
     fetchOne<{
       id: string;
       branchId: string;
@@ -19,10 +19,14 @@ export default async function EditDailySalePage({ params }: { params: Promise<{ 
       tipsAmount: number;
       salesReturnAmount: number;
       notes?: string | null;
+      vaultTransferVaultId?: string | null;
+      vaultTransferAmount?: number;
+      vaultTransferNotes?: string | null;
     }>(`/daily-sales/${id}`),
     fetchList<BranchOption>('/branches'),
     fetchList<DrawerOption>('/drawers'),
     fetchList<BankAccountOption>('/bank-accounts'),
+    fetchList<VaultOption>('/vaults'),
   ]);
 
   return (
@@ -35,6 +39,7 @@ export default async function EditDailySalePage({ params }: { params: Promise<{ 
         branches={branches.data}
         drawers={drawers.data}
         bankAccounts={bankAccounts.data}
+        vaults={vaults.data}
       />
     </>
   );

@@ -13,9 +13,12 @@ type DashboardPoint = {
   date: string;
   sales: number;
   purchases: number;
+  paidSupplierAmounts: number;
+  outstandingSupplierAmounts: number;
   operatingExpenses: number;
   miscellaneousExpenses: number;
   payroll: number;
+  outstandingPayroll: number;
   employeeAdvances: number;
   netAfterPurchases: number;
 };
@@ -57,6 +60,9 @@ const periodOptions = [
 ];
 
 const kpiOrder = [
+  { key: 'paid_supplier_amounts', label: 'المدفوع للموردين' },
+  { key: 'supplier_due', label: 'مستحقات الموردين' },
+  { key: 'outstanding_payroll', label: 'مستحقات الرواتب' },
   { key: 'total_sales', label: 'إجمالي المبيعات' },
   { key: 'total_purchases', label: 'إجمالي المشتريات' },
   { key: 'total_operating_expenses', label: 'المصاريف التشغيلية' },

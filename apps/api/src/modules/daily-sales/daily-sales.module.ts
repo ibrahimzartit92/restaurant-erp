@@ -5,6 +5,8 @@ import { BankAccountTransactionEntity } from '../bank-account-transactions/entit
 import { BranchEntity } from '../branches/entities/branch.entity';
 import { DrawerTransactionEntity } from '../drawer-transactions/entities/drawer-transaction.entity';
 import { DrawerEntity } from '../drawers/entities/drawer.entity';
+import { VaultTransactionEntity } from '../vaults/entities/vault-transaction.entity';
+import { VaultEntity } from '../vaults/entities/vault.entity';
 import { DailySalesController } from './daily-sales.controller';
 import { DailySalesService } from './daily-sales.service';
 import { DailySaleEntity } from './entities/daily-sale.entity';
@@ -18,6 +20,8 @@ import { DailySaleEntity } from './entities/daily-sale.entity';
       DailySaleEntity,
       DrawerEntity,
       DrawerTransactionEntity,
+      VaultEntity,
+      VaultTransactionEntity,
     ]),
   ],
   controllers: [DailySalesController],

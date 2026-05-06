@@ -38,9 +38,12 @@ type Totals = {
   deliverySales: number;
   websiteSales: number;
   purchases: number;
+  paidSupplierAmounts: number;
+  outstandingSupplierAmounts: number;
   operatingExpenses: number;
   miscellaneousExpenses: number;
   payroll: number;
+  outstandingPayroll: number;
   employeeAdvances: number;
 };
 
@@ -126,6 +129,7 @@ export class DashboardService {
       metrics: [
         this.metric('total_sales', 'إجمالي المبيعات', totals.sales, previousTotals.sales),
         this.metric('total_purchases', 'إجمالي المشتريات', totals.purchases, previousTotals.purchases),
+        this.metric('paid_supplier_amounts', 'المدفوع للموردين', totals.paidSupplierAmounts, previousTotals.paidSupplierAmounts),
         this.metric(
           'total_operating_expenses',
           'المصاريف التشغيلية',
@@ -138,13 +142,18 @@ export class DashboardService {
           totals.miscellaneousExpenses,
           previousTotals.miscellaneousExpenses,
         ),
-        ...(includePayroll ? [this.metric('total_payroll', 'الرواتب', totals.payroll, previousTotals.payroll)] : []),
+        ...(includePayroll
+          ? [
+              this.metric('total_payroll', 'الرواتب المدفوعة', totals.payroll, previousTotals.payroll),
+              this.metric('outstanding_payroll', 'مستحقات الرواتب', totals.outstandingPayroll, previousTotals.outstandingPayroll),
+            ]
+          : []),
         this.metric('total_employee_advances', 'سلف الموظفين', totals.employeeAdvances, previousTotals.employeeAdvances),
         this.metric('operating_net', 'صافي التشغيل', operatingNet, previousOperatingNet),
         this.metric('net_after_purchases', 'الصافي بعد المشتريات', netAfterPurchases, previousNetAfterPurchases),
         this.metric('bank_balance', 'الرصيد البنكي الحالي', bankBalance, bankBalance),
         this.metric('vault_balance', 'رصيد الخزنة الحالي', vaultBalance, vaultBalance),
-        this.metric('supplier_due', 'المستحقات للموردين', supplierDue, previousSupplierDue),
+        this.metric('supplier_due', 'مستحقات الموردين', supplierDue, previousSupplierDue),
       ],
       charts: {
         timeSeries: this.buildTimeSeries(
@@ -199,13 +208,19 @@ export class DashboardService {
       date: point.date,
       sales: point.sales,
       purchases: point.purchases,
+      paidSupplierAmounts: point.paidSupplierAmounts,
+      outstandingSupplierAmounts: point.outstandingSupplierAmounts,
       operatingExpenses: point.operatingExpenses,
       miscellaneousExpenses: point.miscellaneousExpenses,
       ...(includePayroll ? { payroll: point.payroll } : {}),
+      ...(includePayroll ? { outstandingPayroll: point.outstandingPayroll } : {}),
       employeeAdvances: point.employeeAdvances,
       profit: point.netAfterPurchases,
     }));
     const columns = [
+      ...(includePayroll ? [{ key: 'outstandingPayroll', label: 'مستحقات الرواتب', type: 'money' as const }] : []),
+      { key: 'paidSupplierAmounts', label: 'المدفوع للموردين', type: 'money' as const },
+      { key: 'outstandingSupplierAmounts', label: 'مستحقات الموردين', type: 'money' as const },
       { key: 'date', label: 'التاريخ', type: 'date' as const },
       { key: 'sales', label: 'إجمالي المبيعات', type: 'money' as const },
       { key: 'purchases', label: 'إجمالي المشتريات', type: 'money' as const },
@@ -392,9 +407,12 @@ export class DashboardService {
       deliverySales,
       websiteSales,
       purchases: invoices.reduce((sum, invoice) => sum + Number(invoice.totalAmount ?? 0), 0),
+      paidSupplierAmounts: invoices.reduce((sum, invoice) => sum + Number(invoice.paidAmount ?? 0), 0),
+      outstandingSupplierAmounts: invoices.reduce((sum, invoice) => sum + Number(invoice.remainingAmount ?? 0), 0),
       operatingExpenses,
       miscellaneousExpenses,
-      payroll: payrolls.reduce((sum, payroll) => sum + Number(payroll.netSalary ?? 0), 0),
+      payroll: payrolls.reduce((sum, payroll) => sum + Number(payroll.paidAmount ?? 0), 0),
+      outstandingPayroll: payrolls.reduce((sum, payroll) => sum + Number(payroll.remainingAmount ?? 0), 0),
       employeeAdvances: employeeAdvances.reduce((sum, advance) => sum + Number(advance.amount ?? 0), 0),
     };
   }
@@ -414,9 +432,12 @@ export class DashboardService {
           date,
           sales: 0,
           purchases: 0,
+          paidSupplierAmounts: 0,
+          outstandingSupplierAmounts: 0,
           operatingExpenses: 0,
           miscellaneousExpenses: 0,
           payroll: 0,
+          outstandingPayroll: 0,
           employeeAdvances: 0,
           netAfterPurchases: 0,
         });
@@ -430,7 +451,10 @@ export class DashboardService {
       ensure(sale.salesDate).sales += Number(sale.netSalesAmount ?? 0);
     });
     invoices.forEach((invoice) => {
-      ensure(invoice.invoiceDate).purchases += Number(invoice.totalAmount ?? 0);
+      const bucket = ensure(invoice.invoiceDate);
+      bucket.purchases += Number(invoice.totalAmount ?? 0);
+      bucket.paidSupplierAmounts += Number(invoice.paidAmount ?? 0);
+      bucket.outstandingSupplierAmounts += Number(invoice.remainingAmount ?? 0);
     });
     expenses.forEach((expense) => {
       const bucket = ensure(expense.expenseDate);
@@ -438,7 +462,9 @@ export class DashboardService {
       else bucket.miscellaneousExpenses += Number(expense.amount ?? 0);
     });
     payrolls.forEach((payroll) => {
-      ensure(`${payroll.payrollYear}-${String(payroll.payrollMonth).padStart(2, '0')}-01`).payroll += Number(payroll.netSalary ?? 0);
+      const bucket = ensure(`${payroll.payrollYear}-${String(payroll.payrollMonth).padStart(2, '0')}-01`);
+      bucket.payroll += Number(payroll.paidAmount ?? 0);
+      bucket.outstandingPayroll += Number(payroll.remainingAmount ?? 0);
     });
     employeeAdvances.forEach((advance) => {
       ensure(advance.advanceDate).employeeAdvances += Number(advance.amount ?? 0);
@@ -450,9 +476,12 @@ export class DashboardService {
         ...point,
         sales: this.round(point.sales),
         purchases: this.round(point.purchases),
+        paidSupplierAmounts: this.round(point.paidSupplierAmounts),
+        outstandingSupplierAmounts: this.round(point.outstandingSupplierAmounts),
         operatingExpenses: this.round(point.operatingExpenses),
         miscellaneousExpenses: this.round(point.miscellaneousExpenses),
         payroll: this.round(point.payroll),
+        outstandingPayroll: this.round(point.outstandingPayroll),
         employeeAdvances: this.round(point.employeeAdvances),
         netAfterPurchases: this.round(
           point.sales -

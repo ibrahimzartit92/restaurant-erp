@@ -55,4 +55,18 @@ export class CreateDailySaleDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  @IsUUID()
+  @IsOptional()
+  vaultTransferVaultId?: string | null;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  vaultTransferAmount?: number;
+
+  @IsString()
+  @IsOptional()
+  vaultTransferNotes?: string | null;
 }

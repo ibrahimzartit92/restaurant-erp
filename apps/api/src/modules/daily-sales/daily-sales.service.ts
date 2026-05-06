@@ -14,6 +14,12 @@ import {
   DrawerTransactionType,
 } from '../drawer-transactions/entities/drawer-transaction.entity';
 import { DrawerEntity } from '../drawers/entities/drawer.entity';
+import {
+  VaultTransactionDirection,
+  VaultTransactionEntity,
+  VaultTransactionType,
+} from '../vaults/entities/vault-transaction.entity';
+import { VaultEntity } from '../vaults/entities/vault.entity';
 import { CreateDailySaleDto } from './dto/create-daily-sale.dto';
 import { UpdateDailySaleDto } from './dto/update-daily-sale.dto';
 import { DailySaleEntity } from './entities/daily-sale.entity';
@@ -61,7 +67,16 @@ export class DailySalesService {
       throw new NotFoundException('Daily sales record was not found.');
     }
 
-    return dailySale;
+    const vaultTransfer = await this.dataSource.manager.getRepository(VaultTransactionEntity).findOne({
+      where: { sourceType: 'daily_sale_vault_transfer', sourceId: dailySale.id },
+    });
+
+    return {
+      ...dailySale,
+      vaultTransferVaultId: vaultTransfer?.vaultId ?? null,
+      vaultTransferAmount: vaultTransfer?.amount ?? 0,
+      vaultTransferNotes: vaultTransfer?.notes ?? null,
+    };
   }
 
   async create(createDailySaleDto: CreateDailySaleDto) {
@@ -85,7 +100,11 @@ export class DailySalesService {
 
     return this.dataSource.transaction(async (manager) => {
       const savedDailySale = await manager.getRepository(DailySaleEntity).save(dailySale);
-      await this.recreateFinancialMovement(savedDailySale, manager);
+      await this.recreateFinancialMovement(savedDailySale, manager, {
+        vaultId: createDailySaleDto.vaultTransferVaultId,
+        amount: createDailySaleDto.vaultTransferAmount,
+        notes: createDailySaleDto.vaultTransferNotes,
+      });
       return savedDailySale;
     });
   }
@@ -109,7 +128,11 @@ export class DailySalesService {
 
     return this.dataSource.transaction(async (manager) => {
       const savedDailySale = await manager.getRepository(DailySaleEntity).save(dailySale);
-      await this.recreateFinancialMovement(savedDailySale, manager);
+      await this.recreateFinancialMovement(savedDailySale, manager, {
+        vaultId: updateDailySaleDto.vaultTransferVaultId,
+        amount: updateDailySaleDto.vaultTransferAmount,
+        notes: updateDailySaleDto.vaultTransferNotes,
+      });
       return savedDailySale;
     });
   }
@@ -175,7 +198,11 @@ export class DailySalesService {
     return { drawerId, bankAccountId };
   }
 
-  private async recreateFinancialMovement(dailySale: DailySaleEntity, manager = this.dataSource.manager) {
+  private async recreateFinancialMovement(
+    dailySale: DailySaleEntity,
+    manager = this.dataSource.manager,
+    vaultTransfer?: { vaultId?: string | null; amount?: number; notes?: string | null },
+  ) {
     await this.deleteFinancialMovement(dailySale.id, manager);
 
     if (dailySale.cashSalesAmount > 0 && dailySale.drawerId) {
@@ -208,13 +235,89 @@ export class DailySalesService {
         notes: dailySale.notes,
       });
     }
+
+    const transferAmount = this.roundMoney(Number(vaultTransfer?.amount ?? 0));
+    if (transferAmount > 0) {
+      if (!dailySale.drawerId) {
+        throw new BadRequestException('لا يمكن التحويل إلى الخزنة بدون درج نقدي مرتبط بالمبيعات اليومية.');
+      }
+      if (!vaultTransfer?.vaultId) {
+        throw new BadRequestException('اختر الخزنة قبل تسجيل تحويل النقد من المبيعات اليومية.');
+      }
+
+      const [drawer, vault] = await Promise.all([
+        manager.getRepository(DrawerEntity).findOne({ where: { id: dailySale.drawerId } }),
+        manager.getRepository(VaultEntity).findOne({ where: { id: vaultTransfer.vaultId } }),
+      ]);
+
+      if (!drawer) throw new NotFoundException('Drawer was not found.');
+      if (!vault) throw new NotFoundException('Vault was not found.');
+
+      await this.ensureTransferWithinAvailableDailyCash(dailySale.drawerId, dailySale.salesDate, transferAmount, manager);
+
+      const description = `تحويل نقد مبيعات ${dailySale.salesDate} من الدرج إلى الخزنة`;
+      await manager.getRepository(DrawerTransactionEntity).save({
+        drawerId: dailySale.drawerId,
+        branchId: dailySale.branchId,
+        transactionDate: dailySale.salesDate,
+        transactionType: DrawerTransactionType.TransferToVault,
+        direction: DrawerTransactionDirection.Out,
+        amount: transferAmount,
+        sourceType: 'daily_sale_vault_transfer',
+        sourceId: dailySale.id,
+        description,
+        notes: vaultTransfer.notes ?? dailySale.notes,
+      });
+      await manager.getRepository(VaultTransactionEntity).save({
+        vaultId: vault.id,
+        transactionDate: dailySale.salesDate,
+        transactionType: VaultTransactionType.DepositFromDrawer,
+        direction: VaultTransactionDirection.In,
+        amount: transferAmount,
+        branchId: dailySale.branchId,
+        drawerId: dailySale.drawerId,
+        sourceType: 'daily_sale_vault_transfer',
+        sourceId: dailySale.id,
+        referenceNumber: dailySale.id,
+        description,
+        notes: vaultTransfer.notes ?? dailySale.notes,
+      });
+    }
   }
 
   private async deleteFinancialMovement(dailySaleId: string, manager = this.dataSource.manager) {
     await Promise.all([
       manager.getRepository(DrawerTransactionEntity).delete({ sourceType: 'daily_sale', sourceId: dailySaleId }),
+      manager
+        .getRepository(DrawerTransactionEntity)
+        .delete({ sourceType: 'daily_sale_vault_transfer', sourceId: dailySaleId }),
       manager.getRepository(BankAccountTransactionEntity).delete({ sourceType: 'daily_sale', sourceId: dailySaleId }),
+      manager
+        .getRepository(VaultTransactionEntity)
+        .delete({ sourceType: 'daily_sale_vault_transfer', sourceId: dailySaleId }),
     ]);
+  }
+
+  private async ensureTransferWithinAvailableDailyCash(
+    drawerId: string,
+    transactionDate: string,
+    requestedTransfer: number,
+    manager = this.dataSource.manager,
+  ) {
+    const rows = await manager.getRepository(DrawerTransactionEntity).find({ where: { drawerId, transactionDate } });
+    const inflows = rows
+      .filter((row) => row.direction === DrawerTransactionDirection.In)
+      .reduce((sum, row) => sum + Number(row.amount ?? 0), 0);
+    const outflows = rows
+      .filter((row) => row.direction === DrawerTransactionDirection.Out)
+      .reduce((sum, row) => sum + Number(row.amount ?? 0), 0);
+    const available = this.roundMoney(inflows - outflows);
+
+    if (requestedTransfer > available) {
+      throw new BadRequestException(
+        `لا يمكن تحويل مبلغ أكبر من صافي النقد المتاح في الدرج لهذا اليوم. المتاح للتحويل: ${available}.`,
+      );
+    }
   }
 
   private async ensureBranchExists(id: string) {
@@ -250,5 +353,9 @@ export class DailySalesService {
       Number(data.salesReturnAmount ?? 0);
 
     return Math.round((netSales + Number.EPSILON) * 100) / 100;
+  }
+
+  private roundMoney(value: number) {
+    return Math.round((value + Number.EPSILON) * 100) / 100;
   }
 }

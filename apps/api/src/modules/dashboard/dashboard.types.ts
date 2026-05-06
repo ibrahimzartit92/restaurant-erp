@@ -8,9 +8,11 @@ export type DashboardFilters = {
 export type DashboardMetricKey =
   | 'total_sales'
   | 'total_purchases'
+  | 'paid_supplier_amounts'
   | 'total_operating_expenses'
   | 'total_miscellaneous_expenses'
   | 'total_payroll'
+  | 'outstanding_payroll'
   | 'total_employee_advances'
   | 'operating_net'
   | 'net_after_purchases'
@@ -32,9 +34,12 @@ export type DashboardPoint = {
   date: string;
   sales: number;
   purchases: number;
+  paidSupplierAmounts: number;
+  outstandingSupplierAmounts: number;
   operatingExpenses: number;
   miscellaneousExpenses: number;
   payroll: number;
+  outstandingPayroll: number;
   employeeAdvances: number;
   netAfterPurchases: number;
 };
