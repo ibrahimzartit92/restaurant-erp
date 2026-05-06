@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { submitJson } from '../lib/client-api';
 import type { DrawerOption, EmployeeAdvanceSummary, EmployeeSummary } from '../lib/types';
+import { MonthSelect, YearSelect } from './month-year-selects';
 
 export function EmployeeAdvanceForm({
   employees,
@@ -83,11 +84,11 @@ export function EmployeeAdvanceForm({
         </label>
         <label>
           شهر الراتب
-          <input defaultValue={initialAdvance?.payrollMonth ?? ''} max="12" min="1" name="payrollMonth" type="number" />
+          <MonthSelect defaultValue={initialAdvance?.payrollMonth ?? ''} emptyLabel="غير مرتبط" name="payrollMonth" />
         </label>
         <label>
           سنة الراتب
-          <input defaultValue={initialAdvance?.payrollYear ?? ''} max="2100" min="2000" name="payrollYear" type="number" />
+          <YearSelect defaultValue={initialAdvance?.payrollYear ?? ''} emptyLabel="غير مرتبط" name="payrollYear" />
         </label>
       </div>
       <label>

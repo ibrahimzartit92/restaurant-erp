@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { submitJson } from '../lib/client-api';
 import type { BankAccountOption, DrawerOption, EmployeeSummary, PayrollSummary, VaultOption } from '../lib/types';
+import { MonthSelect, YearSelect } from './month-year-selects';
 import {
   PaymentSourceRows,
   activePaymentRows,
@@ -158,11 +159,11 @@ export function PayrollForm({
         </label>
         <label>
           الشهر
-          <input defaultValue={initialPayroll?.payrollMonth ?? ''} max="12" min="1" name="payrollMonth" required type="number" />
+          <MonthSelect defaultValue={initialPayroll?.payrollMonth ?? ''} emptyLabel="اختر الشهر" name="payrollMonth" required />
         </label>
         <label>
           السنة
-          <input defaultValue={initialPayroll?.payrollYear ?? ''} max="2100" min="2000" name="payrollYear" required type="number" />
+          <YearSelect defaultValue={initialPayroll?.payrollYear ?? ''} emptyLabel="اختر السنة" name="payrollYear" required />
         </label>
         <label>
           الراتب الأساسي

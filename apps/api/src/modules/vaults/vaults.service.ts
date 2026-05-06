@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, ILike, Not, Repository } from 'typeorm';
 import {
@@ -158,13 +159,32 @@ export class VaultsService {
 
     return this.dataSource.transaction(async (manager) => {
       const vault = await this.findEntityByIdOrFail(vaultId, manager);
-      const description = this.describeTransfer(dto.transferKind, vault.name);
       const direction = this.resolveDirection(dto.transferKind);
       const transactionType = this.resolveTransactionType(dto.transferKind);
+      const transferReferenceId = randomUUID();
+      const sourceType =
+        dto.transferKind === VaultTransferKind.DepositFromDrawer ? 'drawer_vault_transfer' : 'vault_transfer';
+
+      if (dto.transferKind === VaultTransferKind.DepositFromDrawer && !dto.drawerId) {
+        throw new BadRequestException('Drawer is required when depositing drawer cash into the vault.');
+      }
+
+      let drawer: DrawerEntity | null = null;
+      let bankAccount: BankAccountEntity | null = null;
 
       if (dto.drawerId) {
-        const drawer = await manager.getRepository(DrawerEntity).findOne({ where: { id: dto.drawerId } });
+        drawer = await manager.getRepository(DrawerEntity).findOne({ where: { id: dto.drawerId } });
         if (!drawer) throw new NotFoundException('Drawer was not found.');
+      }
+
+      if (dto.bankAccountId) {
+        bankAccount = await manager.getRepository(BankAccountEntity).findOne({ where: { id: dto.bankAccountId } });
+        if (!bankAccount) throw new NotFoundException('Bank account was not found.');
+      }
+
+      const description = this.describeTransfer(dto.transferKind, vault.name, drawer?.name, bankAccount?.name);
+
+      if (drawer) {
         await manager.getRepository(DrawerTransactionEntity).save({
           drawerId: drawer.id,
           branchId: dto.branchId ?? drawer.branchId,
@@ -172,16 +192,14 @@ export class VaultsService {
           transactionType: DrawerTransactionType.TransferToVault,
           direction: DrawerTransactionDirection.Out,
           amount,
-          sourceType: 'vault_transfer',
-          sourceId: vault.id,
+          sourceType,
+          sourceId: transferReferenceId,
           description,
           notes: dto.notes ?? null,
         });
       }
 
-      if (dto.bankAccountId) {
-        const bankAccount = await manager.getRepository(BankAccountEntity).findOne({ where: { id: dto.bankAccountId } });
-        if (!bankAccount) throw new NotFoundException('Bank account was not found.');
+      if (bankAccount) {
         await manager.getRepository(BankAccountTransactionEntity).save({
           bankAccountId: bankAccount.id,
           transactionDate: dto.transactionDate,
@@ -195,8 +213,8 @@ export class VaultsService {
               : BankAccountTransactionDirection.Outgoing,
           amount,
           branchId: dto.branchId ?? null,
-          sourceType: 'vault_transfer',
-          sourceId: vault.id,
+          sourceType,
+          sourceId: transferReferenceId,
           referenceNumber: dto.referenceNumber ?? null,
           description,
           notes: dto.notes ?? null,
@@ -213,9 +231,9 @@ export class VaultsService {
           branchId: dto.branchId ?? null,
           drawerId: dto.drawerId ?? null,
           bankAccountId: dto.bankAccountId ?? null,
-          sourceType: 'vault_transfer',
-          sourceId: null,
-          referenceNumber: dto.referenceNumber ?? null,
+          sourceType,
+          sourceId: transferReferenceId,
+          referenceNumber: dto.referenceNumber ?? transferReferenceId,
           description,
           notes: dto.notes ?? null,
         },
@@ -338,12 +356,12 @@ export class VaultsService {
     return kind as unknown as VaultTransactionType;
   }
 
-  private describeTransfer(kind: VaultTransferKind, vaultName: string) {
+  private describeTransfer(kind: VaultTransferKind, vaultName: string, drawerName?: string, bankAccountName?: string) {
     const labels: Record<VaultTransferKind, string> = {
-      [VaultTransferKind.DepositFromDrawer]: `تحويل من الدرج إلى الخزنة ${vaultName}`,
-      [VaultTransferKind.DepositFromBank]: `سحب من البنك إلى الخزنة ${vaultName}`,
+      [VaultTransferKind.DepositFromDrawer]: `تحويل من الدرج ${drawerName ?? ''} إلى الخزنة ${vaultName}`.trim(),
+      [VaultTransferKind.DepositFromBank]: `إيداع من البنك ${bankAccountName ?? ''} إلى الخزنة ${vaultName}`.trim(),
       [VaultTransferKind.ManualDeposit]: `إيداع يدوي في الخزنة ${vaultName}`,
-      [VaultTransferKind.WithdrawalToBank]: `تحويل من الخزنة ${vaultName} إلى البنك`,
+      [VaultTransferKind.WithdrawalToBank]: `تحويل من الخزنة ${vaultName} إلى البنك ${bankAccountName ?? ''}`.trim(),
       [VaultTransferKind.PayrollPayment]: `دفع رواتب من الخزنة ${vaultName}`,
       [VaultTransferKind.AdminWithdrawal]: `سحب إداري من الخزنة ${vaultName}`,
       [VaultTransferKind.ManualWithdrawal]: `سحب يدوي من الخزنة ${vaultName}`,

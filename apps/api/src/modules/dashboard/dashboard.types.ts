@@ -11,6 +11,7 @@ export type DashboardMetricKey =
   | 'total_operating_expenses'
   | 'total_miscellaneous_expenses'
   | 'total_payroll'
+  | 'total_employee_advances'
   | 'operating_net'
   | 'net_after_purchases'
   | 'bank_balance'
@@ -34,6 +35,7 @@ export type DashboardPoint = {
   operatingExpenses: number;
   miscellaneousExpenses: number;
   payroll: number;
+  employeeAdvances: number;
   netAfterPurchases: number;
 };
 

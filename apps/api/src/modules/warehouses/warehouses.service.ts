@@ -61,9 +61,19 @@ export class WarehousesService {
 
   async remove(id: string) {
     const warehouse = await this.findByIdOrFail(id);
-    await this.warehouseRepository.remove(warehouse);
-
-    return { id };
+    try {
+      await this.warehouseRepository.remove(warehouse);
+      return { id, deleted: true };
+    } catch {
+      warehouse.isActive = false;
+      await this.warehouseRepository.save(warehouse);
+      return {
+        id,
+        deleted: false,
+        deactivated: true,
+        message: 'تم أرشفة المخزن لأنه مرتبط بسجلات تاريخية ولا يمكن حذفه نهائيا.',
+      };
+    }
   }
 
   private async ensureCodeIsAvailable(code: string, currentId?: string) {

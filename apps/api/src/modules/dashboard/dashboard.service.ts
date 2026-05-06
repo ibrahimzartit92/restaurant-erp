@@ -8,6 +8,7 @@ import {
 import { BankAccountEntity } from '../bank-accounts/entities/bank-account.entity';
 import { BranchEntity } from '../branches/entities/branch.entity';
 import { DailySaleEntity } from '../daily-sales/entities/daily-sale.entity';
+import { EmployeeAdvanceEntity } from '../employee-advances/entities/employee-advance.entity';
 import { ExpenseEntity } from '../expenses/entities/expense.entity';
 import { PayrollRecordEntity } from '../payroll/entities/payroll-record.entity';
 import { PurchaseInvoiceEntity, PurchaseInvoiceStatus } from '../purchase-invoices/entities/purchase-invoice.entity';
@@ -38,6 +39,7 @@ type Totals = {
   operatingExpenses: number;
   miscellaneousExpenses: number;
   payroll: number;
+  employeeAdvances: number;
 };
 
 @Injectable()
@@ -49,6 +51,8 @@ export class DashboardService {
     private readonly dailySalesRepository: Repository<DailySaleEntity>,
     @InjectRepository(ExpenseEntity)
     private readonly expensesRepository: Repository<ExpenseEntity>,
+    @InjectRepository(EmployeeAdvanceEntity)
+    private readonly employeeAdvancesRepository: Repository<EmployeeAdvanceEntity>,
     @InjectRepository(PurchaseInvoiceEntity)
     private readonly purchaseInvoicesRepository: Repository<PurchaseInvoiceEntity>,
     @InjectRepository(PayrollRecordEntity)
@@ -67,27 +71,37 @@ export class DashboardService {
   async getDashboard(filters: DashboardFilters): Promise<DashboardResult> {
     const range = this.resolveRange(filters);
     const previousPeriod = this.previousEquivalentRange(range);
+    const includePayroll = !this.isSingleDayRange(range);
     const [branches, currentData, previousData, bankBalance, vaultBalance, openInvoices] = await Promise.all([
       this.branchesRepository.find({ order: { name: 'ASC' } }),
-      this.loadPeriodData(range, filters.branchId),
-      this.loadPeriodData(previousPeriod, filters.branchId),
+      this.loadPeriodData(range, filters.branchId, includePayroll),
+      this.loadPeriodData(previousPeriod, filters.branchId, includePayroll),
       this.getBankBalance(filters.branchId),
       this.getVaultBalance(filters.branchId),
       this.getOpenInvoices(filters.branchId),
     ]);
 
-    const totals = this.calculateTotals(currentData.dailySales, currentData.expenses, currentData.invoices, currentData.payrolls);
+    const totals = this.calculateTotals(
+      currentData.dailySales,
+      currentData.expenses,
+      currentData.invoices,
+      currentData.payrolls,
+      currentData.employeeAdvances,
+    );
     const previousTotals = this.calculateTotals(
       previousData.dailySales,
       previousData.expenses,
       previousData.invoices,
       previousData.payrolls,
+      previousData.employeeAdvances,
     );
-    const operatingNet = totals.sales - totals.operatingExpenses - totals.miscellaneousExpenses - totals.payroll;
+    const operatingNet =
+      totals.sales - totals.operatingExpenses - totals.miscellaneousExpenses - totals.employeeAdvances - totals.payroll;
     const previousOperatingNet =
       previousTotals.sales -
       previousTotals.operatingExpenses -
       previousTotals.miscellaneousExpenses -
+      previousTotals.employeeAdvances -
       previousTotals.payroll;
     const netAfterPurchases = operatingNet - totals.purchases;
     const previousNetAfterPurchases = previousOperatingNet - previousTotals.purchases;
@@ -121,7 +135,8 @@ export class DashboardService {
           totals.miscellaneousExpenses,
           previousTotals.miscellaneousExpenses,
         ),
-        this.metric('total_payroll', 'الرواتب', totals.payroll, previousTotals.payroll),
+        ...(includePayroll ? [this.metric('total_payroll', 'الرواتب', totals.payroll, previousTotals.payroll)] : []),
+        this.metric('total_employee_advances', 'سلف الموظفين', totals.employeeAdvances, previousTotals.employeeAdvances),
         this.metric('operating_net', 'صافي التشغيل', operatingNet, previousOperatingNet),
         this.metric('net_after_purchases', 'الصافي بعد المشتريات', netAfterPurchases, previousNetAfterPurchases),
         this.metric('bank_balance', 'الرصيد البنكي الحالي', bankBalance, bankBalance),
@@ -129,7 +144,14 @@ export class DashboardService {
         this.metric('supplier_due', 'المستحقات للموردين', supplierDue, previousSupplierDue),
       ],
       charts: {
-        timeSeries: this.buildTimeSeries(range, currentData.dailySales, currentData.expenses, currentData.invoices, currentData.payrolls),
+        timeSeries: this.buildTimeSeries(
+          range,
+          currentData.dailySales,
+          currentData.expenses,
+          currentData.invoices,
+          currentData.payrolls,
+          currentData.employeeAdvances,
+        ),
         salesDistribution: [
           { label: 'نقدي', value: this.round(totals.cashSales) },
           { label: 'بنكي', value: this.round(totals.bankSales) },
@@ -140,11 +162,19 @@ export class DashboardService {
           { label: 'المشتريات', value: this.round(totals.purchases) },
           { label: 'تشغيلية', value: this.round(totals.operatingExpenses) },
           { label: 'متفرقات', value: this.round(totals.miscellaneousExpenses) },
-          { label: 'رواتب', value: this.round(totals.payroll) },
+          ...(includePayroll ? [{ label: 'رواتب', value: this.round(totals.payroll) }] : []),
+          { label: 'سلف الموظفين', value: this.round(totals.employeeAdvances) },
         ],
         branchComparison: filters.branchId
           ? []
-          : this.buildBranchComparison(branches, currentData.dailySales, currentData.expenses, currentData.invoices, currentData.payrolls),
+          : this.buildBranchComparison(
+              branches,
+              currentData.dailySales,
+              currentData.expenses,
+              currentData.invoices,
+              currentData.payrolls,
+              currentData.employeeAdvances,
+            ),
       },
       openInvoices: openInvoices.slice(0, 8),
     };
@@ -170,8 +200,8 @@ export class DashboardService {
     };
   }
 
-  private async loadPeriodData(range: Range, branchId?: string) {
-    const [dailySales, expenses, invoices, payrolls] = await Promise.all([
+  private async loadPeriodData(range: Range, branchId?: string, includePayroll = true) {
+    const [dailySales, expenses, invoices, payrolls, employeeAdvances] = await Promise.all([
       this.dailySalesRepository
         .createQueryBuilder('sale')
         .leftJoinAndSelect('sale.branch', 'branch')
@@ -192,15 +222,23 @@ export class DashboardService {
         .where('invoice.invoice_date BETWEEN :dateFrom AND :dateTo', range)
         .andWhere(branchId ? 'invoice.branch_id = :branchId' : '1=1', { branchId })
         .getMany(),
-      this.payrollRepository
-        .createQueryBuilder('payroll')
-        .leftJoinAndSelect('payroll.employee', 'employee')
-        .where('make_date(payroll.payroll_year, payroll.payroll_month, 1) BETWEEN CAST(:dateFrom AS date) AND CAST(:dateTo AS date)', range)
+      includePayroll
+        ? this.payrollRepository
+            .createQueryBuilder('payroll')
+            .leftJoinAndSelect('payroll.employee', 'employee')
+            .where('make_date(payroll.payroll_year, payroll.payroll_month, 1) BETWEEN CAST(:dateFrom AS date) AND CAST(:dateTo AS date)', range)
+            .andWhere(branchId ? 'employee.default_branch_id = :branchId' : '1=1', { branchId })
+            .getMany()
+        : Promise.resolve([]),
+      this.employeeAdvancesRepository
+        .createQueryBuilder('advance')
+        .leftJoinAndSelect('advance.employee', 'employee')
+        .where('advance.advance_date BETWEEN :dateFrom AND :dateTo', range)
         .andWhere(branchId ? 'employee.default_branch_id = :branchId' : '1=1', { branchId })
         .getMany(),
     ]);
 
-    return { dailySales, expenses, invoices, payrolls };
+    return { dailySales, expenses, invoices, payrolls, employeeAdvances };
   }
 
   private async getOpenInvoices(branchId?: string): Promise<DashboardOpenInvoice[]> {
@@ -278,6 +316,7 @@ export class DashboardService {
     expenses: ExpenseEntity[],
     invoices: PurchaseInvoiceEntity[],
     payrolls: PayrollRecordEntity[],
+    employeeAdvances: EmployeeAdvanceEntity[],
   ): Totals {
     const cashSales = dailySales.reduce((sum, sale) => sum + Number(sale.cashSalesAmount ?? 0), 0);
     const bankSales = dailySales.reduce((sum, sale) => sum + Number(sale.bankSalesAmount ?? 0), 0);
@@ -300,6 +339,7 @@ export class DashboardService {
       operatingExpenses,
       miscellaneousExpenses,
       payroll: payrolls.reduce((sum, payroll) => sum + Number(payroll.netSalary ?? 0), 0),
+      employeeAdvances: employeeAdvances.reduce((sum, advance) => sum + Number(advance.amount ?? 0), 0),
     };
   }
 
@@ -309,6 +349,7 @@ export class DashboardService {
     expenses: ExpenseEntity[],
     invoices: PurchaseInvoiceEntity[],
     payrolls: PayrollRecordEntity[],
+    employeeAdvances: EmployeeAdvanceEntity[],
   ) {
     const buckets = new Map<string, DashboardPoint>();
     const ensure = (date: string) => {
@@ -320,6 +361,7 @@ export class DashboardService {
           operatingExpenses: 0,
           miscellaneousExpenses: 0,
           payroll: 0,
+          employeeAdvances: 0,
           netAfterPurchases: 0,
         });
       }
@@ -342,6 +384,9 @@ export class DashboardService {
     payrolls.forEach((payroll) => {
       ensure(`${payroll.payrollYear}-${String(payroll.payrollMonth).padStart(2, '0')}-01`).payroll += Number(payroll.netSalary ?? 0);
     });
+    employeeAdvances.forEach((advance) => {
+      ensure(advance.advanceDate).employeeAdvances += Number(advance.amount ?? 0);
+    });
 
     return [...buckets.values()]
       .sort((first, second) => first.date.localeCompare(second.date))
@@ -352,8 +397,14 @@ export class DashboardService {
         operatingExpenses: this.round(point.operatingExpenses),
         miscellaneousExpenses: this.round(point.miscellaneousExpenses),
         payroll: this.round(point.payroll),
+        employeeAdvances: this.round(point.employeeAdvances),
         netAfterPurchases: this.round(
-          point.sales - point.purchases - point.operatingExpenses - point.miscellaneousExpenses - point.payroll,
+          point.sales -
+            point.purchases -
+            point.operatingExpenses -
+            point.miscellaneousExpenses -
+            point.employeeAdvances -
+            point.payroll,
         ),
       }));
   }
@@ -364,6 +415,7 @@ export class DashboardService {
     expenses: ExpenseEntity[],
     invoices: PurchaseInvoiceEntity[],
     payrolls: PayrollRecordEntity[],
+    employeeAdvances: EmployeeAdvanceEntity[],
   ): DashboardBranchComparison[] {
     return branches
       .map((branch) => {
@@ -371,14 +423,20 @@ export class DashboardService {
         const branchExpenses = expenses.filter((expense) => expense.branchId === branch.id);
         const branchInvoices = invoices.filter((invoice) => invoice.branchId === branch.id);
         const branchPayrolls = payrolls.filter((payroll) => payroll.employee?.defaultBranchId === branch.id);
-        const totals = this.calculateTotals(branchSales, branchExpenses, branchInvoices, branchPayrolls);
+        const branchAdvances = employeeAdvances.filter((advance) => advance.employee?.defaultBranchId === branch.id);
+        const totals = this.calculateTotals(branchSales, branchExpenses, branchInvoices, branchPayrolls, branchAdvances);
 
         return {
           branchId: branch.id,
           branchName: branch.name,
           sales: this.round(totals.sales),
           netAfterPurchases: this.round(
-            totals.sales - totals.purchases - totals.operatingExpenses - totals.miscellaneousExpenses - totals.payroll,
+            totals.sales -
+              totals.purchases -
+              totals.operatingExpenses -
+              totals.miscellaneousExpenses -
+              totals.employeeAdvances -
+              totals.payroll,
           ),
         };
       })
@@ -438,6 +496,10 @@ export class DashboardService {
     previousStart.setUTCDate(previousEnd.getUTCDate() - days + 1);
 
     return { dateFrom: this.toDateKey(previousStart), dateTo: this.toDateKey(previousEnd) };
+  }
+
+  private isSingleDayRange(range: Range) {
+    return range.dateFrom === range.dateTo;
   }
 
   private eachDate(range: Range) {

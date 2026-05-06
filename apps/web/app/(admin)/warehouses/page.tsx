@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { ArchiveDeleteButton } from '../../components/archive-delete-button';
 import { DataTable, type DataColumn } from '../../components/data-table';
 import { PageHeader } from '../../components/page-header';
 import { StatusBadge } from '../../components/status-badge';
@@ -15,7 +16,17 @@ const columns: DataColumn<WarehouseRow>[] = [
   { key: 'code', label: 'الكود', render: (row) => row.code },
   { key: 'name', label: 'اسم المخزن', render: (row) => <Link className="text-link" href={`/warehouses/${row.id}`}>{row.name}</Link> },
   { key: 'isActive', label: 'الحالة', render: (row) => <StatusBadge value={row.isActive} /> },
-  { key: 'actions', label: 'إجراءات', render: (row) => <Link className="text-link" href={`/warehouses/${row.id}`}>المخزون الحالي</Link> },
+  {
+    key: 'actions',
+    label: 'إجراءات',
+    render: (row) => (
+      <div className="inline-actions">
+        <Link className="text-link" href={`/warehouses/${row.id}`}>المخزون الحالي</Link>
+        <Link className="text-link" href={`/warehouses/${row.id}/edit`}>تعديل</Link>
+        <ArchiveDeleteButton path={`/warehouses/${row.id}`} entityLabel="المخزن" />
+      </div>
+    ),
+  },
 ];
 
 export default async function WarehousesPage() {

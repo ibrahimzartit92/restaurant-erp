@@ -16,7 +16,7 @@ type TransferKind =
   | 'settlement';
 
 const transferLabels: Record<TransferKind, string> = {
-  deposit_from_drawer: 'تحويل من درج إلى الخزنة',
+  deposit_from_drawer: 'إيداع من درج إلى الخزنة',
   deposit_from_bank: 'إيداع من البنك إلى الخزنة',
   manual_deposit: 'إيداع يدوي',
   withdrawal_to_bank: 'تحويل من الخزنة إلى البنك',
@@ -49,7 +49,7 @@ export function VaultTransferForm({
   const needsBank = transferKind === 'deposit_from_bank' || transferKind === 'withdrawal_to_bank';
 
   const helperText = useMemo(() => {
-    if (transferKind === 'deposit_from_drawer') return 'سيتم تسجيل خروج من الدرج ودخول إلى الخزنة.';
+    if (transferKind === 'deposit_from_drawer') return 'سيتم تسجيل خروج من الدرج ودخول إلى الخزنة بحركات مرتبطة.';
     if (transferKind === 'deposit_from_bank') return 'سيتم تسجيل خروج من الحساب البنكي ودخول إلى الخزنة.';
     if (transferKind === 'withdrawal_to_bank') return 'سيتم تسجيل خروج من الخزنة ودخول إلى الحساب البنكي.';
     return 'سيتم تسجيل حركة خزنة مباشرة بدون تعديل رصيد درج أو بنك.';
@@ -96,6 +96,7 @@ export function VaultTransferForm({
       event.currentTarget.reset();
       setTransferKind(defaultKind);
       router.refresh();
+      setMessage(needsDrawer ? 'تم الإيداع وربط حركة الدرج بحركة الخزنة.' : 'تم حفظ حركة الخزنة.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'تعذر حفظ حركة الخزنة.');
     } finally {
@@ -105,7 +106,7 @@ export function VaultTransferForm({
 
   return (
     <form className={compact ? 'form-panel compact-form' : 'form-panel'} onSubmit={handleSubmit}>
-      {message ? <p className="notice danger">{message}</p> : null}
+      {message ? <p className={message.startsWith('تم ') ? 'notice success' : 'notice danger'}>{message}</p> : null}
       <div className="panel-heading">
         <div>
           <h3>حركة خزنة</h3>

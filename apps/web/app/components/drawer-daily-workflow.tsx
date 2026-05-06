@@ -29,6 +29,18 @@ type DrawerReconciliationSummary = {
   movementTotals?: {
     inflows: number;
     outflows: number;
+    cashSales?: number;
+    dailyCashOutflows?: number;
+    transferredToVault?: number;
+  };
+  drawerCashPicture?: {
+    openingFloat: number;
+    cashSales: number;
+    dailyCashOutflows: number;
+    transferredToVault: number;
+    requiredClosingFloat: number;
+    expectedCashInDrawer: number;
+    expectedTransferableToVault: number;
   };
   status: string;
   notes?: string | null;
@@ -77,6 +89,11 @@ function DrawerWorkflowCard({
   const inflows = summary?.movementTotals?.inflows ?? 0;
   const outflows = summary?.movementTotals?.outflows ?? 0;
   const theoreticalBalance = summary?.theoreticalBalance ?? summary?.calculatedBalance ?? cashFloat + inflows - outflows;
+  const cashSales = summary?.drawerCashPicture?.cashSales ?? summary?.movementTotals?.cashSales ?? 0;
+  const dailyCashOutflows = summary?.drawerCashPicture?.dailyCashOutflows ?? summary?.movementTotals?.dailyCashOutflows ?? 0;
+  const transferredToVault = summary?.drawerCashPicture?.transferredToVault ?? summary?.movementTotals?.transferredToVault ?? 0;
+  const expectedTransferableToVault =
+    summary?.drawerCashPicture?.expectedTransferableToVault ?? Math.max(theoreticalBalance - cashFloat, 0);
   const difference = summary?.reconciliationDifference ?? summary?.differenceAmount ?? 0;
 
   async function saveReconciliation(event: React.FormEvent<HTMLFormElement>) {
@@ -115,30 +132,44 @@ function DrawerWorkflowCard({
 
       {message ? <p className={message.includes('تم ') ? 'notice success' : 'notice danger'}>{message}</p> : null}
 
-      <section className="summary-grid">
+      <section className="summary-grid drawer-cash-summary">
         <article className="summary-card">
           <p>العهدة الثابتة</p>
           <strong>{formatMoney(cashFloat)}</strong>
-          <span>المبلغ الطبيعي الموجود في بداية اليوم</span>
+          <span>المبلغ المطلوب بقاؤه كفكة في الدرج</span>
         </article>
         <article className="summary-card">
-          <p>إجمالي الداخل</p>
-          <strong>{formatMoney(inflows)}</strong>
-          <span>مبيعات نقدية وحركات نقد داخلة</span>
+          <p>المبيعات النقدية</p>
+          <strong>{formatMoney(cashSales)}</strong>
+          <span>تسجل كمبلغ داخل الدرج لهذا اليوم</span>
         </article>
         <article className="summary-card">
-          <p>إجمالي الخارج</p>
-          <strong>{formatMoney(outflows)}</strong>
-          <span>مصروفات ودفعات وسلف نقدية</span>
+          <p>الخروج النقدي اليومي</p>
+          <strong>{formatMoney(dailyCashOutflows)}</strong>
+          <span>مصروفات ومدفوعات وسلف من الدرج بدون التحويل للخزنة</span>
         </article>
         <article className="summary-card">
-          <p>الرصيد النظري</p>
+          <p>المحول إلى الخزنة</p>
+          <strong>{formatMoney(transferredToVault)}</strong>
+          <span>مبالغ خرجت من الدرج ودخلت الخزنة بحركات مرتبطة</span>
+        </article>
+        <article className="summary-card">
+          <p>الرصيد النظري في الدرج</p>
           <strong>{formatMoney(theoreticalBalance)}</strong>
           <span>العهدة + الداخل - الخارج</span>
         </article>
         <article className="summary-card">
+          <p>المتاح للتحويل للخزنة</p>
+          <strong>{formatMoney(expectedTransferableToVault)}</strong>
+          <span>ما يزيد عن الفكة الثابتة قبل الإغلاق</span>
+        </article>
+        <article className="summary-card">
           <p>النقد الفعلي</p>
-          <strong>{summary?.closingBalance === null || summary?.closingBalance === undefined ? 'لم يدخل بعد' : formatMoney(summary.closingBalance)}</strong>
+          <strong>
+            {summary?.closingBalance === null || summary?.closingBalance === undefined
+              ? 'لم يدخل بعد'
+              : formatMoney(summary.closingBalance)}
+          </strong>
           <span>ما وجده المستخدم عند الإغلاق</span>
         </article>
         <article className="summary-card">

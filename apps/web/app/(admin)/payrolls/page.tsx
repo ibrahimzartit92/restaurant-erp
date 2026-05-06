@@ -1,32 +1,43 @@
 import Link from 'next/link';
-import { DataTable, type DataColumn } from '../../components/data-table';
 import { DeleteFinancialRecordButton } from '../../components/delete-financial-record-button';
+import { MonthSelect, YearSelect } from '../../components/month-year-selects';
 import { PageHeader } from '../../components/page-header';
-import { StatusBadge } from '../../components/status-badge';
 import { buildQuery, fetchList, formatMoney } from '../../lib/api';
 import type { EmployeeSummary, PayrollSummary } from '../../lib/types';
 
-const columns: DataColumn<PayrollSummary>[] = [
-  { key: 'employee', label: 'الموظف', render: (row) => row.employee.fullName },
-  { key: 'period', label: 'الشهر/السنة', render: (row) => `${row.payrollMonth}/${row.payrollYear}` },
-  { key: 'net', label: 'الصافي', render: (row) => formatMoney(row.netSalary) },
-  { key: 'paid', label: 'المدفوع', render: (row) => formatMoney(row.paidAmount ?? 0) },
-  { key: 'remaining', label: 'المتبقي', render: (row) => formatMoney(row.remainingAmount ?? 0) },
-  { key: 'status', label: 'حالة الدفع', render: (row) => <StatusBadge value={row.paymentStatus ?? 'unpaid'} /> },
-  {
-    key: 'actions',
-    label: 'إجراء',
-    render: (row) => (
-      <div className="inline-actions">
-        <Link className="text-link" href={`/payrolls/${row.id}/edit`}>
-          تعديل
-        </Link>
-        <DeleteFinancialRecordButton path={`/payrolls/${row.id}`} reverse={false} label="حذف فقط" />
-        <DeleteFinancialRecordButton path={`/payrolls/${row.id}`} reverse label="حذف وإرجاع للخزنة" />
-      </div>
-    ),
-  },
-];
+const statusLabels: Record<NonNullable<PayrollSummary['paymentStatus']>, string> = {
+  unpaid: 'غير مدفوع',
+  partially_paid: 'مدفوع جزئيًا',
+  paid: 'مدفوع بالكامل',
+};
+
+const statusClass: Record<NonNullable<PayrollSummary['paymentStatus']>, string> = {
+  unpaid: 'danger',
+  partially_paid: 'info',
+  paid: 'success',
+};
+
+function PayrollStatus({ status = 'unpaid' }: Readonly<{ status?: PayrollSummary['paymentStatus'] }>) {
+  const normalized = status ?? 'unpaid';
+  return <span className={`payroll-status ${statusClass[normalized]}`}>{statusLabels[normalized]}</span>;
+}
+
+function PayrollAmount({
+  label,
+  value,
+  tone = 'neutral',
+}: Readonly<{
+  label: string;
+  value: number;
+  tone?: 'neutral' | 'warning' | 'danger' | 'success' | 'highlight';
+}>) {
+  return (
+    <span className={`payroll-amount ${tone}`}>
+      <small>{label}</small>
+      <strong>{formatMoney(value)}</strong>
+    </span>
+  );
+}
 
 export default async function PayrollPage({ searchParams }: { searchParams?: Promise<Record<string, string | undefined>> }) {
   const params = (await searchParams) ?? {};
@@ -44,7 +55,7 @@ export default async function PayrollPage({ searchParams }: { searchParams?: Pro
 
   return (
     <>
-      <PageHeader title="قائمة الرواتب" description="متابعة الرواتب الشهرية وحالة الدفع لكل موظف." />
+      <PageHeader title="قائمة الرواتب" description="متابعة الرواتب الشهرية وحالة الدفع لكل موظف بوضوح." />
       <div className="page-toolbar">
         <form action="" className="filters">
           <label>
@@ -64,11 +75,11 @@ export default async function PayrollPage({ searchParams }: { searchParams?: Pro
           </label>
           <label>
             الشهر
-            <input defaultValue={params.payroll_month ?? ''} max="12" min="1" name="payroll_month" type="number" />
+            <MonthSelect defaultValue={params.payroll_month} name="payroll_month" />
           </label>
           <label>
             السنة
-            <input defaultValue={params.payroll_year ?? ''} max="2100" min="2000" name="payroll_year" type="number" />
+            <YearSelect defaultValue={params.payroll_year} name="payroll_year" />
           </label>
           <button type="submit">تطبيق</button>
         </form>
@@ -77,7 +88,44 @@ export default async function PayrollPage({ searchParams }: { searchParams?: Pro
         </Link>
       </div>
       {result.error ? <p className="notice">{result.error}</p> : null}
-      <DataTable columns={columns} rows={result.data} emptyTitle="لا توجد رواتب" emptyText="أضف راتبا جديدا وسيظهر هنا." />
+      {result.data.length === 0 ? (
+        <div className="empty-state">
+          <h3>لا توجد رواتب</h3>
+          <p>أضف راتبا جديدا وسيظهر هنا.</p>
+        </div>
+      ) : (
+        <section className="payroll-card-list">
+          {result.data.map((row) => (
+            <article className="payroll-card" key={row.id}>
+              <div className="payroll-card-header">
+                <div>
+                  <span>الموظف</span>
+                  <h3>{row.employee.fullName}</h3>
+                  <p>
+                    شهر {row.payrollMonth} / سنة {row.payrollYear}
+                  </p>
+                </div>
+                <PayrollStatus status={row.paymentStatus} />
+              </div>
+              <div className="payroll-amount-grid">
+                <PayrollAmount label="إجمالي الراتب" value={row.baseSalary + row.allowancesAmount} />
+                <PayrollAmount label="سلف الموظف" value={row.advancesDeductionAmount} tone="warning" />
+                <PayrollAmount label="العقوبات" value={row.penaltiesDeductionAmount + row.otherDeductionAmount} tone="danger" />
+                <PayrollAmount label="الراتب الصافي" value={row.netSalary} tone="neutral" />
+                <PayrollAmount label="المدفوع" value={row.paidAmount ?? 0} tone="success" />
+                <PayrollAmount label="المتبقي" value={row.remainingAmount ?? 0} tone="highlight" />
+              </div>
+              <div className="inline-actions">
+                <Link className="text-link" href={`/payrolls/${row.id}/edit`}>
+                  تعديل
+                </Link>
+                <DeleteFinancialRecordButton path={`/payrolls/${row.id}`} reverse={false} label="حذف فقط" />
+                <DeleteFinancialRecordButton path={`/payrolls/${row.id}`} reverse label="حذف وإرجاع للخزنة" />
+              </div>
+            </article>
+          ))}
+        </section>
+      )}
     </>
   );
 }

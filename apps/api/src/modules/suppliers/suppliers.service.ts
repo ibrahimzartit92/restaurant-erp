@@ -68,9 +68,19 @@ export class SuppliersService {
 
   async remove(id: string) {
     const supplier = await this.findByIdOrFail(id);
-    await this.supplierRepository.remove(supplier);
-
-    return { id };
+    try {
+      await this.supplierRepository.remove(supplier);
+      return { id, deleted: true };
+    } catch {
+      supplier.isActive = false;
+      await this.supplierRepository.save(supplier);
+      return {
+        id,
+        deleted: false,
+        deactivated: true,
+        message: 'تم أرشفة المورد لأنه مرتبط بسجلات تاريخية ولا يمكن حذفه نهائيا.',
+      };
+    }
   }
 
   private async ensureCodeIsAvailable(code: string, currentId?: string) {

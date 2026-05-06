@@ -50,7 +50,9 @@ function FormMessage({ message }: Readonly<{ message: MessageState }>) {
   return message ? <p className="notice danger">{message}</p> : null;
 }
 
-export function BranchForm() {
+export function BranchForm({
+  initialBranch = null,
+}: Readonly<{ initialBranch?: (BranchOption & { code?: string; isActive?: boolean }) | null }>) {
   const router = useRouter();
   const [message, setMessage] = useState<MessageState>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -63,7 +65,7 @@ export function BranchForm() {
     const formData = new FormData(event.currentTarget);
 
     try {
-      await submitJson('/branches', 'POST', {
+      await submitJson(initialBranch?.id ? `/branches/${initialBranch.id}` : '/branches', initialBranch?.id ? 'PATCH' : 'POST', {
         code: text(formData, 'code'),
         name: text(formData, 'name'),
         defaultOpeningBalance: numberValue(formData, 'defaultOpeningBalance'),
@@ -85,11 +87,11 @@ export function BranchForm() {
       <div className="form-grid">
         <label>
           كود الفرع
-          <input name="code" maxLength={50} placeholder="اختياري" />
+          <input name="code" maxLength={50} placeholder="اختياري" defaultValue={initialBranch?.code ?? ''} />
         </label>
         <label>
           اسم الفرع
-          <input name="name" maxLength={160} required />
+          <input name="name" maxLength={160} required defaultValue={initialBranch?.name ?? ''} />
         </label>
         <label>
           الرصيد الافتتاحي الافتراضي
@@ -100,7 +102,7 @@ export function BranchForm() {
           <input name="defaultCashFloat" type="number" min="0" step="0.01" defaultValue={0} />
         </label>
         <label className="checkbox-field">
-          <input name="isActive" type="checkbox" defaultChecked />
+          <input name="isActive" type="checkbox" defaultChecked={initialBranch?.isActive ?? true} />
           الفرع نشط
         </label>
       </div>
@@ -111,7 +113,7 @@ export function BranchForm() {
   );
 }
 
-export function WarehouseForm() {
+export function WarehouseForm({ initialWarehouse = null }: Readonly<{ initialWarehouse?: WarehouseOption | null }>) {
   const router = useRouter();
   const [message, setMessage] = useState<MessageState>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -123,7 +125,7 @@ export function WarehouseForm() {
     const formData = new FormData(event.currentTarget);
 
     try {
-      await submitJson('/warehouses', 'POST', {
+      await submitJson(initialWarehouse?.id ? `/warehouses/${initialWarehouse.id}` : '/warehouses', initialWarehouse?.id ? 'PATCH' : 'POST', {
         code: text(formData, 'code'),
         name: text(formData, 'name'),
         isActive: formData.get('isActive') === 'on',
@@ -143,14 +145,14 @@ export function WarehouseForm() {
       <div className="form-grid">
         <label>
           كود المخزن
-          <input name="code" maxLength={50} required />
+          <input name="code" maxLength={50} required defaultValue={initialWarehouse?.code ?? ''} />
         </label>
         <label>
           اسم المخزن
-          <input name="name" maxLength={160} required />
+          <input name="name" maxLength={160} required defaultValue={initialWarehouse?.name ?? ''} />
         </label>
         <label className="checkbox-field">
-          <input name="isActive" type="checkbox" defaultChecked />
+          <input name="isActive" type="checkbox" defaultChecked={initialWarehouse?.isActive ?? true} />
           المخزن نشط
         </label>
       </div>
@@ -161,7 +163,17 @@ export function WarehouseForm() {
   );
 }
 
-export function SupplierForm() {
+export function SupplierForm({
+  initialSupplier = null,
+}: Readonly<{
+  initialSupplier?: (SupplierOption & {
+    phone?: string | null;
+    address?: string | null;
+    defaultDueDays?: number;
+    isActive?: boolean;
+    notes?: string | null;
+  }) | null;
+}>) {
   const router = useRouter();
   const [message, setMessage] = useState<MessageState>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -173,7 +185,7 @@ export function SupplierForm() {
     const formData = new FormData(event.currentTarget);
 
     try {
-      await submitJson('/suppliers', 'POST', {
+      await submitJson(initialSupplier?.id ? `/suppliers/${initialSupplier.id}` : '/suppliers', initialSupplier?.id ? 'PATCH' : 'POST', {
         code: text(formData, 'code'),
         name: text(formData, 'name'),
         phone: optionalText(formData, 'phone'),
@@ -197,32 +209,32 @@ export function SupplierForm() {
       <div className="form-grid">
         <label>
           كود المورد
-          <input name="code" maxLength={50} placeholder="اختياري" />
+          <input name="code" maxLength={50} placeholder="اختياري" defaultValue={initialSupplier?.code ?? ''} />
         </label>
         <label>
           اسم المورد
-          <input name="name" maxLength={180} required />
+          <input name="name" maxLength={180} required defaultValue={initialSupplier?.name ?? ''} />
         </label>
         <label>
           الهاتف
-          <input name="phone" maxLength={40} />
+          <input name="phone" maxLength={40} defaultValue={initialSupplier?.phone ?? ''} />
         </label>
         <label>
           مهلة الدفع بالأيام
-          <input name="defaultDueDays" type="number" min="0" defaultValue={0} />
+          <input name="defaultDueDays" type="number" min="0" defaultValue={initialSupplier?.defaultDueDays ?? 0} />
         </label>
         <label className="checkbox-field">
-          <input name="isActive" type="checkbox" defaultChecked />
+          <input name="isActive" type="checkbox" defaultChecked={initialSupplier?.isActive ?? true} />
           المورد نشط
         </label>
       </div>
       <label>
         العنوان
-        <textarea name="address" rows={3} />
+        <textarea name="address" rows={3} defaultValue={initialSupplier?.address ?? ''} />
       </label>
       <label>
         ملاحظات
-        <textarea name="notes" rows={3} />
+        <textarea name="notes" rows={3} defaultValue={initialSupplier?.notes ?? ''} />
       </label>
       <div className="form-actions">
         <button disabled={isSaving} type="submit">{isSaving ? 'جاري الحفظ...' : 'حفظ المورد'}</button>

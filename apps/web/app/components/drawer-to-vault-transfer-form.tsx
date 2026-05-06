@@ -55,6 +55,7 @@ export function DrawerToVaultTransferForm({
       });
       event.currentTarget.reset();
       router.refresh();
+      setMessage('تم تحويل المبلغ إلى الخزنة وتسجيل حركة مقابلة على الدرج.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'تعذر تحويل المبلغ إلى الخزنة.');
     } finally {
@@ -71,11 +72,11 @@ export function DrawerToVaultTransferForm({
       <div className="panel-heading">
         <div>
           <h3>تحويل إلى الخزنة</h3>
-          <span>يسجل النظام خروج نقد من الدرج ودخول نفس المبلغ إلى الخزنة.</span>
+          <span>يسجل النظام خروج النقد من الدرج ودخول نفس المبلغ إلى الخزنة بمرجع واحد.</span>
         </div>
       </div>
       <form className="form-grid" onSubmit={handleSubmit}>
-        {message ? <p className="notice danger">{message}</p> : null}
+        {message ? <p className={message.startsWith('تم ') ? 'notice success' : 'notice danger'}>{message}</p> : null}
         <label>
           الخزنة
           <select name="vaultId" required>

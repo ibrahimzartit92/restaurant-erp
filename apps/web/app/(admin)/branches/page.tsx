@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { ArchiveDeleteButton } from '../../components/archive-delete-button';
 import { DataTable, type DataColumn } from '../../components/data-table';
 import { PageHeader } from '../../components/page-header';
 import { StatusBadge } from '../../components/status-badge';
@@ -15,6 +16,16 @@ const columns: DataColumn<BranchRow>[] = [
   { key: 'code', label: 'الكود', render: (row) => row.code },
   { key: 'name', label: 'اسم الفرع', render: (row) => row.name },
   { key: 'isActive', label: 'الحالة', render: (row) => <StatusBadge value={row.isActive} /> },
+  {
+    key: 'actions',
+    label: 'إجراءات',
+    render: (row) => (
+      <div className="inline-actions">
+        <Link className="text-link" href={`/branches/${row.id}/edit`}>تعديل</Link>
+        <ArchiveDeleteButton path={`/branches/${row.id}`} entityLabel="الفرع" />
+      </div>
+    ),
+  },
 ];
 
 export default async function BranchesPage() {

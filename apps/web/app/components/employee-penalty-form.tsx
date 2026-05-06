@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { submitJson } from '../lib/client-api';
 import type { EmployeePenaltySummary, EmployeeSummary } from '../lib/types';
+import { MonthSelect, YearSelect } from './month-year-selects';
 
 export function EmployeePenaltyForm({
   employees,
@@ -74,11 +75,11 @@ export function EmployeePenaltyForm({
         </label>
         <label>
           شهر الراتب
-          <input defaultValue={initialPenalty?.payrollMonth ?? ''} max="12" min="1" name="payrollMonth" type="number" />
+          <MonthSelect defaultValue={initialPenalty?.payrollMonth ?? ''} emptyLabel="غير مرتبط" name="payrollMonth" />
         </label>
         <label>
           سنة الراتب
-          <input defaultValue={initialPenalty?.payrollYear ?? ''} max="2100" min="2000" name="payrollYear" type="number" />
+          <YearSelect defaultValue={initialPenalty?.payrollYear ?? ''} emptyLabel="غير مرتبط" name="payrollYear" />
         </label>
       </div>
       <label>

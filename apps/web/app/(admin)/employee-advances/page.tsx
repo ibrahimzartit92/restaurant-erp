@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { DataTable, type DataColumn } from '../../components/data-table';
 import { DeleteFinancialRecordButton } from '../../components/delete-financial-record-button';
+import { MonthSelect, YearSelect } from '../../components/month-year-selects';
 import { PageHeader } from '../../components/page-header';
 import { buildQuery, fetchList, formatDate, formatMoney } from '../../lib/api';
 import type { EmployeeAdvanceSummary, EmployeeSummary } from '../../lib/types';
@@ -63,11 +64,11 @@ export default async function EmployeeAdvancesPage({ searchParams }: { searchPar
           </label>
           <label>
             الشهر
-            <input defaultValue={params.payroll_month ?? ''} max="12" min="1" name="payroll_month" type="number" />
+            <MonthSelect defaultValue={params.payroll_month} name="payroll_month" />
           </label>
           <label>
             السنة
-            <input defaultValue={params.payroll_year ?? ''} max="2100" min="2000" name="payroll_year" type="number" />
+            <YearSelect defaultValue={params.payroll_year} name="payroll_year" />
           </label>
           <button type="submit">تطبيق</button>
         </form>

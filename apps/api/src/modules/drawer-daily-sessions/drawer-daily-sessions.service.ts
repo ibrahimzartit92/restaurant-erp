@@ -3,7 +3,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { BranchEntity } from '../branches/entities/branch.entity';
 import { DrawerTransactionsService } from '../drawer-transactions/drawer-transactions.service';
-import { DrawerTransactionEntity } from '../drawer-transactions/entities/drawer-transaction.entity';
+import {
+  DrawerTransactionDirection,
+  DrawerTransactionEntity,
+  DrawerTransactionType,
+} from '../drawer-transactions/entities/drawer-transaction.entity';
 import { DrawerEntity } from '../drawers/entities/drawer.entity';
 import { CloseDrawerDailySessionDto } from './dto/close-drawer-daily-session.dto';
 import { CreateDrawerDailySessionDto } from './dto/create-drawer-daily-session.dto';
@@ -238,18 +242,31 @@ export class DrawerDailySessionsService {
   }
 
   private sumMovementTotals(transactions: DrawerTransactionEntity[]) {
-    return transactions.reduce(
+    const totals = transactions.reduce(
       (totals, transaction) => {
-        if (transaction.direction === 'in') {
+        if (transaction.direction === DrawerTransactionDirection.In) {
           totals.inflows += transaction.amount;
         } else {
           totals.outflows += transaction.amount;
         }
 
+        if (transaction.transactionType === DrawerTransactionType.DailyCashSales) {
+          totals.cashSales += transaction.amount;
+        }
+
+        if (transaction.transactionType === DrawerTransactionType.TransferToVault) {
+          totals.transferredToVault += transaction.amount;
+        }
+
         return totals;
       },
-      { inflows: 0, outflows: 0 },
+      { inflows: 0, outflows: 0, cashSales: 0, transferredToVault: 0 },
     );
+
+    return {
+      ...totals,
+      dailyCashOutflows: this.roundMoney(Math.max(totals.outflows - totals.transferredToVault, 0)),
+    };
   }
 
   private async buildDailySummary(drawer: DrawerEntity, sessionDate: string, session: DrawerDailySessionEntity | null) {
@@ -284,10 +301,19 @@ export class DrawerDailySessionsService {
 
   private buildReconciliationSummary(
     session: DrawerDailySessionEntity,
-    movementTotals: { inflows: number; outflows: number },
+    movementTotals: {
+      inflows: number;
+      outflows: number;
+      cashSales?: number;
+      transferredToVault?: number;
+      dailyCashOutflows?: number;
+    },
   ) {
     const inflows = this.roundMoney(movementTotals.inflows);
     const outflows = this.roundMoney(movementTotals.outflows);
+    const cashSales = this.roundMoney(movementTotals.cashSales ?? 0);
+    const transferredToVault = this.roundMoney(movementTotals.transferredToVault ?? 0);
+    const dailyCashOutflows = this.roundMoney(movementTotals.dailyCashOutflows ?? Math.max(outflows - transferredToVault, 0));
     const theoreticalBalance = this.roundMoney(session.openingBalance + inflows - outflows);
     const amountToWithdraw = this.roundMoney(
       Math.max((session.closingBalance ?? theoreticalBalance) - session.requiredClosingFloat, 0),
@@ -297,7 +323,16 @@ export class DrawerDailySessionsService {
       ...session,
       calculatedBalance: theoreticalBalance,
       theoreticalBalance,
-      movementTotals: { inflows, outflows },
+      movementTotals: { inflows, outflows, cashSales, dailyCashOutflows, transferredToVault },
+      drawerCashPicture: {
+        openingFloat: this.roundMoney(session.openingBalance),
+        cashSales,
+        dailyCashOutflows,
+        transferredToVault,
+        requiredClosingFloat: this.roundMoney(session.requiredClosingFloat),
+        expectedCashInDrawer: theoreticalBalance,
+        expectedTransferableToVault: this.roundMoney(Math.max(theoreticalBalance - session.requiredClosingFloat, 0)),
+      },
       amountToWithdraw,
       expectedWithdrawalAmount: this.roundMoney(Math.max(theoreticalBalance - session.requiredClosingFloat, 0)),
       actualWithdrawalAmount:
