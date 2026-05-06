@@ -1,8 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import ExcelJS = require('exceljs');
-import * as fs from 'fs';
-import * as path from 'path';
-import PDFDocument = require('pdfkit');
+import puppeteer from 'puppeteer';
 import { ReportColumn, ReportResult, ReportRow } from './reports.types';
 
 export type ExportFormat = 'excel' | 'pdf';
@@ -126,7 +124,9 @@ export class ReportExportService {
       worksheet.getCell(cursor, 1).font = { bold: true };
       worksheet.getCell(cursor, 2).value =
         summary.type === 'money' ? Number(summary.value ?? 0) : String(summary.value ?? '');
-      if (summary.type === 'money') worksheet.getCell(cursor, 2).numFmt = `#,##0.${'0'.repeat(this.decimalPlaces(currencySettings))}`;
+      if (summary.type === 'money') {
+        worksheet.getCell(cursor, 2).numFmt = `#,##0.${'0'.repeat(this.decimalPlaces(currencySettings))}`;
+      }
       cursor += 1;
     }
 
@@ -145,130 +145,241 @@ export class ReportExportService {
   }
 
   private async toPdf(report: ReportResult, currencySettings: CurrencySettings) {
-    const document = new PDFDocument({
-      size: 'A4',
-      layout: 'landscape',
-      margin: 28,
-      bufferPages: true,
-      autoFirstPage: true,
-      info: { Title: report.title, Author: 'Restaurant ERP' },
+    const landscape = this.pdfLandscape(report);
+    const browser = await puppeteer.launch({
+      headless: true,
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
     });
-    const chunks: Buffer[] = [];
-    document.on('data', (chunk: Buffer) => chunks.push(chunk));
 
-    const fontPath = this.resolveFontPath();
-    if (fontPath) {
-      document.font(fontPath);
-    }
-
-    const pageWidth = document.page.width - document.page.margins.left - document.page.margins.right;
-    let y = document.page.margins.top;
-    document.fontSize(18).fillColor('#17212b').text(report.title, document.page.margins.left, y, {
-      width: pageWidth,
-      align: 'right',
-    });
-    y += 28;
-    document.fontSize(10).fillColor('#647381').text(report.description, document.page.margins.left, y, {
-      width: pageWidth,
-      align: 'right',
-    });
-    y += 24;
-
-    for (const meta of this.filterSummary(report)) {
-      document.fontSize(9).fillColor('#405060').text(`${meta.label}: ${meta.value}`, document.page.margins.left, y, {
-        width: pageWidth,
-        align: 'right',
+    try {
+      const page = await browser.newPage();
+      await page.setContent(this.toPdfHtml(report, currencySettings, landscape), { waitUntil: 'networkidle0' });
+      const pdf = await page.pdf({
+        format: 'A4',
+        landscape,
+        printBackground: true,
+        preferCSSPageSize: true,
+        margin: { top: '12mm', right: '10mm', bottom: '12mm', left: '10mm' },
       });
-      y += 15;
+      await page.close();
+      return Buffer.from(pdf);
+    } finally {
+      await browser.close();
     }
-    y += 8;
+  }
 
-    const columns = this.pdfColumns(report.columns, pageWidth);
-    y = this.drawPdfHeader(document, columns, y);
-    for (const row of report.rows) {
-      if (y > document.page.height - document.page.margins.bottom - 46) {
-        document.addPage();
-        y = document.page.margins.top;
-        y = this.drawPdfHeader(document, columns, y);
-      }
-      y = this.drawPdfRow(document, columns, row, y, currencySettings);
-    }
-
+  private toPdfHtml(report: ReportResult, currencySettings: CurrencySettings, landscape: boolean) {
+    const metaRows = this.filterSummary(report);
     const totalsRow = this.totalRow(report);
-    if (y > document.page.height - document.page.margins.bottom - 46) {
-      document.addPage();
-      y = document.page.margins.top;
-      y = this.drawPdfHeader(document, columns, y);
+    const columnWidth = `${100 / Math.max(report.columns.length, 1)}%`;
+    const rowsHtml = report.rows
+      .map((row) => this.pdfTableRow(report.columns, row, currencySettings))
+      .join('');
+    const totalsHtml = this.pdfTableRow(report.columns, totalsRow, currencySettings, true);
+    const summariesHtml = report.summaries
+      .map((summary) => {
+        const value =
+          summary.type === 'money' ? this.formatMoney(summary.value, currencySettings) : String(summary.value ?? '');
+        return `
+          <div class="summary-item">
+            <span>${this.escapeHtml(summary.label)}</span>
+            <strong>${this.escapeHtml(value)}</strong>
+          </div>
+        `;
+      })
+      .join('');
+
+    return `<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <title>${this.escapeHtml(report.title)}</title>
+  <style>
+    @page {
+      size: A4 ${landscape ? 'landscape' : 'portrait'};
+      margin: 12mm 10mm;
     }
-    y = this.drawPdfRow(document, columns, totalsRow, y, currencySettings, true);
-
-    y += 14;
-    for (const summary of report.summaries) {
-      document.fontSize(9).fillColor('#17212b').text(
-        `${summary.label}: ${summary.type === 'money' ? this.formatMoney(summary.value, currencySettings) : summary.value}`,
-        document.page.margins.left,
-        y,
-        { width: pageWidth, align: 'right' },
-      );
-      y += 15;
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      direction: rtl;
+      unicode-bidi: plaintext;
+      color: #17212b;
+      background: #ffffff;
+      font-family: Tahoma, "Noto Naskh Arabic", "Noto Sans Arabic", Arial, sans-serif;
+      font-size: 11px;
+      line-height: 1.55;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
-
-    document.end();
-    await new Promise<void>((resolve) => document.on('end', resolve));
-    return Buffer.concat(chunks);
+    .report-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 18px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid #14746f;
+    }
+    h1 {
+      margin: 0 0 5px;
+      color: #102a33;
+      font-size: 20px;
+      line-height: 1.35;
+      font-weight: 800;
+    }
+    .description {
+      margin: 0;
+      color: #536575;
+      font-size: 11px;
+    }
+    .brand {
+      min-width: 90px;
+      color: #14746f;
+      font-weight: 800;
+      text-align: left;
+      white-space: nowrap;
+    }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin: 14px 0;
+    }
+    .meta-item {
+      min-height: 45px;
+      padding: 8px 10px;
+      border: 1px solid #d9e3ec;
+      border-radius: 7px;
+      background: #f8fbfc;
+    }
+    .meta-label {
+      display: block;
+      margin-bottom: 3px;
+      color: #647381;
+      font-size: 9px;
+    }
+    .meta-value {
+      color: #17212b;
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      direction: rtl;
+      page-break-inside: auto;
+    }
+    thead { display: table-header-group; }
+    tr { page-break-inside: avoid; page-break-after: auto; }
+    th, td {
+      width: ${columnWidth};
+      padding: 7px 6px;
+      border: 1px solid #cfdbe5;
+      vertical-align: middle;
+      overflow-wrap: anywhere;
+    }
+    th {
+      background: #14746f;
+      color: #ffffff;
+      font-size: 9.5px;
+      font-weight: 800;
+      text-align: center;
+    }
+    td {
+      color: #24313f;
+      background: #ffffff;
+      text-align: right;
+    }
+    td.number-cell {
+      direction: ltr;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+      unicode-bidi: isolate;
+    }
+    .total-row td {
+      background: #eaf5f3;
+      color: #102a33;
+      font-weight: 800;
+      border-top: 2px solid #14746f;
+    }
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 14px;
+    }
+    .summary-item {
+      padding: 9px 10px;
+      border: 1px solid #d9e3ec;
+      border-radius: 7px;
+      background: #f8fbfc;
+    }
+    .summary-item span {
+      display: block;
+      margin-bottom: 3px;
+      color: #647381;
+      font-size: 9px;
+    }
+    .summary-item strong {
+      display: block;
+      color: #102a33;
+      direction: ltr;
+      text-align: right;
+      font-size: 12px;
+    }
+    .empty {
+      margin-bottom: 10px;
+      padding: 24px;
+      border: 1px dashed #b8c8d6;
+      border-radius: 7px;
+      color: #647381;
+      text-align: center;
+      background: #fbfdfe;
+    }
+  </style>
+</head>
+<body>
+  <header class="report-header">
+    <div>
+      <h1>${this.escapeHtml(report.title)}</h1>
+      <p class="description">${this.escapeHtml(report.description)}</p>
+    </div>
+    <div class="brand">Restaurant ERP</div>
+  </header>
+  <section class="meta-grid">
+    ${metaRows
+      .map(
+        (meta) => `
+      <div class="meta-item">
+        <span class="meta-label">${this.escapeHtml(meta.label)}</span>
+        <span class="meta-value">${this.escapeHtml(String(meta.value ?? ''))}</span>
+      </div>
+    `,
+      )
+      .join('')}
+  </section>
+  ${report.rows.length ? '' : '<div class="empty">لا توجد بيانات ضمن الفلاتر المحددة.</div>'}
+  <table>
+    <thead>
+      <tr>${report.columns.map((column) => `<th>${this.escapeHtml(column.label)}</th>`).join('')}</tr>
+    </thead>
+    <tbody>${rowsHtml}${totalsHtml}</tbody>
+  </table>
+  ${summariesHtml ? `<section class="summary-grid">${summariesHtml}</section>` : ''}
+</body>
+</html>`;
   }
 
-  private drawPdfHeader(document: PDFKit.PDFDocument, columns: PdfColumn[], y: number) {
-    const rowHeight = 24;
-    document.save().rect(document.page.margins.left, y, this.columnsWidth(columns), rowHeight).fill('#14746f').restore();
-    columns.forEach((column) => {
-      document
-        .fontSize(8)
-        .fillColor('#ffffff')
-        .text(column.label, column.x + 4, y + 7, { width: column.width - 8, align: 'right' });
-    });
-    return y + rowHeight;
-  }
-
-  private drawPdfRow(
-    document: PDFKit.PDFDocument,
-    columns: PdfColumn[],
-    row: ReportRow,
-    y: number,
-    currencySettings: CurrencySettings,
-    isTotal = false,
-  ) {
-    const rowHeight = 24;
-    const fill = isTotal ? '#eff6f5' : '#ffffff';
-    document.save().rect(document.page.margins.left, y, this.columnsWidth(columns), rowHeight).fill(fill).restore();
-    columns.forEach((column) => {
-      const rawValue = row[column.key];
-      const value = column.type === 'money' ? this.formatMoney(rawValue, currencySettings) : String(rawValue ?? '');
-      document
-        .fontSize(8)
-        .fillColor(isTotal ? '#17212b' : '#24313f')
-        .text(value, column.x + 4, y + 7, { width: column.width - 8, align: column.type === 'money' ? 'center' : 'right' });
-      document.strokeColor('#d9e3ec').rect(column.x, y, column.width, rowHeight).stroke();
-    });
-    return y + rowHeight;
-  }
-
-  private pdfColumns(columns: ReportColumn[], pageWidth: number): PdfColumn[] {
-    const minWidth = 58;
-    const baseWidths = columns.map((column) => {
-      if (column.type === 'money') return 86;
-      if (column.type === 'date') return 72;
-      if (column.type === 'number') return 62;
-      return 100;
-    });
-    const total = baseWidths.reduce((sum, width) => sum + width, 0);
-    const scale = pageWidth / Math.max(total, pageWidth);
-    let x = pageWidth + 28;
-    return columns.map((column, index) => {
-      const width = Math.max(minWidth, Math.floor(baseWidths[index] * scale));
-      x -= width;
-      return { ...column, x, width };
-    });
+  private pdfTableRow(columns: ReportColumn[], row: ReportRow, currencySettings: CurrencySettings, isTotal = false) {
+    return `<tr class="${isTotal ? 'total-row' : ''}">${columns
+      .map((column) => {
+        const value = this.reportValue(row[column.key], column, currencySettings);
+        const className = column.type === 'money' || column.type === 'number' ? 'number-cell' : '';
+        return `<td class="${className}">${this.escapeHtml(value)}</td>`;
+      })
+      .join('')}</tr>`;
   }
 
   private filterSummary(report: ReportResult) {
@@ -293,6 +404,15 @@ export class ReportExportService {
       return Number.isFinite(numericValue) ? numericValue : 0;
     }
     return value ?? '';
+  }
+
+  private reportValue(value: string | number | null, column: ReportColumn, currencySettings: CurrencySettings) {
+    if (column.type === 'money') return this.formatMoney(value, currencySettings);
+    if (column.type === 'number') {
+      const numericValue = Number(value ?? 0);
+      return new Intl.NumberFormat('ar').format(Number.isFinite(numericValue) ? numericValue : 0);
+    }
+    return String(value ?? '');
   }
 
   private totalRow(report: ReportResult): ReportRow {
@@ -345,23 +465,16 @@ export class ReportExportService {
     return `${report.filters.dateFrom ?? 'from'}-${report.filters.dateTo ?? new Date().toISOString().slice(0, 10)}`;
   }
 
-  private columnsWidth(columns: PdfColumn[]) {
-    return columns.reduce((sum, column) => sum + column.width, 0);
+  private pdfLandscape(report: ReportResult) {
+    return report.columns.length > 6;
   }
 
-  private resolveFontPath() {
-    const candidates = [
-      path.join(process.cwd(), 'assets', 'fonts', 'NotoNaskhArabic-Regular.ttf'),
-      '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
-      '/usr/share/fonts/truetype/noto/NotoNaskhArabic-Regular.ttf',
-      'C:\\Windows\\Fonts\\tahoma.ttf',
-    ];
-
-    return candidates.find((candidate) => fs.existsSync(candidate)) ?? null;
+  private escapeHtml(value: string) {
+    return value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   }
 }
-
-type PdfColumn = ReportColumn & {
-  x: number;
-  width: number;
-};
