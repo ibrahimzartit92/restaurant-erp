@@ -54,7 +54,7 @@ export class WholesaleSales1730000026000 implements MigrationInterface {
     `);
     await queryRunner.query(`
       DO $$ BEGIN
-        CREATE TYPE "wholesale_sales_payments_payment_method_enum" AS ENUM ('cash', 'bank');
+        CREATE TYPE "wholesale_sales_payments_payment_method_enum" AS ENUM ('cash', 'vault', 'bank');
       EXCEPTION WHEN duplicate_object THEN NULL;
       END $$;
     `);
@@ -112,6 +112,7 @@ export class WholesaleSales1730000026000 implements MigrationInterface {
         "payment_date" date NOT NULL,
         "payment_method" "wholesale_sales_payments_payment_method_enum" NOT NULL,
         "drawer_id" uuid REFERENCES "drawers"("id"),
+        "vault_id" uuid REFERENCES "vaults"("id"),
         "bank_account_id" uuid REFERENCES "bank_accounts"("id"),
         "amount" numeric(12,2) NOT NULL,
         "reference_number" varchar(120),

@@ -111,7 +111,7 @@ export class WholesaleSalesService {
         branch: true,
         warehouse: true,
         items: { item: { unit: true }, unit: true },
-        payments: { drawer: true, bankAccount: true, branch: true },
+        payments: { drawer: true, vault: true, bankAccount: true, branch: true },
       },
     });
 
@@ -233,7 +233,7 @@ export class WholesaleSalesService {
     const invoice = await this.invoiceRepository.findOne({ where: { id }, relations: { payments: true } });
     if (!invoice) throw new NotFoundException('فاتورة بيع الجملة غير موجودة.');
     if (invoice.documentStatus === WholesaleSalesDocumentStatus.Approved || invoice.payments.length > 0) {
-      throw new BadRequestException('لا يمكن حذف فاتورة معتمدة أو عليها دفعات. استخدم الإلغاء بدل الحذف.');
+      throw new BadRequestException('لا يمكن حذف فاتورة معتمدة أو عليها تحصيلات. استخدم الإلغاء بدل الحذف.');
     }
     await this.dataSource.transaction(async (manager) => {
       await manager.getRepository(WholesaleSalesInvoiceItemEntity).delete({ invoiceId: id });
@@ -308,17 +308,17 @@ export class WholesaleSalesService {
   }
 
   private async createPayments(dto: { invoiceId: string; branchId: string; paymentDate: string; payments: CreateWholesaleSalesPaymentDto[] }) {
-    const invoice = await this.invoiceRepository.findOne({ where: { id: dto.invoiceId } });
+    const invoice = await this.invoiceRepository.findOne({ where: { id: dto.invoiceId }, relations: { customer: true } });
     if (!invoice) throw new NotFoundException('فاتورة بيع الجملة غير موجودة.');
     if (invoice.documentStatus === WholesaleSalesDocumentStatus.Cancelled) {
-      throw new BadRequestException('لا يمكن إضافة دفعات إلى فاتورة ملغاة.');
+      throw new BadRequestException('لا يمكن إضافة تحصيلات إلى فاتورة ملغاة.');
     }
     if (invoice.branchId !== dto.branchId) {
-      throw new BadRequestException('فرع الدفعة يجب أن يطابق فرع الفاتورة.');
+      throw new BadRequestException('فرع التحصيل يجب أن يطابق فرع الفاتورة.');
     }
     const total = this.roundMoney(dto.payments.reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0));
     if (total > invoice.remainingAmount) {
-      throw new BadRequestException('مجموع الدفعات لا يمكن أن يتجاوز المتبقي من الفاتورة.');
+      throw new BadRequestException('مجموع التحصيلات لا يمكن أن يتجاوز المتبقي من الفاتورة.');
     }
 
     for (const payment of dto.payments) {
@@ -337,13 +337,14 @@ export class WholesaleSalesService {
             paymentDate: row.paymentDate ?? dto.paymentDate,
             paymentMethod: row.paymentMethod,
             drawerId: row.paymentMethod === WholesaleSalesPaymentMethod.Cash ? row.drawerId ?? null : null,
+            vaultId: row.paymentMethod === WholesaleSalesPaymentMethod.Vault ? row.vaultId ?? null : null,
             bankAccountId: row.paymentMethod === WholesaleSalesPaymentMethod.Bank ? row.bankAccountId ?? null : null,
             amount: Number(row.amount),
             referenceNumber: this.optionalText(row.referenceNumber),
             notes: this.optionalText(row.notes),
           }),
         );
-        await this.recreatePaymentMovement(saved, manager);
+        await this.recreatePaymentMovement(saved, manager, invoice);
         savedPayments.push(saved);
       }
       await this.recalculatePaymentState(dto.invoiceId, manager);
@@ -351,10 +352,19 @@ export class WholesaleSalesService {
     });
   }
 
-  private async recreatePaymentMovement(payment: WholesaleSalesPaymentEntity, manager = this.dataSource.manager) {
+  private async recreatePaymentMovement(
+    payment: WholesaleSalesPaymentEntity,
+    manager = this.dataSource.manager,
+    invoice?: WholesaleSalesInvoiceEntity,
+  ) {
+    const movementLabel = invoice
+      ? `فاتورة بيع جملة ${invoice.invoiceNumber}${invoice.customer?.name ? ` - العميل: ${invoice.customer.name}` : ''}`
+      : `تحصيل بيع جملة ${payment.paymentNumber}`;
+
     await Promise.all([
       manager.getRepository(DrawerTransactionEntity).delete({ sourceType: 'wholesale_sales_payment', sourceId: payment.id }),
       manager.getRepository(BankAccountTransactionEntity).delete({ sourceType: 'wholesale_sales_payment', sourceId: payment.id }),
+      this.vaultsService.deleteFinancialMovement('wholesale_sales_payment', payment.id, manager),
     ]);
 
     if (payment.paymentMethod === WholesaleSalesPaymentMethod.Cash && payment.drawerId) {
@@ -367,7 +377,7 @@ export class WholesaleSalesService {
         amount: payment.amount,
         sourceType: 'wholesale_sales_payment',
         sourceId: payment.id,
-        description: `تحصيل نقدي فاتورة بيع جملة ${payment.paymentNumber}`,
+        description: `تحصيل وارد إلى الدرج - ${movementLabel}`,
         notes: payment.notes,
       });
     }
@@ -383,9 +393,28 @@ export class WholesaleSalesService {
         sourceType: 'wholesale_sales_payment',
         sourceId: payment.id,
         referenceNumber: payment.referenceNumber,
-        description: `تحصيل بنكي فاتورة بيع جملة ${payment.paymentNumber}`,
+        description: `تحصيل وارد إلى الحساب البنكي - ${movementLabel}`,
         notes: payment.notes,
       });
+    }
+
+    if (payment.paymentMethod === WholesaleSalesPaymentMethod.Vault && payment.vaultId) {
+      await this.vaultsService.recordTransaction(
+        {
+          vaultId: payment.vaultId,
+          transactionDate: payment.paymentDate,
+          transactionType: VaultTransactionType.ManualDeposit,
+          direction: VaultTransactionDirection.In,
+          amount: payment.amount,
+          branchId: payment.branchId,
+          sourceType: 'wholesale_sales_payment',
+          sourceId: payment.id,
+          referenceNumber: payment.referenceNumber ?? payment.paymentNumber,
+          description: `تحصيل وارد إلى الخزنة - ${movementLabel}`,
+          notes: payment.notes,
+        },
+        manager,
+      );
     }
   }
 
@@ -448,7 +477,7 @@ export class WholesaleSalesService {
 
   private async ensureNotOverpaid(invoice: WholesaleSalesInvoiceEntity) {
     if (invoice.paidAmount > invoice.totalAmount) {
-      throw new BadRequestException('المدفوع لا يمكن أن يتجاوز إجمالي الفاتورة.');
+      throw new BadRequestException('المحصل لا يمكن أن يتجاوز إجمالي الفاتورة.');
     }
   }
 
@@ -469,18 +498,28 @@ export class WholesaleSalesService {
   }
 
   private async validatePaymentSource(payment: CreateWholesaleSalesPaymentDto) {
+    const selectedDestinations = [payment.drawerId, payment.vaultId, payment.bankAccountId].filter(Boolean).length;
+    if (selectedDestinations !== 1) {
+      throw new BadRequestException('يجب اختيار جهة مستلمة واحدة فقط لكل تحصيل: درج أو خزنة أو حساب بنكي.');
+    }
+
     if (payment.paymentMethod === WholesaleSalesPaymentMethod.Cash) {
-      if (!payment.drawerId) throw new BadRequestException('الدفعة النقدية تحتاج درجًا نقديًا.');
+      if (!payment.drawerId) throw new BadRequestException('التحصيل إلى الدرج يحتاج درجًا محددًا.');
       const drawer = await this.drawerRepository.findOne({ where: { id: payment.drawerId } });
       if (!drawer) throw new NotFoundException('الدرج غير موجود.');
     }
+
+    if (payment.paymentMethod === WholesaleSalesPaymentMethod.Vault) {
+      if (!payment.vaultId) throw new BadRequestException('تحصيل الخزنة يحتاج خزنة محددة.');
+      await this.vaultsService.findEntityByIdOrFail(payment.vaultId);
+    }
+
     if (payment.paymentMethod === WholesaleSalesPaymentMethod.Bank) {
-      if (!payment.bankAccountId) throw new BadRequestException('الدفعة البنكية تحتاج حسابًا بنكيًا.');
+      if (!payment.bankAccountId) throw new BadRequestException('التحصيل البنكي يحتاج حسابًا بنكيًا.');
       const account = await this.bankAccountRepository.findOne({ where: { id: payment.bankAccountId } });
       if (!account) throw new NotFoundException('الحساب البنكي غير موجود.');
     }
   }
-
   private async cashCollectedAmount(invoiceId: string) {
     const payments = await this.paymentRepository.find({ where: { invoiceId, paymentMethod: WholesaleSalesPaymentMethod.Cash } });
     return this.roundMoney(payments.reduce((sum, payment) => sum + payment.amount, 0));
@@ -513,25 +552,47 @@ export class WholesaleSalesService {
       { header: 'الكمية', key: 'quantity', width: 14 },
       { header: 'سعر الوحدة', key: 'unitPrice', width: 16 },
       { header: 'الإجمالي', key: 'lineTotal', width: 16 },
+      { header: 'ملاحظات', key: 'notes', width: 24 },
     ];
-    worksheet.mergeCells('A1:D1');
+    worksheet.mergeCells('A1:E1');
     worksheet.getCell('A1').value = 'مطعم الجود';
     worksheet.getCell('A1').font = { bold: true, size: 18 };
     worksheet.getCell('A2').value = `رقم الفاتورة: ${invoice.invoiceNumber}`;
     worksheet.getCell('A3').value = `التاريخ: ${invoice.invoiceDate}`;
     worksheet.getCell('C2').value = `العميل: ${invoice.customer?.name ?? ''}`;
     worksheet.getCell('C3').value = `المخزن: ${invoice.warehouse?.name ?? ''}`;
+    worksheet.getCell('E2').value = `حالة التحصيل: ${this.paymentStatusLabel(invoice.paymentStatus)}`;
     let rowIndex = 5;
-    worksheet.getRow(rowIndex).values = ['المادة', 'الكمية', 'سعر الوحدة', 'الإجمالي'];
+    worksheet.getRow(rowIndex).values = ['المادة', 'الكمية', 'سعر الوحدة', 'الإجمالي', 'ملاحظات'];
     worksheet.getRow(rowIndex).font = { bold: true };
     for (const line of invoice.items ?? []) {
       rowIndex += 1;
-      worksheet.getRow(rowIndex).values = [line.item?.name ?? line.itemId, line.quantity, line.unitPrice, line.lineTotal];
+      worksheet.getRow(rowIndex).values = [line.item?.name ?? line.itemId, line.quantity, line.unitPrice, line.lineTotal, line.notes ?? ''];
     }
     rowIndex += 2;
     worksheet.getCell(rowIndex, 3).value = 'إجمالي الفاتورة';
     worksheet.getCell(rowIndex, 4).value = invoice.totalAmount;
     worksheet.getRow(rowIndex).font = { bold: true };
+
+    if (invoice.payments?.length) {
+      rowIndex += 3;
+      worksheet.getCell(rowIndex, 1).value = 'تحصيلات الفاتورة';
+      worksheet.getRow(rowIndex).font = { bold: true };
+      rowIndex += 1;
+      worksheet.getRow(rowIndex).values = ['رقم التحصيل', 'التاريخ', 'الجهة المستلمة', 'المبلغ', 'المرجع'];
+      worksheet.getRow(rowIndex).font = { bold: true };
+      for (const payment of invoice.payments) {
+        rowIndex += 1;
+        worksheet.getRow(rowIndex).values = [
+          payment.paymentNumber,
+          payment.paymentDate,
+          this.collectionDestinationLabel(payment),
+          payment.amount,
+          payment.referenceNumber ?? '',
+        ];
+      }
+    }
+
     const body = Buffer.from(await workbook.xlsx.writeBuffer());
     return {
       body,
@@ -552,10 +613,10 @@ export class WholesaleSalesService {
       { header: 'العميل', key: 'customer', width: 28 },
       { header: 'المخزن', key: 'warehouse', width: 22 },
       { header: 'حالة الفاتورة', key: 'documentStatus', width: 16 },
-      { header: 'حالة الدفع', key: 'paymentStatus', width: 18 },
+      { header: 'حالة التحصيل', key: 'paymentStatus', width: 18 },
       { header: 'الإجمالي', key: 'totalAmount', width: 16 },
-      { header: 'المدفوع', key: 'paidAmount', width: 16 },
-      { header: 'المتبقي', key: 'remainingAmount', width: 16 },
+      { header: 'المحصل', key: 'paidAmount', width: 16 },
+      { header: 'المتبقي للتحصيل', key: 'remainingAmount', width: 18 },
     ];
     worksheet.spliceRows(1, 0, ['مطعم الجود - تقرير فواتير بيع الجملة']);
     worksheet.mergeCells('A1:I1');
@@ -605,7 +666,7 @@ export class WholesaleSalesService {
         th, td { border: 1px solid #d9e3ec; padding: 8px; text-align: right; }
       </style></head><body><main>
       <h1>مطعم الجود</h1><h2>تقرير فواتير بيع الجملة</h2>
-      <table><thead><tr><th>رقم الفاتورة</th><th>التاريخ</th><th>العميل</th><th>المخزن</th><th>حالة الفاتورة</th><th>حالة الدفع</th><th>الإجمالي</th><th>المتبقي</th></tr></thead>
+      <table><thead><tr><th>رقم الفاتورة</th><th>التاريخ</th><th>العميل</th><th>المخزن</th><th>حالة الفاتورة</th><th>حالة التحصيل</th><th>الإجمالي</th><th>المتبقي للتحصيل</th></tr></thead>
       <tbody>${rows}</tbody></table></main></body></html>`;
     const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
     try {
@@ -659,13 +720,14 @@ export class WholesaleSalesService {
               <div>العميل: ${this.escapeHtml(invoice.customer?.name ?? '')}</div>
               <div>المخزن: ${this.escapeHtml(invoice.warehouse?.name ?? '')}</div>
               <div>حالة الفاتورة: ${this.documentStatusLabel(invoice.documentStatus)}</div>
-              <div>حالة الدفع: ${this.paymentStatusLabel(invoice.paymentStatus)}</div>
+              <div>حالة التحصيل: ${this.paymentStatusLabel(invoice.paymentStatus)}</div>
             </section>
             <table>
               <thead><tr><th>المادة</th><th>الكمية</th><th>سعر الوحدة</th><th>الإجمالي</th></tr></thead>
               <tbody>${rows}</tbody>
             </table>
             <div class="total">إجمالي الفاتورة: ${invoice.totalAmount.toFixed(2)}</div>
+            ${this.invoicePaymentsHtml(invoice)}
           </main>
         </body>
       </html>`;
@@ -684,8 +746,35 @@ export class WholesaleSalesService {
     return status === WholesaleSalesDocumentStatus.Approved ? 'معتمدة' : status === WholesaleSalesDocumentStatus.Cancelled ? 'ملغاة' : 'مسودة';
   }
 
+  private collectionDestinationLabel(payment: WholesaleSalesPaymentEntity) {
+    if (payment.paymentMethod === WholesaleSalesPaymentMethod.Cash) return payment.drawer?.name ? `درج: ${payment.drawer.name}` : 'درج';
+    if (payment.paymentMethod === WholesaleSalesPaymentMethod.Vault) return payment.vault?.name ? `خزنة: ${payment.vault.name}` : 'خزنة';
+    return payment.bankAccount?.name ? `حساب بنكي: ${payment.bankAccount.name}` : 'حساب بنكي';
+  }
+
+  private invoicePaymentsHtml(invoice: WholesaleSalesInvoiceEntity) {
+    if (!invoice.payments?.length) return '';
+    const rows = invoice.payments
+      .map(
+        (payment) => `<tr>
+          <td>${this.escapeHtml(payment.paymentNumber)}</td>
+          <td>${this.escapeHtml(payment.paymentDate)}</td>
+          <td>${this.escapeHtml(this.collectionDestinationLabel(payment))}</td>
+          <td>${payment.amount.toFixed(2)}</td>
+          <td>${this.escapeHtml(payment.referenceNumber ?? '')}</td>
+        </tr>`,
+      )
+      .join('');
+    return `<h3>تحصيلات الفاتورة</h3>
+      <table><thead><tr><th>رقم التحصيل</th><th>التاريخ</th><th>الجهة المستلمة</th><th>المبلغ</th><th>المرجع</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+
   private paymentStatusLabel(status: WholesaleSalesPaymentStatus) {
-    return status === WholesaleSalesPaymentStatus.Paid ? 'مدفوعة بالكامل' : status === WholesaleSalesPaymentStatus.PartiallyPaid ? 'مدفوعة جزئيًا' : 'غير مدفوعة';
+    return status === WholesaleSalesPaymentStatus.Paid
+      ? 'محصلة بالكامل'
+      : status === WholesaleSalesPaymentStatus.PartiallyPaid
+        ? 'محصلة جزئيًا'
+        : 'غير محصلة';
   }
 
   private escapeHtml(value: string) {
@@ -701,3 +790,5 @@ export class WholesaleSalesService {
     return Math.round((value + Number.EPSILON) * 100) / 100;
   }
 }
+
+

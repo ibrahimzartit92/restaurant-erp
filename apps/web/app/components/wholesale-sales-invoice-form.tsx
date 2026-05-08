@@ -10,17 +10,18 @@ import type {
   CustomerOption,
   DrawerOption,
   ItemOption,
+  VaultOption,
   WarehouseOption,
 } from '../lib/types';
 import {
-  PaymentSourceRows,
-  activePaymentRows,
-  createPaymentRow,
-  paymentRowsTotal,
-  toBackendPayment,
-  validatePaymentRows,
-  type UnifiedPaymentRow,
-} from './payment-source-rows';
+  CollectionDestinationRows,
+  activeCollectionRows,
+  collectionRowsTotal,
+  createCollectionRow,
+  toBackendCollection,
+  validateCollectionRows,
+  type CollectionRow,
+} from './collection-destination-rows';
 
 type SalesLineDraft = {
   itemId: string;
@@ -55,6 +56,7 @@ export function WholesaleSalesInvoiceForm({
   customers,
   items,
   drawers,
+  vaults,
   bankAccounts,
   currencySymbol = '',
   decimalPlaces = 2,
@@ -64,6 +66,7 @@ export function WholesaleSalesInvoiceForm({
   customers: CustomerOption[];
   items: ItemOption[];
   drawers: DrawerOption[];
+  vaults: VaultOption[];
   bankAccounts: BankAccountOption[];
   currencySymbol?: string;
   decimalPlaces?: number;
@@ -72,14 +75,14 @@ export function WholesaleSalesInvoiceForm({
   const [message, setMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [lines, setLines] = useState<SalesLineDraft[]>([emptyLine()]);
-  const [payments, setPayments] = useState<UnifiedPaymentRow[]>([createPaymentRow()]);
+  const [collections, setCollections] = useState<CollectionRow[]>([createCollectionRow()]);
   const [warehouseId, setWarehouseId] = useState('');
   const [stockByItem, setStockByItem] = useState<Record<string, number>>({});
   const [discountAmount, setDiscountAmount] = useState('0');
   const itemOptions = useMemo(() => items.map((item) => ({ ...item, label: itemLabel(item) })), [items]);
   const subtotal = lines.reduce((sum, line) => sum + asNumber(line.quantity) * asNumber(line.unitPrice), 0);
   const totalAmount = Math.max(subtotal - asNumber(discountAmount), 0);
-  const paymentTotal = paymentRowsTotal(payments);
+  const collectionTotal = collectionRowsTotal(collections);
 
   async function loadWarehouseStock(nextWarehouseId: string) {
     setWarehouseId(nextWarehouseId);
@@ -122,8 +125,8 @@ export function WholesaleSalesInvoiceForm({
     setMessage(null);
     const formData = new FormData(event.currentTarget);
     const parsedDiscountAmount = asNumber(String(formData.get('discountAmount') ?? '0'));
-    const totalAmount = Math.max(subtotal - parsedDiscountAmount, 0);
-    const activePayments = activePaymentRows(payments);
+    const nextTotalAmount = Math.max(subtotal - parsedDiscountAmount, 0);
+    const activeCollections = activeCollectionRows(collections);
     const invalidLine = lines.find((line) => !line.itemId || asNumber(line.quantity) <= 0 || asNumber(line.unitPrice) < 0);
 
     if (invalidLine) {
@@ -132,15 +135,15 @@ export function WholesaleSalesInvoiceForm({
       return;
     }
 
-    if (paymentTotal > totalAmount) {
-      setMessage('مجموع الدفعات لا يمكن أن يتجاوز إجمالي الفاتورة.');
+    if (collectionTotal > nextTotalAmount) {
+      setMessage('مجموع التحصيلات لا يمكن أن يتجاوز إجمالي الفاتورة.');
       setIsSaving(false);
       return;
     }
 
-    const paymentValidation = activePayments.length ? validatePaymentRows(activePayments) : null;
-    if (paymentValidation) {
-      setMessage(paymentValidation);
+    const collectionValidation = activeCollections.length ? validateCollectionRows(activeCollections) : null;
+    if (collectionValidation) {
+      setMessage(collectionValidation);
       setIsSaving(false);
       return;
     }
@@ -164,15 +167,12 @@ export function WholesaleSalesInvoiceForm({
         })),
       })) as { id?: string; branchId?: string; invoiceDate?: string };
 
-      if (saved.id && activePayments.length > 0) {
+      if (saved.id && activeCollections.length > 0) {
         await submitJson(`/wholesale-sales-invoices/${saved.id}/payments/batch`, 'POST', {
           invoiceId: saved.id,
           branchId: saved.branchId ?? String(formData.get('branchId') ?? ''),
           paymentDate: saved.invoiceDate ?? String(formData.get('invoiceDate') ?? ''),
-          payments: activePayments.map(toBackendPayment).map((payment) => ({
-            ...payment,
-            paymentMethod: payment.paymentMethod === 'cash' ? 'cash' : 'bank',
-          })),
+          payments: activeCollections.map(toBackendCollection),
         });
       }
 
@@ -322,20 +322,19 @@ export function WholesaleSalesInvoiceForm({
         </article>
       </div>
 
-      <PaymentSourceRows
-        rows={payments}
-        onChange={setPayments}
+      <CollectionDestinationRows
+        rows={collections}
+        onChange={setCollections}
         drawers={drawers}
+        vaults={vaults}
         bankAccounts={bankAccounts}
-        vaults={[]}
-        title="دفعات فاتورة البيع"
-        description="الدفعات النقدية تسجل كتحصيل نقدي في الدرج، والدفعات البنكية تسجل كتحصيل وارد للحساب البنكي."
+        title="تحصيلات فاتورة البيع"
+        description="يمكن التحصيل إلى الدرج أو الخزنة أو الحساب البنكي. كل صف يحدد جهة مستلمة واحدة فقط."
         totalAmount={totalAmount}
         currencySymbol={currencySymbol}
         decimalPlaces={decimalPlaces}
         showRemaining
         allowSettleRemaining
-        allowedSources={['drawer', 'bank']}
       />
 
       <div className="form-actions">

@@ -10,10 +10,10 @@ const documentLabels: Record<WholesaleSalesInvoiceSummary['documentStatus'], str
   cancelled: 'ملغاة',
 };
 
-const paymentLabels: Record<WholesaleSalesInvoiceSummary['paymentStatus'], string> = {
-  unpaid: 'غير مدفوعة',
-  partially_paid: 'مدفوعة جزئيًا',
-  paid: 'مدفوعة بالكامل',
+const collectionLabels: Record<WholesaleSalesInvoiceSummary['paymentStatus'], string> = {
+  unpaid: 'غير محصلة',
+  partially_paid: 'محصلة جزئيًا',
+  paid: 'محصلة بالكامل',
 };
 
 function StatusPill({ label, tone }: Readonly<{ label: string; tone: 'muted' | 'success' | 'danger' | 'info' }>) {
@@ -45,16 +45,30 @@ const columns: DataColumn<WholesaleSalesInvoiceSummary>[] = [
   },
   {
     key: 'paymentStatus',
-    label: 'حالة الدفع',
+    label: 'حالة التحصيل',
     render: (row) => (
       <StatusPill
-        label={paymentLabels[row.paymentStatus]}
+        label={collectionLabels[row.paymentStatus]}
         tone={row.paymentStatus === 'paid' ? 'success' : row.paymentStatus === 'partially_paid' ? 'info' : 'danger'}
       />
     ),
   },
   { key: 'total', label: 'الإجمالي', render: (row) => formatMoney(row.totalAmount) },
-  { key: 'remaining', label: 'المتبقي', render: (row) => formatMoney(row.remainingAmount) },
+  { key: 'remaining', label: 'المتبقي للتحصيل', render: (row) => formatMoney(row.remainingAmount) },
+  {
+    key: 'exports',
+    label: 'تصدير',
+    render: (row) => (
+      <span className="inline-actions">
+        <a className="secondary-button compact" href={`/api/wholesale-sales-invoices/${row.id}/export?format=pdf`}>
+          PDF
+        </a>
+        <a className="secondary-button compact" href={`/api/wholesale-sales-invoices/${row.id}/export?format=excel`}>
+          Excel
+        </a>
+      </span>
+    ),
+  },
 ];
 
 function exportQuery(params: Record<string, string | undefined>, format: 'excel' | 'pdf') {
@@ -83,7 +97,7 @@ export default async function WholesaleSalesInvoicesPage({ searchParams }: { sea
 
   return (
     <>
-      <PageHeader title="فواتير بيع الجملة" description="إدارة فواتير البيع، التحصيل، وحالة الخصم من المخزون." />
+      <PageHeader title="فواتير بيع الجملة" description="إدارة فواتير البيع، التحصيلات الواردة، وحالة الخصم من المخزون." />
       <div className="page-toolbar">
         <form className="filters report-filters" action="">
           <label>
@@ -133,12 +147,12 @@ export default async function WholesaleSalesInvoicesPage({ searchParams }: { sea
             </select>
           </label>
           <label>
-            حالة الدفع
+            حالة التحصيل
             <select defaultValue={params.payment_status ?? ''} name="payment_status">
               <option value="">كل الحالات</option>
-              <option value="unpaid">غير مدفوعة</option>
-              <option value="partially_paid">مدفوعة جزئيًا</option>
-              <option value="paid">مدفوعة بالكامل</option>
+              <option value="unpaid">غير محصلة</option>
+              <option value="partially_paid">محصلة جزئيًا</option>
+              <option value="paid">محصلة بالكامل</option>
             </select>
           </label>
           <label>

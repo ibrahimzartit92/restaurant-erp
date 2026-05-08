@@ -9,6 +9,8 @@ import { DrawerEntity } from '../drawers/entities/drawer.entity';
 import { ItemEntity } from '../items/entities/item.entity';
 import { StockMovementsModule } from '../stock-movements/stock-movements.module';
 import { VaultsModule } from '../vaults/vaults.module';
+import { VaultEntity } from '../vaults/entities/vault.entity';
+import { VaultTransactionEntity } from '../vaults/entities/vault-transaction.entity';
 import { WarehouseEntity } from '../warehouses/entities/warehouse.entity';
 import { WholesaleSalesInvoiceItemEntity } from './entities/wholesale-sales-invoice-item.entity';
 import { WholesaleSalesInvoiceEntity } from './entities/wholesale-sales-invoice.entity';
@@ -30,6 +32,8 @@ import { WholesaleSalesService } from './wholesale-sales.service';
       BankAccountEntity,
       DrawerTransactionEntity,
       BankAccountTransactionEntity,
+      VaultEntity,
+      VaultTransactionEntity,
     ]),
     StockMovementsModule,
     VaultsModule,

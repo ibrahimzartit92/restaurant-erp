@@ -5,13 +5,13 @@ import { useState } from 'react';
 import { submitJson } from '../lib/client-api';
 import type { BankAccountOption, DrawerOption, VaultOption } from '../lib/types';
 import {
-  PaymentSourceRows,
-  activePaymentRows,
-  createPaymentRow,
-  toBackendPayment,
-  validatePaymentRows,
-  type UnifiedPaymentRow,
-} from './payment-source-rows';
+  CollectionDestinationRows,
+  activeCollectionRows,
+  createCollectionRow,
+  toBackendCollection,
+  validateCollectionRows,
+  type CollectionRow,
+} from './collection-destination-rows';
 
 export function WholesaleInvoiceStatusActions({ invoiceId, canApprove }: Readonly<{ invoiceId: string; canApprove: boolean }>) {
   const router = useRouter();
@@ -87,7 +87,7 @@ export function TransferWholesaleCashForm({
   }
 
   if (availableAmount <= 0) {
-    return <p className="notice">لا يوجد تحصيل نقدي متاح للتحويل إلى الخزنة لهذه الفاتورة.</p>;
+    return <p className="notice">لا يوجد تحصيل نقدي في الدرج متاح للتحويل إلى الخزنة لهذه الفاتورة.</p>;
   }
 
   return (
@@ -106,7 +106,7 @@ export function TransferWholesaleCashForm({
           </select>
         </label>
         <label>
-          الخزنة
+          الخزنة المستلمة
           <select name="vaultId" required>
             <option value="">اختر الخزنة</option>
             {vaults.map((vault) => (
@@ -143,23 +143,25 @@ export function WholesalePaymentBatchForm({
   branchId,
   remainingAmount,
   drawers,
+  vaults,
   bankAccounts,
 }: Readonly<{
   invoiceId: string;
   branchId: string;
   remainingAmount: number;
   drawers: DrawerOption[];
+  vaults: VaultOption[];
   bankAccounts: BankAccountOption[];
 }>) {
   const router = useRouter();
-  const [rows, setRows] = useState<UnifiedPaymentRow[]>([createPaymentRow(undefined, remainingAmount > 0 ? String(remainingAmount) : '')]);
+  const [rows, setRows] = useState<CollectionRow[]>([createCollectionRow(undefined, remainingAmount > 0 ? String(remainingAmount) : '')]);
   const [message, setMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const activeRows = activePaymentRows(rows);
-    const validation = validatePaymentRows(activeRows);
+    const activeRows = activeCollectionRows(rows);
+    const validation = validateCollectionRows(activeRows);
     if (validation) {
       setMessage(validation);
       return;
@@ -170,45 +172,41 @@ export function WholesalePaymentBatchForm({
       await submitJson(`/wholesale-sales-invoices/${invoiceId}/payments/batch`, 'POST', {
         invoiceId,
         branchId,
-        paymentDate: activeRows[0]?.paymentDate ?? new Date().toISOString().slice(0, 10),
-        payments: activeRows.map(toBackendPayment).map((payment) => ({
-          ...payment,
-          paymentMethod: payment.paymentMethod === 'cash' ? 'cash' : 'bank',
-        })),
+        paymentDate: activeRows[0]?.collectionDate ?? new Date().toISOString().slice(0, 10),
+        payments: activeRows.map(toBackendCollection),
       });
-      setRows([createPaymentRow()]);
-      setMessage('تم تسجيل الدفعات.');
+      setRows([createCollectionRow()]);
+      setMessage('تم تسجيل التحصيلات.');
       router.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'تعذر تسجيل الدفعات.');
+      setMessage(error instanceof Error ? error.message : 'تعذر تسجيل التحصيلات.');
     } finally {
       setIsSaving(false);
     }
   }
 
   if (remainingAmount <= 0) {
-    return <p className="notice success">تم سداد الفاتورة بالكامل.</p>;
+    return <p className="notice success">تم تحصيل الفاتورة بالكامل.</p>;
   }
 
   return (
     <form className="stacked-sections" onSubmit={handleSubmit}>
       {message ? <p className={message.startsWith('تم') ? 'notice success' : 'notice danger'}>{message}</p> : null}
-      <PaymentSourceRows
+      <CollectionDestinationRows
         rows={rows}
         onChange={setRows}
         drawers={drawers}
+        vaults={vaults}
         bankAccounts={bankAccounts}
-        vaults={[]}
-        title="إضافة دفعات"
-        description="سجل تحصيلًا نقديًا في الدرج أو تحصيلًا بنكيًا للحساب. لا يتم تحويل النقد إلى الخزنة تلقائيًا."
+        title="إضافة تحصيلات"
+        description="سجل تحصيلًا واردًا إلى الدرج أو الخزنة أو الحساب البنكي."
         totalAmount={remainingAmount}
         showRemaining
         allowSettleRemaining
-        allowedSources={['drawer', 'bank']}
       />
       <div className="form-actions">
         <button disabled={isSaving} type="submit">
-          {isSaving ? 'جار التسجيل...' : 'تسجيل الدفعات'}
+          {isSaving ? 'جار التسجيل...' : 'تسجيل التحصيلات'}
         </button>
       </div>
     </form>

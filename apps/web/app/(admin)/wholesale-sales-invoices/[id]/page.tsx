@@ -14,11 +14,17 @@ const documentLabels: Record<WholesaleSalesInvoiceSummary['documentStatus'], str
   cancelled: 'ملغاة',
 };
 
-const paymentLabels: Record<WholesaleSalesInvoiceSummary['paymentStatus'], string> = {
-  unpaid: 'غير مدفوعة',
-  partially_paid: 'مدفوعة جزئيًا',
-  paid: 'مدفوعة بالكامل',
+const collectionLabels: Record<WholesaleSalesInvoiceSummary['paymentStatus'], string> = {
+  unpaid: 'غير محصلة',
+  partially_paid: 'محصلة جزئيًا',
+  paid: 'محصلة بالكامل',
 };
+
+function collectionDestination(payment: NonNullable<WholesaleSalesInvoiceSummary['payments']>[number]) {
+  if (payment.paymentMethod === 'cash') return payment.drawer?.name ? `درج: ${payment.drawer.name}` : 'درج';
+  if (payment.paymentMethod === 'vault') return payment.vault?.name ? `خزنة: ${payment.vault.name}` : 'خزنة';
+  return payment.bankAccount?.name ? `حساب بنكي: ${payment.bankAccount.name}` : 'حساب بنكي';
+}
 
 export default async function WholesaleSalesInvoiceDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -36,7 +42,7 @@ export default async function WholesaleSalesInvoiceDetailsPage({ params }: { par
 
   return (
     <>
-      <PageHeader title="تفاصيل فاتورة بيع الجملة" description="عرض الفاتورة، الدفعات، تحذيرات المخزون، وخيارات التصدير والتحويل للخزنة." />
+      <PageHeader title="تفاصيل فاتورة بيع الجملة" description="عرض الفاتورة، التحصيلات، تحذيرات المخزون، وخيارات التصدير والتحويل اليدوي للخزنة." />
       {invoiceResult.error ? <p className="notice danger">{invoiceResult.error}</p> : null}
       {invoice ? (
         <>
@@ -60,11 +66,11 @@ export default async function WholesaleSalesInvoiceDetailsPage({ params }: { par
             </div>
             <div className="payroll-amount-grid">
               <span className="payroll-amount"><small>حالة الفاتورة</small><strong>{documentLabels[invoice.documentStatus]}</strong></span>
-              <span className="payroll-amount"><small>حالة الدفع</small><strong>{paymentLabels[invoice.paymentStatus]}</strong></span>
+              <span className="payroll-amount"><small>حالة التحصيل</small><strong>{collectionLabels[invoice.paymentStatus]}</strong></span>
               <span className="payroll-amount"><small>المخزن</small><strong>{invoice.warehouse?.name}</strong></span>
               <span className="payroll-amount"><small>الإجمالي</small><strong>{formatMoney(invoice.totalAmount)}</strong></span>
-              <span className="payroll-amount"><small>المدفوع</small><strong>{formatMoney(invoice.paidAmount)}</strong></span>
-              <span className="payroll-amount"><small>المتبقي</small><strong>{formatMoney(invoice.remainingAmount)}</strong></span>
+              <span className="payroll-amount"><small>المحصل</small><strong>{formatMoney(invoice.paidAmount)}</strong></span>
+              <span className="payroll-amount"><small>المتبقي للتحصيل</small><strong>{formatMoney(invoice.remainingAmount)}</strong></span>
             </div>
             <WholesaleInvoiceStatusActions invoiceId={invoice.id} canApprove={invoice.documentStatus === 'draft'} />
           </section>
@@ -106,9 +112,9 @@ export default async function WholesaleSalesInvoiceDetailsPage({ params }: { par
           <section className="payroll-card">
             <div className="payroll-card-header">
               <div>
-                <span>دفعات الفاتورة</span>
+                <span>تحصيلات الفاتورة</span>
                 <h3>تسجيل تحصيل جديد</h3>
-                <p>يدعم السداد الجزئي أو الكامل من الدرج أو الحساب البنكي.</p>
+                <p>يدعم التحصيل الجزئي أو الكامل إلى الدرج أو الخزنة أو الحساب البنكي.</p>
               </div>
             </div>
             <WholesalePaymentBatchForm
@@ -116,6 +122,7 @@ export default async function WholesaleSalesInvoiceDetailsPage({ params }: { par
               branchId={invoice.branchId}
               remainingAmount={Number(invoice.remainingAmount ?? 0)}
               drawers={drawersResult.data}
+              vaults={vaultsResult.data}
               bankAccounts={bankAccountsResult.data}
             />
           </section>
@@ -123,9 +130,9 @@ export default async function WholesaleSalesInvoiceDetailsPage({ params }: { par
           <section className="payroll-card">
             <div className="payroll-card-header">
               <div>
-                <span>التحصيل النقدي</span>
+                <span>التحصيل النقدي في الدرج</span>
                 <h3>{formatMoney(transferableCash)}</h3>
-                <p>النقد يبقى كتجميع في الدرج حتى يتم تحويله يدويًا لخزنة مختارة.</p>
+                <p>النقد المحصل في الدرج يبقى كتجميع نقدي حتى يتم تحويله يدويًا لخزنة مختارة.</p>
               </div>
               <Link className="text-link" href="/vaults">
                 الخزن
@@ -144,9 +151,10 @@ export default async function WholesaleSalesInvoiceDetailsPage({ params }: { par
               <table>
                 <thead>
                   <tr>
-                    <th>رقم الدفعة</th>
+                    <th>رقم التحصيل</th>
                     <th>التاريخ</th>
-                    <th>الطريقة</th>
+                    <th>الجهة المستلمة</th>
+                    <th>المرجع</th>
                     <th>المبلغ</th>
                   </tr>
                 </thead>
@@ -155,7 +163,8 @@ export default async function WholesaleSalesInvoiceDetailsPage({ params }: { par
                     <tr key={payment.id}>
                       <td>{payment.paymentNumber}</td>
                       <td>{formatDate(payment.paymentDate)}</td>
-                      <td>{payment.paymentMethod === 'cash' ? 'نقدي' : 'بنكي'}</td>
+                      <td>{collectionDestination(payment)}</td>
+                      <td>{payment.referenceNumber ?? '-'}</td>
                       <td>{formatMoney(payment.amount)}</td>
                     </tr>
                   ))}

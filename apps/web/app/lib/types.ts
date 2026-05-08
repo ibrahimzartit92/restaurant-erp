@@ -168,9 +168,11 @@ export type WholesaleSalesInvoiceSummary = {
     invoiceId: string;
     branchId: string;
     paymentDate: string;
-    paymentMethod: 'cash' | 'bank';
+    paymentMethod: 'cash' | 'vault' | 'bank';
     drawerId?: string | null;
     drawer?: DrawerOption | null;
+    vaultId?: string | null;
+    vault?: VaultOption | null;
     bankAccountId?: string | null;
     bankAccount?: BankAccountOption | null;
     amount: number;

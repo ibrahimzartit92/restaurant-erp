@@ -26,6 +26,10 @@ export class CreateWholesaleSalesPaymentDto {
 
   @IsOptional()
   @IsUUID()
+  vaultId?: string | null;
+
+  @IsOptional()
+  @IsUUID()
   bankAccountId?: string | null;
 
   @IsNumber()
