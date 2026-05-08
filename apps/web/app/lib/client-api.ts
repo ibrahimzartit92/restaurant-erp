@@ -70,7 +70,12 @@ async function readSuccessJson(response: Response) {
     return null;
   }
 
-  return response.json();
+  const text = await response.text();
+  if (!text.trim()) {
+    return null;
+  }
+
+  return JSON.parse(text);
 }
 
 export async function submitJson<T = unknown>(

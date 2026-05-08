@@ -55,6 +55,24 @@ export class PayrollRecordEntity {
   @Column({ name: 'base_salary', type: 'numeric', precision: 12, scale: 2, transformer: numericTransformer })
   baseSalary!: number;
 
+  @Column({ name: 'payroll_mode', type: 'varchar', length: 30, default: 'fixed_monthly' })
+  payrollMode!: 'fixed_monthly' | 'hourly';
+
+  @Column({ name: 'work_hours', type: 'numeric', precision: 12, scale: 2, default: 0, transformer: numericTransformer })
+  workHours!: number;
+
+  @Column({ name: 'hourly_rate', type: 'numeric', precision: 12, scale: 2, default: 0, transformer: numericTransformer })
+  hourlyRate!: number;
+
+  @Column({ name: 'extra_hours', type: 'numeric', precision: 12, scale: 2, default: 0, transformer: numericTransformer })
+  extraHours!: number;
+
+  @Column({ name: 'extra_hour_rate', type: 'numeric', precision: 12, scale: 2, default: 0, transformer: numericTransformer })
+  extraHourRate!: number;
+
+  @Column({ name: 'extra_hours_amount', type: 'numeric', precision: 12, scale: 2, default: 0, transformer: numericTransformer })
+  extraHoursAmount!: number;
+
   @Column({ name: 'allowances_amount', type: 'numeric', precision: 12, scale: 2, default: 0, transformer: numericTransformer })
   allowancesAmount!: number;
 

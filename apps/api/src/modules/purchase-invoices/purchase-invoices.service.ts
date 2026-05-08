@@ -18,6 +18,7 @@ type PurchaseInvoiceFilters = {
   branchId?: string;
   supplierId?: string;
   status?: PurchaseInvoiceStatus;
+  categoryId?: string;
   invoiceDateFrom?: string;
   invoiceDateTo?: string;
   search?: string;
@@ -50,6 +51,9 @@ export class PurchaseInvoicesService {
       .leftJoinAndSelect('invoice.branch', 'branch')
       .leftJoinAndSelect('invoice.warehouse', 'warehouse')
       .leftJoinAndSelect('invoice.supplier', 'supplier')
+      .leftJoinAndSelect('invoice.items', 'invoiceItem')
+      .leftJoinAndSelect('invoiceItem.item', 'item')
+      .leftJoinAndSelect('item.category', 'itemCategory')
       .leftJoinAndSelect('invoice.supplierRepresentative', 'supplierRepresentative')
       .orderBy('invoice.invoiceDate', 'DESC')
       .addOrderBy('invoice.invoiceNumber', 'DESC');
@@ -64,6 +68,10 @@ export class PurchaseInvoicesService {
 
     if (filters.status) {
       query.andWhere('invoice.status = :status', { status: filters.status });
+    }
+
+    if (filters.categoryId) {
+      query.andWhere('item.category_id = :categoryId', { categoryId: filters.categoryId });
     }
 
     if (filters.invoiceDateFrom) {

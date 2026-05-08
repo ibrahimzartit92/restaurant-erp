@@ -1,7 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectDataSource } from '@nestjs/typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
 import { Repository } from 'typeorm';
 import { EmployeesService } from '../employees/employees.service';
+import { PayrollPaymentStatus, PayrollRecordEntity } from '../payroll/entities/payroll-record.entity';
 import { UndoActionEntity } from '../undo-actions/entities/undo-action.entity';
 import { UndoActionsService } from '../undo-actions/undo-actions.service';
 import { CreateEmployeePenaltyDto } from './dto/create-employee-penalty.dto';
@@ -11,6 +14,8 @@ import { EmployeePenaltyEntity } from './entities/employee-penalty.entity';
 @Injectable()
 export class EmployeePenaltiesService {
   constructor(
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
     @InjectRepository(EmployeePenaltyEntity)
     private readonly penaltyRepository: Repository<EmployeePenaltyEntity>,
     private readonly employeesService: EmployeesService,
@@ -74,12 +79,23 @@ export class EmployeePenaltiesService {
       notes: this.normalizeOptionalText(createDto.notes),
     });
 
-    return this.penaltyRepository.save(penalty);
+    return this.dataSource.transaction(async (manager) => {
+      const savedPenalty = await manager.getRepository(EmployeePenaltyEntity).save(penalty);
+      await this.syncExistingPayroll(savedPenalty, manager);
+      return savedPenalty;
+    });
   }
 
   async remove(id: string) {
     const penalty = await this.findByIdOrFail(id);
-    await this.penaltyRepository.remove(penalty);
+    const previousPayrollRecordId = penalty.payrollRecordId;
+
+    await this.dataSource.transaction(async (manager) => {
+      await manager.getRepository(EmployeePenaltyEntity).remove(penalty);
+      if (previousPayrollRecordId) {
+        await this.recalculatePayrollById(previousPayrollRecordId, manager);
+      }
+    });
     await this.recordUndoSafely({
       actionType: 'delete_only',
       entityType: 'employee_penalty',
@@ -94,7 +110,17 @@ export class EmployeePenaltiesService {
 
   async restoreFromUndo(action: UndoActionEntity) {
     const penalty = this.penaltyRepository.create(action.snapshot as Partial<EmployeePenaltyEntity>);
-    return this.penaltyRepository.save(penalty);
+    const previousPayrollRecordId = penalty.payrollRecordId;
+    penalty.payrollRecordId = null;
+
+    return this.dataSource.transaction(async (manager) => {
+      const savedPenalty = await manager.getRepository(EmployeePenaltyEntity).save(penalty);
+      if (previousPayrollRecordId) {
+        await this.recalculatePayrollById(previousPayrollRecordId, manager);
+      }
+      await this.syncExistingPayroll(savedPenalty, manager);
+      return savedPenalty;
+    });
   }
 
   async update(id: string, updateDto: UpdateEmployeePenaltyDto) {
@@ -134,6 +160,63 @@ export class EmployeePenaltiesService {
       payrollRecordId: penalty.payrollRecordId,
       notes: penalty.notes,
     };
+  }
+
+  private async syncExistingPayroll(penalty: EmployeePenaltyEntity, manager = this.dataSource.manager) {
+    if (!penalty.payrollMonth || !penalty.payrollYear) return;
+
+    const payroll = await manager.getRepository(PayrollRecordEntity).findOne({
+      where: {
+        employeeId: penalty.employeeId,
+        payrollMonth: penalty.payrollMonth,
+        payrollYear: penalty.payrollYear,
+      },
+    });
+
+    if (!payroll) return;
+
+    await manager
+      .getRepository(EmployeePenaltyEntity)
+      .createQueryBuilder()
+      .update(EmployeePenaltyEntity)
+      .set({ payrollRecordId: payroll.id })
+      .where('employee_id = :employeeId', { employeeId: penalty.employeeId })
+      .andWhere('payroll_month = :payrollMonth', { payrollMonth: penalty.payrollMonth })
+      .andWhere('payroll_year = :payrollYear', { payrollYear: penalty.payrollYear })
+      .andWhere('(payroll_record_id IS NULL OR payroll_record_id = :payrollId)', { payrollId: payroll.id })
+      .execute();
+
+    await this.recalculatePayroll(payroll, manager);
+  }
+
+  private async recalculatePayrollById(payrollId: string, manager = this.dataSource.manager) {
+    const payroll = await manager.getRepository(PayrollRecordEntity).findOne({ where: { id: payrollId } });
+    if (payroll) await this.recalculatePayroll(payroll, manager);
+  }
+
+  private async recalculatePayroll(payroll: PayrollRecordEntity, manager = this.dataSource.manager) {
+    const linkedPenalties = await manager.getRepository(EmployeePenaltyEntity).find({ where: { payrollRecordId: payroll.id } });
+    payroll.penaltiesDeductionAmount = this.roundMoney(linkedPenalties.reduce((sum, item) => sum + item.amount, 0));
+    payroll.netSalary = this.roundMoney(
+      payroll.baseSalary +
+        Number(payroll.extraHoursAmount ?? 0) +
+        payroll.allowancesAmount -
+        payroll.advancesDeductionAmount -
+        payroll.penaltiesDeductionAmount -
+        payroll.otherDeductionAmount,
+    );
+    payroll.remainingAmount = this.roundMoney(payroll.netSalary - payroll.paidAmount);
+    payroll.paymentStatus =
+      payroll.paidAmount <= 0
+        ? PayrollPaymentStatus.Unpaid
+        : payroll.paidAmount >= payroll.netSalary
+          ? PayrollPaymentStatus.Paid
+          : PayrollPaymentStatus.PartiallyPaid;
+    await manager.getRepository(PayrollRecordEntity).save(payroll);
+  }
+
+  private roundMoney(value: number) {
+    return Math.round((value + Number.EPSILON) * 100) / 100;
   }
 
   private async recordUndoSafely(action: Parameters<UndoActionsService['record']>[0]) {

@@ -3,7 +3,7 @@ import { DataTable, type DataColumn } from '../../components/data-table';
 import { PageHeader } from '../../components/page-header';
 import { StatusBadge } from '../../components/status-badge';
 import { buildQuery, fetchList, formatDate, getMoneyFormatter } from '../../lib/api';
-import type { BranchOption, SupplierOption } from '../../lib/types';
+import type { BranchOption, ItemCategoryOption, SupplierOption } from '../../lib/types';
 
 type PurchaseInvoicesPageProps = {
   searchParams?: Promise<Record<string, string | undefined>>;
@@ -35,6 +35,7 @@ function purchaseInvoiceQuery(params: Record<string, string | undefined>) {
     supplier_id: params.supplier_id,
     branch_id: params.branch_id,
     status: params.status,
+    category_id: params.category_id,
     invoice_date_from: params.invoice_date_from,
     invoice_date_to: params.invoice_date_to,
     search: params.search,
@@ -46,6 +47,7 @@ function purchaseInvoiceExportQuery(params: Record<string, string | undefined>, 
     supplier_id: params.supplier_id,
     branch_id: params.branch_id,
     status: params.status,
+    category_id: params.category_id,
     date_from: params.invoice_date_from,
     date_to: params.invoice_date_to,
     search: params.search,
@@ -56,10 +58,11 @@ function purchaseInvoiceExportQuery(params: Record<string, string | undefined>, 
 export default async function PurchaseInvoicesPage({ searchParams }: PurchaseInvoicesPageProps) {
   const currentParams = (await searchParams) ?? {};
   const query = purchaseInvoiceQuery(currentParams);
-  const [result, branchesResult, suppliersResult, formatMoney] = await Promise.all([
+  const [result, branchesResult, suppliersResult, categoriesResult, formatMoney] = await Promise.all([
     fetchList<PurchaseInvoiceRow>(`/purchase-invoices${query}`),
     fetchList<BranchOption>('/branches'),
     fetchList<SupplierOption>('/suppliers'),
+    fetchList<ItemCategoryOption>('/item-categories'),
     getMoneyFormatter(),
   ]);
 
@@ -122,6 +125,17 @@ export default async function PurchaseInvoicesPage({ searchParams }: PurchaseInv
               {branchesResult.data.map((branch) => (
                 <option key={branch.id} value={branch.id}>
                   {branch.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            تصنيف المادة
+            <select name="category_id" defaultValue={currentParams.category_id ?? ''}>
+              <option value="">كل التصنيفات</option>
+              {categoriesResult.data.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
                 </option>
               ))}
             </select>

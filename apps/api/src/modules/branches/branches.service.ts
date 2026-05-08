@@ -1,6 +1,17 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Not, Repository } from 'typeorm';
+import { BankAccountTransactionEntity } from '../bank-account-transactions/entities/bank-account-transaction.entity';
+import { BankAccountEntity } from '../bank-accounts/entities/bank-account.entity';
+import { DailySaleEntity } from '../daily-sales/entities/daily-sale.entity';
+import { DrawerDailySessionEntity } from '../drawer-daily-sessions/entities/drawer-daily-session.entity';
+import { DrawerTransactionEntity } from '../drawer-transactions/entities/drawer-transaction.entity';
+import { DrawerEntity } from '../drawers/entities/drawer.entity';
+import { EmployeeEntity } from '../employees/entities/employee.entity';
+import { ExpenseEntity } from '../expenses/entities/expense.entity';
+import { PurchaseInvoiceEntity } from '../purchase-invoices/entities/purchase-invoice.entity';
+import { VaultEntity } from '../vaults/entities/vault.entity';
+import { WarehouseEntity } from '../warehouses/entities/warehouse.entity';
 import { CreateBranchDto } from './dto/create-branch.dto';
 import { UpdateBranchDto } from './dto/update-branch.dto';
 import { BranchEntity } from './entities/branch.entity';
@@ -10,6 +21,28 @@ export class BranchesService {
   constructor(
     @InjectRepository(BranchEntity)
     private readonly branchRepository: Repository<BranchEntity>,
+    @InjectRepository(DrawerEntity)
+    private readonly drawerRepository: Repository<DrawerEntity>,
+    @InjectRepository(BankAccountEntity)
+    private readonly bankAccountRepository: Repository<BankAccountEntity>,
+    @InjectRepository(VaultEntity)
+    private readonly vaultRepository: Repository<VaultEntity>,
+    @InjectRepository(WarehouseEntity)
+    private readonly warehouseRepository: Repository<WarehouseEntity>,
+    @InjectRepository(EmployeeEntity)
+    private readonly employeeRepository: Repository<EmployeeEntity>,
+    @InjectRepository(DailySaleEntity)
+    private readonly dailySaleRepository: Repository<DailySaleEntity>,
+    @InjectRepository(ExpenseEntity)
+    private readonly expenseRepository: Repository<ExpenseEntity>,
+    @InjectRepository(PurchaseInvoiceEntity)
+    private readonly purchaseInvoiceRepository: Repository<PurchaseInvoiceEntity>,
+    @InjectRepository(DrawerDailySessionEntity)
+    private readonly drawerSessionRepository: Repository<DrawerDailySessionEntity>,
+    @InjectRepository(DrawerTransactionEntity)
+    private readonly drawerTransactionRepository: Repository<DrawerTransactionEntity>,
+    @InjectRepository(BankAccountTransactionEntity)
+    private readonly bankTransactionRepository: Repository<BankAccountTransactionEntity>,
   ) {}
 
   findAll() {
@@ -70,19 +103,22 @@ export class BranchesService {
 
   async remove(id: string) {
     const branch = await this.findByIdOrFail(id);
-    try {
-      await this.branchRepository.remove(branch);
-      return { id, deleted: true };
-    } catch {
+    const linkedRecords = await this.countLinkedRecords(id);
+
+    if (linkedRecords > 0) {
       branch.isActive = false;
       await this.branchRepository.save(branch);
       return {
         id,
         deleted: false,
         deactivated: true,
-        message: 'تم أرشفة الفرع لأنه مرتبط بسجلات تاريخية ولا يمكن حذفه نهائيا.',
+        linkedRecords,
+        message: 'تم تعطيل الفرع بدلا من حذفه لأنه مرتبط بسجلات تشغيلية أو مالية سابقة.',
       };
     }
+
+    await this.branchRepository.remove(branch);
+    return { id, deleted: true, deactivated: false, linkedRecords };
   }
 
   private async generateBranchCode(name: string) {
@@ -102,5 +138,22 @@ export class BranchesService {
     }
 
     return code;
+  }
+
+  private async countLinkedRecords(branchId: string) {
+    const counts = await Promise.all([
+      this.drawerRepository.count({ where: { branchId } }),
+      this.bankAccountRepository.count({ where: { branchId } }),
+      this.vaultRepository.count({ where: { branchId } }),
+      this.employeeRepository.count({ where: { defaultBranchId: branchId } }),
+      this.dailySaleRepository.count({ where: { branchId } }),
+      this.expenseRepository.count({ where: { branchId } }),
+      this.purchaseInvoiceRepository.count({ where: { branchId } }),
+      this.drawerSessionRepository.count({ where: { branchId } }),
+      this.drawerTransactionRepository.count({ where: { branchId } }),
+      this.bankTransactionRepository.count({ where: { branchId } }),
+    ]);
+
+    return counts.reduce((sum, count) => sum + count, 0);
   }
 }

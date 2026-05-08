@@ -129,7 +129,7 @@ export function StockCountForm({
   }
 
   function addCountItem() {
-    setCountItems((currentItems) => [...currentItems, createEmptyItem()]);
+    setCountItems((currentItems) => [createEmptyItem(), ...currentItems]);
   }
 
   function removeCountItem(index: number) {

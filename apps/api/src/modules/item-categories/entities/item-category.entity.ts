@@ -22,6 +22,9 @@ export class ItemCategoryEntity {
   @Column({ type: 'varchar', length: 160 })
   name!: string;
 
+  @Column({ type: 'varchar', length: 20, default: '#14746f' })
+  color!: string;
+
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive!: boolean;
 

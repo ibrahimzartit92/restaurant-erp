@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { submitJson } from '../lib/client-api';
+import { currentPayrollPeriod } from '../lib/payroll';
 import type { BankAccountOption, DrawerOption, EmployeeSummary, PayrollSummary, VaultOption } from '../lib/types';
 import { MonthSelect, YearSelect } from './month-year-selects';
 import {
@@ -17,6 +18,7 @@ import {
 
 function computeNetSalary(values: {
   baseSalary: number;
+  extraHoursAmount: number;
   allowancesAmount: number;
   advancesDeductionAmount: number;
   penaltiesDeductionAmount: number;
@@ -24,6 +26,7 @@ function computeNetSalary(values: {
 }) {
   return (
     values.baseSalary +
+    values.extraHoursAmount +
     values.allowancesAmount -
     values.advancesDeductionAmount -
     values.penaltiesDeductionAmount -
@@ -56,6 +59,8 @@ export function PayrollForm({
   vaults,
   initialPayroll,
   initialEmployeeId,
+  repeatMode = false,
+  proposalMode = false,
 }: Readonly<{
   employees: EmployeeSummary[];
   drawers: DrawerOption[];
@@ -63,12 +68,22 @@ export function PayrollForm({
   vaults: VaultOption[];
   initialPayroll?: PayrollSummary | null;
   initialEmployeeId?: string;
+  repeatMode?: boolean;
+  proposalMode?: boolean;
 }>) {
   const router = useRouter();
+  const defaultPeriod = useMemo(() => currentPayrollPeriod(), []);
   const [message, setMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const initialEmployee = employees.find((employee) => employee.id === (initialPayroll?.employeeId ?? initialEmployeeId));
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState(initialPayroll?.employeeId ?? initialEmployeeId ?? '');
   const [salaryValues, setSalaryValues] = useState({
-    baseSalary: String(initialPayroll?.baseSalary ?? ''),
+    payrollMode: String(initialPayroll?.payrollMode ?? initialEmployee?.payrollMode ?? 'fixed_monthly') as 'fixed_monthly' | 'hourly',
+    baseSalary: String(initialPayroll?.baseSalary ?? initialEmployee?.baseMonthlySalary ?? ''),
+    workHours: String(initialPayroll?.workHours ?? ''),
+    hourlyRate: String(initialPayroll?.hourlyRate ?? initialEmployee?.hourlyRate ?? 0),
+    extraHours: String(initialPayroll?.extraHours ?? 0),
+    extraHourRate: String(initialPayroll?.extraHourRate ?? initialEmployee?.hourlyRate ?? 0),
     allowancesAmount: String(initialPayroll?.allowancesAmount ?? 0),
     advancesDeductionAmount: String(initialPayroll?.advancesDeductionAmount ?? 0),
     penaltiesDeductionAmount: String(initialPayroll?.penaltiesDeductionAmount ?? 0),
@@ -82,9 +97,18 @@ export function PayrollForm({
     [initialPayroll],
   );
   const [paymentRows, setPaymentRows] = useState<UnifiedPaymentRow[]>(initialRows);
+  const baseSalary =
+    salaryValues.payrollMode === 'hourly'
+      ? asNumber(salaryValues.workHours) * asNumber(salaryValues.hourlyRate)
+      : asNumber(salaryValues.baseSalary);
+  const extraHoursAmount =
+    salaryValues.payrollMode === 'fixed_monthly'
+      ? asNumber(salaryValues.extraHours) * asNumber(salaryValues.extraHourRate)
+      : 0;
   const netSalary = Number(
     computeNetSalary({
-      baseSalary: asNumber(salaryValues.baseSalary),
+      baseSalary,
+      extraHoursAmount,
       allowancesAmount: asNumber(salaryValues.allowancesAmount),
       advancesDeductionAmount: asNumber(salaryValues.advancesDeductionAmount),
       penaltiesDeductionAmount: asNumber(salaryValues.penaltiesDeductionAmount),
@@ -94,7 +118,25 @@ export function PayrollForm({
   const paidTotal = paymentRowsTotal(paymentRows);
 
   function updateSalaryField(field: keyof typeof salaryValues, value: string) {
-    setSalaryValues((current) => ({ ...current, [field]: value }));
+    setSalaryValues((current) => ({ ...current, [field]: value }) as typeof current);
+  }
+
+  function handleEmployeeChange(employeeId: string) {
+    setSelectedEmployeeId(employeeId);
+    const employee = employees.find((item) => item.id === employeeId);
+    if (!initialPayroll && employee) {
+      setSalaryValues((current) => ({
+        ...current,
+        payrollMode: employee.payrollMode ?? 'fixed_monthly',
+        baseSalary: String(employee.baseMonthlySalary ?? 0),
+        workHours: '',
+        hourlyRate: String(employee.hourlyRate ?? 0),
+        extraHours: '0',
+        extraHourRate: String(employee.hourlyRate ?? 0),
+        advancesDeductionAmount: '0',
+        penaltiesDeductionAmount: '0',
+      }));
+    }
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -121,7 +163,12 @@ export function PayrollForm({
       employeeId: String(formData.get('employeeId') ?? ''),
       payrollMonth: Number(formData.get('payrollMonth') ?? 0),
       payrollYear: Number(formData.get('payrollYear') ?? 0),
-      baseSalary: asNumber(salaryValues.baseSalary),
+      payrollMode: salaryValues.payrollMode,
+      baseSalary,
+      workHours: asNumber(salaryValues.workHours),
+      hourlyRate: asNumber(salaryValues.hourlyRate),
+      extraHours: asNumber(salaryValues.extraHours),
+      extraHourRate: asNumber(salaryValues.extraHourRate),
       allowancesAmount: asNumber(salaryValues.allowancesAmount),
       advancesDeductionAmount: asNumber(salaryValues.advancesDeductionAmount),
       penaltiesDeductionAmount: asNumber(salaryValues.penaltiesDeductionAmount),
@@ -132,7 +179,8 @@ export function PayrollForm({
     };
 
     try {
-      await submitJson(initialPayroll ? `/payrolls/${initialPayroll.id}` : '/payrolls', initialPayroll ? 'PATCH' : 'POST', payload);
+      const isEditing = Boolean(initialPayroll && !repeatMode && !proposalMode);
+      await submitJson(isEditing ? `/payrolls/${initialPayroll?.id}` : '/payrolls', isEditing ? 'PATCH' : 'POST', payload);
       router.push('/payrolls');
       router.refresh();
     } catch (error) {
@@ -144,11 +192,14 @@ export function PayrollForm({
 
   return (
     <form className="form-panel stacked-sections" onSubmit={handleSubmit}>
+      {proposalMode ? (
+        <p className="notice">هذا راتب مقترح للشهر المحدد. راجع القيم والخصومات ثم احفظه لاعتماد سجل الراتب.</p>
+      ) : null}
       {message ? <p className="notice danger">{message}</p> : null}
       <div className="form-grid">
         <label>
           الموظف
-          <select defaultValue={initialPayroll?.employeeId ?? initialEmployeeId ?? ''} name="employeeId" required>
+          <select value={selectedEmployeeId} onChange={(event) => handleEmployeeChange(event.target.value)} name="employeeId" required>
             <option value="">اختر الموظف</option>
             {employees.map((employee) => (
               <option key={employee.id} value={employee.id}>
@@ -159,27 +210,57 @@ export function PayrollForm({
         </label>
         <label>
           الشهر
-          <MonthSelect defaultValue={initialPayroll?.payrollMonth ?? ''} emptyLabel="اختر الشهر" name="payrollMonth" required />
+          <MonthSelect defaultValue={initialPayroll?.payrollMonth ?? defaultPeriod.month} emptyLabel="اختر الشهر" name="payrollMonth" required />
         </label>
         <label>
           السنة
-          <YearSelect defaultValue={initialPayroll?.payrollYear ?? ''} emptyLabel="اختر السنة" name="payrollYear" required />
+          <YearSelect defaultValue={initialPayroll?.payrollYear ?? defaultPeriod.year} emptyLabel="اختر السنة" name="payrollYear" required />
         </label>
         <label>
-          الراتب الأساسي
-          <input value={salaryValues.baseSalary} onChange={(event) => updateSalaryField('baseSalary', event.target.value)} min="0" required step="0.01" type="number" />
+          نظام الراتب
+          <select value={salaryValues.payrollMode} onChange={(event) => updateSalaryField('payrollMode', event.target.value)}>
+            <option value="fixed_monthly">راتب شهري ثابت</option>
+            <option value="hourly">بالساعة</option>
+          </select>
         </label>
+        {salaryValues.payrollMode === 'hourly' ? (
+          <>
+            <label>
+              عدد الساعات
+              <input value={salaryValues.workHours} onChange={(event) => updateSalaryField('workHours', event.target.value)} min="0" required step="0.01" type="number" />
+            </label>
+            <label>
+              أجر الساعة
+              <input value={salaryValues.hourlyRate} onChange={(event) => updateSalaryField('hourlyRate', event.target.value)} min="0" required step="0.01" type="number" />
+            </label>
+          </>
+        ) : (
+          <>
+            <label>
+              الراتب الأساسي
+              <input value={salaryValues.baseSalary} onChange={(event) => updateSalaryField('baseSalary', event.target.value)} min="0" required step="0.01" type="number" />
+            </label>
+            <label>
+              ساعات إضافية
+              <input value={salaryValues.extraHours} onChange={(event) => updateSalaryField('extraHours', event.target.value)} min="0" step="0.01" type="number" />
+            </label>
+            <label>
+              أجر الساعة الإضافية
+              <input value={salaryValues.extraHourRate} onChange={(event) => updateSalaryField('extraHourRate', event.target.value)} min="0" step="0.01" type="number" />
+            </label>
+          </>
+        )}
         <label>
           البدلات
           <input value={salaryValues.allowancesAmount} onChange={(event) => updateSalaryField('allowancesAmount', event.target.value)} min="0" step="0.01" type="number" />
         </label>
         <label>
-          خصم السلف
-          <input value={salaryValues.advancesDeductionAmount} onChange={(event) => updateSalaryField('advancesDeductionAmount', event.target.value)} min="0" step="0.01" type="number" />
+          خصم السلف (تلقائي)
+          <input readOnly value={salaryValues.advancesDeductionAmount} min="0" step="0.01" type="number" />
         </label>
         <label>
-          خصم العقوبات
-          <input value={salaryValues.penaltiesDeductionAmount} onChange={(event) => updateSalaryField('penaltiesDeductionAmount', event.target.value)} min="0" step="0.01" type="number" />
+          خصم العقوبات (تلقائي)
+          <input readOnly value={salaryValues.penaltiesDeductionAmount} min="0" step="0.01" type="number" />
         </label>
         <label>
           خصومات أخرى
@@ -191,7 +272,9 @@ export function PayrollForm({
         </label>
       </div>
 
-      <p className="field-hint">صافي الراتب يتم احتسابه تلقائيا عند الحفظ: الأساسي + البدلات - جميع الخصومات.</p>
+      <p className="field-hint">
+        صافي الراتب يتم احتسابه تلقائيًا عند الحفظ. السلف والعقوبات المرتبطة بنفس الشهر والسنة تُخصم مرة واحدة فقط.
+      </p>
 
       <PaymentSourceRows
         rows={paymentRows}
@@ -200,7 +283,7 @@ export function PayrollForm({
         bankAccounts={bankAccounts}
         vaults={vaults}
         title="دفعات الراتب"
-        description="يمكن دفع الراتب كاملا أو جزئيا من درج، حساب بنكي، أو خزنة."
+        description="يمكن دفع الراتب كاملًا أو جزئيًا من درج أو حساب بنكي أو خزنة."
         totalAmount={netSalary}
         showRemaining
         allowSettleRemaining
@@ -212,7 +295,7 @@ export function PayrollForm({
       </label>
       <div className="form-actions">
         <button disabled={isSaving} type="submit">
-          {isSaving ? 'جار الحفظ...' : 'حفظ الراتب'}
+          {isSaving ? 'جار الحفظ...' : proposalMode ? 'اعتماد وحفظ الراتب' : 'حفظ الراتب'}
         </button>
       </div>
     </form>

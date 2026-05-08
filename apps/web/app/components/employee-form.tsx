@@ -32,6 +32,9 @@ export function EmployeeForm({
       jobTitle: String(formData.get('jobTitle') ?? '') || null,
       defaultBranchId: String(formData.get('defaultBranchId') ?? '') || null,
       hireDate: String(formData.get('hireDate') ?? '') || null,
+      payrollMode: String(formData.get('payrollMode') ?? 'fixed_monthly'),
+      baseMonthlySalary: Number(formData.get('baseMonthlySalary') ?? 0),
+      hourlyRate: Number(formData.get('hourlyRate') ?? 0),
       isActive: formData.get('isActive') === 'on',
       notes: String(formData.get('notes') ?? '') || null,
     };
@@ -120,6 +123,21 @@ export function EmployeeForm({
         <label>
           تاريخ التعيين
           <input defaultValue={initialEmployee?.hireDate?.slice(0, 10) ?? ''} name="hireDate" type="date" />
+        </label>
+        <label>
+          نظام الراتب
+          <select defaultValue={initialEmployee?.payrollMode ?? 'fixed_monthly'} name="payrollMode">
+            <option value="fixed_monthly">راتب شهري ثابت</option>
+            <option value="hourly">بالساعة</option>
+          </select>
+        </label>
+        <label>
+          الراتب الشهري الأساسي
+          <input defaultValue={initialEmployee?.baseMonthlySalary ?? 0} min="0" name="baseMonthlySalary" step="0.01" type="number" />
+        </label>
+        <label>
+          أجر الساعة
+          <input defaultValue={initialEmployee?.hourlyRate ?? 0} min="0" name="hourlyRate" step="0.01" type="number" />
         </label>
         <label className="checkbox-field">
           <input defaultChecked={initialEmployee?.isActive ?? true} name="isActive" type="checkbox" />

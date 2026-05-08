@@ -1,6 +1,7 @@
 import {
   IsArray,
   IsInt,
+  IsIn,
   IsNumber,
   IsOptional,
   IsString,
@@ -34,6 +35,30 @@ export class UpdatePayrollRecordDto {
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   baseSalary?: number;
+
+  @IsOptional()
+  @IsIn(['fixed_monthly', 'hourly'])
+  payrollMode?: 'fixed_monthly' | 'hourly';
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  workHours?: number;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  hourlyRate?: number;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  extraHours?: number;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  extraHourRate?: number;
 
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })

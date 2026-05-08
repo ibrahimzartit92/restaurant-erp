@@ -45,7 +45,13 @@ export class PayrollService {
     private readonly undoActionsService: UndoActionsService,
   ) {}
 
-  async findAll(filters: { search?: string; employeeId?: string; payrollMonth?: string; payrollYear?: string }) {
+  async findAll(filters: {
+    search?: string;
+    employeeId?: string;
+    payrollMonth?: string;
+    payrollYear?: string;
+    paymentStatus?: string;
+  }) {
     const query = this.payrollRepository
       .createQueryBuilder('payroll')
       .leftJoinAndSelect('payroll.employee', 'employee')
@@ -71,6 +77,15 @@ export class PayrollService {
       query.andWhere('payroll.payroll_year = :payrollYear', { payrollYear: Number(filters.payrollYear) });
     }
 
+    if (
+      filters.paymentStatus &&
+      [PayrollPaymentStatus.Unpaid, PayrollPaymentStatus.PartiallyPaid, PayrollPaymentStatus.Paid].includes(
+        filters.paymentStatus as PayrollPaymentStatus,
+      )
+    ) {
+      query.andWhere('payroll.payment_status = :paymentStatus', { paymentStatus: filters.paymentStatus });
+    }
+
     return query.getMany();
   }
 
@@ -85,8 +100,9 @@ export class PayrollService {
   }
 
   async create(createDto: CreatePayrollRecordDto) {
-    await this.employeesService.findByIdOrFail(createDto.employeeId);
+    const employee = await this.employeesService.findByIdOrFail(createDto.employeeId);
     await this.ensureUniquePayroll(createDto.employeeId, createDto.payrollMonth, createDto.payrollYear);
+    const salaryComponents = this.resolveSalaryComponents(createDto, employee);
     const automaticDeductions = await this.calculateAutomaticDeductions(
       createDto.employeeId,
       createDto.payrollMonth,
@@ -97,7 +113,8 @@ export class PayrollService {
     const otherDeductionAmount = Number(createDto.otherDeductionAmount ?? 0);
 
     const netSalary = this.calculateNetSalary({
-      baseSalary: Number(createDto.baseSalary),
+      baseSalary: salaryComponents.baseSalary,
+      extraHoursAmount: salaryComponents.extraHoursAmount,
       allowancesAmount: Number(createDto.allowancesAmount ?? 0),
       advancesDeductionAmount,
       penaltiesDeductionAmount,
@@ -109,7 +126,13 @@ export class PayrollService {
       employeeId: createDto.employeeId,
       payrollMonth: createDto.payrollMonth,
       payrollYear: createDto.payrollYear,
-      baseSalary: Number(createDto.baseSalary),
+      baseSalary: salaryComponents.baseSalary,
+      payrollMode: salaryComponents.payrollMode,
+      workHours: salaryComponents.workHours,
+      hourlyRate: salaryComponents.hourlyRate,
+      extraHours: salaryComponents.extraHours,
+      extraHourRate: salaryComponents.extraHourRate,
+      extraHoursAmount: salaryComponents.extraHoursAmount,
       allowancesAmount: Number(createDto.allowancesAmount ?? 0),
       advancesDeductionAmount,
       penaltiesDeductionAmount,
@@ -136,13 +159,23 @@ export class PayrollService {
     const payrollMonth = updateDto.payrollMonth ?? payroll.payrollMonth;
     const payrollYear = updateDto.payrollYear ?? payroll.payrollYear;
 
-    if (updateDto.employeeId) {
-      await this.employeesService.findByIdOrFail(updateDto.employeeId);
-    }
+    const employee = await this.employeesService.findByIdOrFail(employeeId);
 
     await this.ensureUniquePayroll(employeeId, payrollMonth, payrollYear, id);
     const automaticDeductions = await this.calculateAutomaticDeductions(employeeId, payrollMonth, payrollYear, id);
-    const baseSalary = updateDto.baseSalary !== undefined ? Number(updateDto.baseSalary) : payroll.baseSalary;
+    const salaryComponents = this.resolveSalaryComponents(
+      {
+        ...updateDto,
+        baseSalary: updateDto.baseSalary ?? payroll.baseSalary,
+        payrollMode: updateDto.payrollMode ?? payroll.payrollMode,
+        workHours: updateDto.workHours ?? payroll.workHours,
+        hourlyRate: updateDto.hourlyRate ?? payroll.hourlyRate,
+        extraHours: updateDto.extraHours ?? payroll.extraHours,
+        extraHourRate: updateDto.extraHourRate ?? payroll.extraHourRate,
+      },
+      employee,
+    );
+    const baseSalary = salaryComponents.baseSalary;
     const allowancesAmount =
       updateDto.allowancesAmount !== undefined ? Number(updateDto.allowancesAmount) : payroll.allowancesAmount;
     const advancesDeductionAmount = this.roundMoney(automaticDeductions.advances);
@@ -152,6 +185,7 @@ export class PayrollService {
 
     const netSalary = this.calculateNetSalary({
       baseSalary,
+      extraHoursAmount: salaryComponents.extraHoursAmount,
       allowancesAmount,
       advancesDeductionAmount,
       penaltiesDeductionAmount,
@@ -168,6 +202,12 @@ export class PayrollService {
       payrollMonth,
       payrollYear,
       baseSalary,
+      payrollMode: salaryComponents.payrollMode,
+      workHours: salaryComponents.workHours,
+      hourlyRate: salaryComponents.hourlyRate,
+      extraHours: salaryComponents.extraHours,
+      extraHourRate: salaryComponents.extraHourRate,
+      extraHoursAmount: salaryComponents.extraHoursAmount,
       allowancesAmount,
       advancesDeductionAmount,
       penaltiesDeductionAmount,
@@ -425,6 +465,7 @@ export class PayrollService {
 
   private calculateNetSalary(values: {
     baseSalary: number;
+    extraHoursAmount: number;
     allowancesAmount: number;
     advancesDeductionAmount: number;
     penaltiesDeductionAmount: number;
@@ -432,6 +473,7 @@ export class PayrollService {
   }) {
     return this.roundMoney(
       values.baseSalary +
+        values.extraHoursAmount +
         values.allowancesAmount -
         values.advancesDeductionAmount -
         values.penaltiesDeductionAmount -
@@ -450,6 +492,12 @@ export class PayrollService {
       payrollMonth: payroll.payrollMonth,
       payrollYear: payroll.payrollYear,
       baseSalary: payroll.baseSalary,
+      payrollMode: payroll.payrollMode,
+      workHours: payroll.workHours,
+      hourlyRate: payroll.hourlyRate,
+      extraHours: payroll.extraHours,
+      extraHourRate: payroll.extraHourRate,
+      extraHoursAmount: payroll.extraHoursAmount,
       allowancesAmount: payroll.allowancesAmount,
       advancesDeductionAmount: payroll.advancesDeductionAmount,
       penaltiesDeductionAmount: payroll.penaltiesDeductionAmount,
@@ -460,6 +508,31 @@ export class PayrollService {
       paymentStatus: payroll.paymentStatus,
       paymentAllocations: payroll.paymentAllocations,
       notes: payroll.notes,
+    };
+  }
+
+  private resolveSalaryComponents(
+    dto: Pick<CreatePayrollRecordDto, 'payrollMode' | 'baseSalary' | 'workHours' | 'hourlyRate' | 'extraHours' | 'extraHourRate'>,
+    employee: { payrollMode?: string; baseMonthlySalary?: number; hourlyRate?: number },
+  ) {
+    const payrollMode = (dto.payrollMode ?? employee.payrollMode ?? 'fixed_monthly') as 'fixed_monthly' | 'hourly';
+    const workHours = this.roundMoney(Number(dto.workHours ?? 0));
+    const hourlyRate = this.roundMoney(Number(dto.hourlyRate ?? employee.hourlyRate ?? 0));
+    const extraHours = this.roundMoney(Number(dto.extraHours ?? 0));
+    const extraHourRate = this.roundMoney(Number(dto.extraHourRate ?? hourlyRate));
+    const baseSalary =
+      payrollMode === 'hourly'
+        ? this.roundMoney(workHours * hourlyRate)
+        : this.roundMoney(Number(dto.baseSalary ?? employee.baseMonthlySalary ?? 0));
+
+    return {
+      payrollMode,
+      baseSalary,
+      workHours: payrollMode === 'hourly' ? workHours : 0,
+      hourlyRate,
+      extraHours: payrollMode === 'fixed_monthly' ? extraHours : 0,
+      extraHourRate: payrollMode === 'fixed_monthly' ? extraHourRate : 0,
+      extraHoursAmount: payrollMode === 'fixed_monthly' ? this.roundMoney(extraHours * extraHourRate) : 0,
     };
   }
 

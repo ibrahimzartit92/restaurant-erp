@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsBoolean, IsDateString, IsNumber, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import { IsBoolean, IsDateString, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
 
 export class UpdateVaultDto {
   @IsString()
@@ -11,6 +11,10 @@ export class UpdateVaultDto {
   @MaxLength(160)
   @IsOptional()
   name?: string;
+
+  @IsOptional()
+  @IsUUID()
+  branchId?: string | null;
 
   @Type(() => Number)
   @IsNumber()

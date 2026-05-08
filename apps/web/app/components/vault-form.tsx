@@ -3,11 +3,13 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { submitJson } from '../lib/client-api';
+import type { BranchOption } from '../lib/types';
 
 type VaultFormRecord = {
   id: string;
   code: string;
   name: string;
+  branchId?: string | null;
   openingBalance?: number | string | null;
   openingBalanceDate?: string | null;
   isActive?: boolean;
@@ -17,9 +19,11 @@ type VaultFormRecord = {
 export function VaultForm({
   mode,
   initialVault,
+  branches = [],
 }: Readonly<{
   mode: 'create' | 'edit';
   initialVault?: VaultFormRecord | null;
+  branches?: BranchOption[];
 }>) {
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
@@ -35,6 +39,7 @@ export function VaultForm({
       const payload = {
         code: String(formData.get('code') ?? '').trim(),
         name: String(formData.get('name') ?? '').trim(),
+        branchId: String(formData.get('branchId') ?? '') || null,
         openingBalance: Number(formData.get('openingBalance') ?? 0),
         openingBalanceDate: String(formData.get('openingBalanceDate') ?? '') || null,
         isActive: formData.get('isActive') === 'on',
@@ -69,6 +74,17 @@ export function VaultForm({
         <label>
           اسم الخزنة
           <input name="name" defaultValue={initialVault?.name ?? ''} maxLength={160} required />
+        </label>
+        <label>
+          الفرع المرتبط
+          <select name="branchId" defaultValue={initialVault?.branchId ?? ''}>
+            <option value="">بدون ربط بفرع</option>
+            {branches.map((branch) => (
+              <option key={branch.id} value={branch.id}>
+                {branch.name}
+              </option>
+            ))}
+          </select>
         </label>
         <label>
           الرصيد الافتتاحي

@@ -3,14 +3,16 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { submitJson } from '../lib/client-api';
-import type { BankAccountSummary } from '../lib/types';
+import type { BankAccountSummary, BranchOption } from '../lib/types';
 
 export function BankAccountForm({
   mode,
   initialAccount,
+  branches = [],
 }: Readonly<{
   mode: 'create' | 'edit';
   initialAccount?: BankAccountSummary | null;
+  branches?: BranchOption[];
 }>) {
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
@@ -29,6 +31,7 @@ export function BankAccountForm({
       iban: String(formData.get('iban') ?? '') || null,
       accountNumber: String(formData.get('accountNumber') ?? '') || null,
       currency: String(formData.get('currency') ?? ''),
+      branchId: String(formData.get('branchId') ?? '') || null,
       openingBalance: Number(formData.get('openingBalance') ?? 0),
       openingBalanceDate: String(formData.get('openingBalanceDate') ?? '') || null,
       isActive: formData.get('isActive') === 'on',
@@ -70,6 +73,17 @@ export function BankAccountForm({
         <label>
           العملة
           <input defaultValue={initialAccount?.currency ?? 'SAR'} maxLength={10} name="currency" required />
+        </label>
+        <label>
+          الفرع المرتبط
+          <select defaultValue={initialAccount?.branchId ?? ''} name="branchId">
+            <option value="">بدون ربط بفرع</option>
+            {branches.map((branch) => (
+              <option key={branch.id} value={branch.id}>
+                {branch.name}
+              </option>
+            ))}
+          </select>
         </label>
         <label>
           الرصيد الافتتاحي

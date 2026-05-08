@@ -8,7 +8,7 @@ import { EmployeePenaltyEntity } from '../employee-penalties/entities/employee-p
 import { PayrollRecordEntity } from '../payroll/entities/payroll-record.entity';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
-import { EmployeeEntity } from './entities/employee.entity';
+import { EmployeeEntity, EmployeePayrollMode } from './entities/employee.entity';
 
 @Injectable()
 export class EmployeesService {
@@ -72,6 +72,9 @@ export class EmployeesService {
       jobTitle: this.normalizeOptionalText(createDto.jobTitle),
       defaultBranchId,
       hireDate: createDto.hireDate ?? null,
+      payrollMode: (createDto.payrollMode ?? EmployeePayrollMode.FixedMonthly) as EmployeePayrollMode,
+      baseMonthlySalary: Number(createDto.baseMonthlySalary ?? 0),
+      hourlyRate: Number(createDto.hourlyRate ?? 0),
       isActive: createDto.isActive ?? true,
       notes: this.normalizeOptionalText(createDto.notes),
     });
@@ -112,6 +115,10 @@ export class EmployeesService {
       jobTitle: updateDto.jobTitle !== undefined ? this.normalizeOptionalText(updateDto.jobTitle) : employee.jobTitle,
       defaultBranchId,
       hireDate: updateDto.hireDate !== undefined ? updateDto.hireDate ?? null : employee.hireDate,
+      payrollMode: (updateDto.payrollMode ?? employee.payrollMode) as EmployeePayrollMode,
+      baseMonthlySalary:
+        updateDto.baseMonthlySalary !== undefined ? Number(updateDto.baseMonthlySalary) : employee.baseMonthlySalary,
+      hourlyRate: updateDto.hourlyRate !== undefined ? Number(updateDto.hourlyRate) : employee.hourlyRate,
       isActive: updateDto.isActive ?? employee.isActive,
       notes: updateDto.notes !== undefined ? this.normalizeOptionalText(updateDto.notes) : employee.notes,
     });

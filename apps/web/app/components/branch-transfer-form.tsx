@@ -128,7 +128,7 @@ export function BranchTransferForm({
   }
 
   function addTransferItem() {
-    setTransferItems((currentItems) => [...currentItems, createEmptyItem()]);
+    setTransferItems((currentItems) => [createEmptyItem(), ...currentItems]);
   }
 
   function removeTransferItem(index: number) {

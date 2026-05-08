@@ -61,6 +61,7 @@ export class BankAccountsService {
       iban: this.normalizeOptionalText(createBankAccountDto.iban),
       accountNumber: this.normalizeOptionalText(createBankAccountDto.accountNumber),
       currency: createBankAccountDto.currency.trim().toUpperCase(),
+      branchId: createBankAccountDto.branchId ?? null,
       openingBalance: Number(createBankAccountDto.openingBalance ?? 0),
       openingBalanceDate: createBankAccountDto.openingBalanceDate ?? null,
       isActive: createBankAccountDto.isActive ?? true,
@@ -89,6 +90,7 @@ export class BankAccountsService {
           ? this.normalizeOptionalText(updateBankAccountDto.accountNumber)
           : bankAccount.accountNumber,
       currency: updateBankAccountDto.currency?.trim().toUpperCase() ?? bankAccount.currency,
+      branchId: updateBankAccountDto.branchId !== undefined ? updateBankAccountDto.branchId : bankAccount.branchId,
       openingBalance:
         updateBankAccountDto.openingBalance !== undefined
           ? Number(updateBankAccountDto.openingBalance)

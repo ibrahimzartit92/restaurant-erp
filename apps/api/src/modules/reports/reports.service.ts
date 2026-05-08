@@ -10,6 +10,7 @@ import { EmployeePenaltyEntity } from '../employee-penalties/entities/employee-p
 import { ExpenseEntity } from '../expenses/entities/expense.entity';
 import { PayrollRecordEntity } from '../payroll/entities/payroll-record.entity';
 import { PurchaseInvoiceEntity } from '../purchase-invoices/entities/purchase-invoice.entity';
+import { ItemCategoryEntity } from '../item-categories/entities/item-category.entity';
 import { SettingsService } from '../settings/settings.service';
 import { ReportExportService } from './report-export.service';
 import { StockCountEntity } from '../stock-counts/entities/stock-count.entity';
@@ -45,6 +46,8 @@ export class ReportsService {
     private readonly expensesRepository: Repository<ExpenseEntity>,
     @InjectRepository(PurchaseInvoiceEntity)
     private readonly purchaseInvoicesRepository: Repository<PurchaseInvoiceEntity>,
+    @InjectRepository(ItemCategoryEntity)
+    private readonly itemCategoriesRepository: Repository<ItemCategoryEntity>,
     @InjectRepository(SupplierPaymentEntity)
     private readonly supplierPaymentsRepository: Repository<SupplierPaymentEntity>,
     @InjectRepository(DrawerDailySessionEntity)
@@ -148,12 +151,16 @@ export class ReportsService {
 
   private async buildFilterSummary(filters: ReportFilters, extras: { label: string; value: string }[] = []) {
     const branch = filters.branchId ? await this.branchesRepository.findOne({ where: { id: filters.branchId } }) : null;
+    const itemCategory = filters.categoryId
+      ? await this.itemCategoriesRepository.findOne({ where: { id: filters.categoryId } })
+      : null;
 
     return [
       { label: 'الفرع', value: branch?.name ?? 'كل الفروع' },
       { label: 'من تاريخ', value: filters.dateFrom ?? 'غير محدد' },
       { label: 'إلى تاريخ', value: filters.dateTo ?? 'غير محدد' },
       ...extras,
+      ...(filters.categoryId ? [{ label: 'تصنيف المادة', value: itemCategory?.name ?? filters.categoryId }] : []),
       ...(filters.search ? [{ label: 'بحث', value: filters.search }] : []),
       { label: 'تاريخ التصدير', value: new Date().toLocaleString('ar') },
     ];
@@ -346,11 +353,15 @@ export class ReportsService {
       .createQueryBuilder('invoice')
       .leftJoinAndSelect('invoice.branch', 'branch')
       .leftJoinAndSelect('invoice.supplier', 'supplier')
+      .leftJoinAndSelect('invoice.items', 'invoiceItem')
+      .leftJoinAndSelect('invoiceItem.item', 'item')
+      .leftJoinAndSelect('item.category', 'itemCategory')
       .orderBy('invoice.invoiceDate', 'DESC');
 
     if (filters.branchId) query.andWhere('invoice.branch_id = :branchId', { branchId: filters.branchId });
     if (filters.supplierId) query.andWhere('invoice.supplier_id = :supplierId', { supplierId: filters.supplierId });
     if (filters.status) query.andWhere('invoice.status = :status', { status: filters.status });
+    if (filters.categoryId) query.andWhere('item.category_id = :categoryId', { categoryId: filters.categoryId });
     if (filters.search) {
       query.andWhere('(invoice.invoice_number ILIKE :search OR invoice.invoice_label ILIKE :search)', {
         search: `%${filters.search}%`,
@@ -358,18 +369,44 @@ export class ReportsService {
     }
     this.applyDateRange(query, 'invoice.invoice_date', filters);
 
-    const rows = (await query.getMany()).map((invoice) => ({
-      number: invoice.invoiceNumber,
-      date: invoice.invoiceDate,
-      branch: invoice.branch?.name ?? '',
-      supplier: invoice.supplier?.name ?? 'متفرقة',
-      status: invoice.status,
-      total: invoice.totalAmount,
-      paid: invoice.paidAmount,
-      remaining: invoice.remainingAmount,
-    }));
+    const invoices = await query.getMany();
+    const rows = invoices.flatMap((invoice) => {
+      const relevantItems = filters.categoryId
+        ? (invoice.items ?? []).filter((line) => line.item?.categoryId === filters.categoryId)
+        : invoice.items ?? [];
 
-    return this.baseResult(
+      if (filters.categoryId) {
+        return relevantItems.map((line) => ({
+          number: invoice.invoiceNumber,
+          date: invoice.invoiceDate,
+          branch: invoice.branch?.name ?? '',
+          supplier: invoice.supplier?.name ?? 'متفرقة',
+          category: line.item?.category?.name ?? '',
+          item: line.item?.name ?? '',
+          quantity: line.quantity,
+          status: invoice.status,
+          total: line.lineTotal,
+          paid: invoice.paidAmount,
+          remaining: invoice.remainingAmount,
+        }));
+      }
+
+      return [{
+        number: invoice.invoiceNumber,
+        date: invoice.invoiceDate,
+        branch: invoice.branch?.name ?? '',
+        supplier: invoice.supplier?.name ?? 'متفرقة',
+        category: [...new Set((invoice.items ?? []).map((line) => line.item?.category?.name).filter(Boolean))].join(' / '),
+        item: '',
+        quantity: (invoice.items ?? []).reduce((sum, line) => sum + Number(line.quantity ?? 0), 0),
+        status: invoice.status,
+        total: invoice.totalAmount,
+        paid: invoice.paidAmount,
+        remaining: invoice.remainingAmount,
+      }];
+    });
+
+    const report = this.baseResult(
       'purchases',
       'تقرير المشتريات',
       'فواتير الشراء والمدفوع والمتبقي.',
@@ -379,6 +416,9 @@ export class ReportsService {
         { key: 'date', label: 'التاريخ', type: 'date' },
         { key: 'branch', label: 'الفرع' },
         { key: 'supplier', label: 'المورد' },
+        { key: 'category', label: 'تصنيف المواد' },
+        { key: 'item', label: 'المادة' },
+        { key: 'quantity', label: 'الكمية', type: 'number' },
         { key: 'status', label: 'الحالة', type: 'status' },
         { key: 'total', label: 'الإجمالي', type: 'money' },
         { key: 'paid', label: 'المدفوع', type: 'money' },
@@ -392,6 +432,11 @@ export class ReportsService {
         this.moneySummary('remaining', 'إجمالي المتبقي', this.sum(rows, 'remaining')),
       ],
     );
+    report.filterSummary = await this.buildFilterSummary(filters, [
+      ...(filters.supplierId ? [{ label: 'المورد', value: filters.supplierId }] : []),
+      ...(filters.status ? [{ label: 'الحالة', value: filters.status }] : []),
+    ]);
+    return report;
   }
 
   private async supplierStatement(filters: ReportFilters) {

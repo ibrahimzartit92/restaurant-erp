@@ -29,6 +29,14 @@ export class UpdateEmployeeAdvanceDto {
   drawerId?: string | null;
 
   @IsOptional()
+  @IsUUID()
+  bankAccountId?: string | null;
+
+  @IsOptional()
+  @IsUUID()
+  vaultId?: string | null;
+
+  @IsOptional()
   @IsInt()
   @Min(1)
   @Max(12)

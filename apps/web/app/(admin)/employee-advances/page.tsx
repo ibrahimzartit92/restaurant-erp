@@ -11,9 +11,19 @@ const columns: DataColumn<EmployeeAdvanceSummary>[] = [
   { key: 'date', label: 'التاريخ', render: (row) => formatDate(row.advanceDate) },
   { key: 'amount', label: 'المبلغ', render: (row) => formatMoney(row.amount) },
   {
+    key: 'source',
+    label: 'مصدر الدفع',
+    render: (row) => row.drawer?.name ?? row.bankAccount?.name ?? row.vault?.name ?? 'غير محدد',
+  },
+  {
     key: 'period',
     label: 'فترة الراتب',
     render: (row) => (row.payrollMonth && row.payrollYear ? `${row.payrollMonth}/${row.payrollYear}` : 'غير مرتبط'),
+  },
+  {
+    key: 'settlement',
+    label: 'حالة الخصم',
+    render: (row) => (row.payrollRecordId ? 'مخصومة في راتب' : 'بانتظار راتب الشهر'),
   },
   { key: 'notes', label: 'ملاحظات', render: (row) => row.notes ?? 'بدون ملاحظات' },
   {

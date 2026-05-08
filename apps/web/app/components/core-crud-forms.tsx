@@ -68,8 +68,6 @@ export function BranchForm({
       await submitJson(initialBranch?.id ? `/branches/${initialBranch.id}` : '/branches', initialBranch?.id ? 'PATCH' : 'POST', {
         code: text(formData, 'code'),
         name: text(formData, 'name'),
-        defaultOpeningBalance: numberValue(formData, 'defaultOpeningBalance'),
-        defaultCashFloat: numberValue(formData, 'defaultCashFloat'),
         isActive: formData.get('isActive') === 'on',
       });
       router.push('/branches');
@@ -92,14 +90,6 @@ export function BranchForm({
         <label>
           اسم الفرع
           <input name="name" maxLength={160} required defaultValue={initialBranch?.name ?? ''} />
-        </label>
-        <label>
-          الرصيد الافتتاحي الافتراضي
-          <input name="defaultOpeningBalance" type="number" min="0" step="0.01" defaultValue={0} />
-        </label>
-        <label>
-          مبلغ الفكة الثابت
-          <input name="defaultCashFloat" type="number" min="0" step="0.01" defaultValue={0} />
         </label>
         <label className="checkbox-field">
           <input name="isActive" type="checkbox" defaultChecked={initialBranch?.isActive ?? true} />
@@ -651,7 +641,7 @@ export function PurchaseInvoiceForm({
             <h3>مواد الفاتورة</h3>
             <span>اختر المادة ثم حدد نوع السعر. يظهر سعر المادة ووحدتها تلقائيا ويمكن تعديل السعر يدويا.</span>
           </div>
-          <button className="secondary-button" type="button" onClick={() => setLines((current) => [...current, emptyPurchaseLine()])}>
+          <button className="secondary-button" type="button" onClick={() => setLines((current) => [emptyPurchaseLine(), ...current])}>
             إضافة مادة
           </button>
         </div>

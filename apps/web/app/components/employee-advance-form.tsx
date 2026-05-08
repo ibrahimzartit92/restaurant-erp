@@ -3,23 +3,30 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { submitJson } from '../lib/client-api';
-import type { DrawerOption, EmployeeAdvanceSummary, EmployeeSummary } from '../lib/types';
+import type { BankAccountOption, DrawerOption, EmployeeAdvanceSummary, EmployeeSummary, VaultOption } from '../lib/types';
 import { MonthSelect, YearSelect } from './month-year-selects';
 
 export function EmployeeAdvanceForm({
   employees,
   drawers = [],
+  bankAccounts = [],
+  vaults = [],
   initialAdvance,
   initialEmployeeId,
 }: Readonly<{
   employees: EmployeeSummary[];
   drawers?: DrawerOption[];
+  bankAccounts?: BankAccountOption[];
+  vaults?: VaultOption[];
   initialAdvance?: EmployeeAdvanceSummary | null;
   initialEmployeeId?: string;
 }>) {
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const today = new Date();
+  const defaultPayrollMonth = today.getMonth() + 1;
+  const defaultPayrollYear = today.getFullYear();
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -32,10 +39,19 @@ export function EmployeeAdvanceForm({
       advanceDate: String(formData.get('advanceDate') ?? ''),
       amount: Number(formData.get('amount') ?? 0),
       drawerId: String(formData.get('drawerId') ?? '') || null,
+      bankAccountId: String(formData.get('bankAccountId') ?? '') || null,
+      vaultId: String(formData.get('vaultId') ?? '') || null,
       payrollMonth: Number(formData.get('payrollMonth') ?? 0) || null,
       payrollYear: Number(formData.get('payrollYear') ?? 0) || null,
       notes: String(formData.get('notes') ?? '') || null,
     };
+    const sourceCount = [payload.drawerId, payload.bankAccountId, payload.vaultId].filter(Boolean).length;
+
+    if (sourceCount !== 1) {
+      setMessage('اختر مصدر دفع واحد فقط للسلفة: درج أو حساب بنكي أو خزنة.');
+      setIsSaving(false);
+      return;
+    }
 
     try {
       await submitJson(initialAdvance ? `/employee-advances/${initialAdvance.id}` : '/employee-advances', initialAdvance ? 'PATCH' : 'POST', payload);
@@ -74,7 +90,7 @@ export function EmployeeAdvanceForm({
         <label>
           الدرج النقدي
           <select defaultValue={initialAdvance?.drawerId ?? ''} name="drawerId">
-            <option value="">تلقائي حسب فرع الموظف أو بدون درج</option>
+            <option value="">غير مستخدم</option>
             {drawers.map((drawer) => (
               <option key={drawer.id} value={drawer.id}>
                 {drawer.name} - {drawer.branch?.name ?? 'بدون فرع'}
@@ -83,12 +99,34 @@ export function EmployeeAdvanceForm({
           </select>
         </label>
         <label>
+          الحساب البنكي
+          <select defaultValue={initialAdvance?.bankAccountId ?? ''} name="bankAccountId">
+            <option value="">غير مستخدم</option>
+            {bankAccounts.map((account) => (
+              <option key={account.id} value={account.id}>
+                {account.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          الخزنة
+          <select defaultValue={initialAdvance?.vaultId ?? ''} name="vaultId">
+            <option value="">غير مستخدمة</option>
+            {vaults.map((vault) => (
+              <option key={vault.id} value={vault.id}>
+                {vault.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
           شهر الراتب
-          <MonthSelect defaultValue={initialAdvance?.payrollMonth ?? ''} emptyLabel="غير مرتبط" name="payrollMonth" />
+          <MonthSelect defaultValue={initialAdvance?.payrollMonth ?? defaultPayrollMonth} emptyLabel="اختر الشهر" name="payrollMonth" required />
         </label>
         <label>
           سنة الراتب
-          <YearSelect defaultValue={initialAdvance?.payrollYear ?? ''} emptyLabel="غير مرتبط" name="payrollYear" />
+          <YearSelect defaultValue={initialAdvance?.payrollYear ?? defaultPayrollYear} emptyLabel="اختر السنة" name="payrollYear" required />
         </label>
       </div>
       <label>

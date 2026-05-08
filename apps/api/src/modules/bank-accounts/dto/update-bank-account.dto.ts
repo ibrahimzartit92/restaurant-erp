@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsBoolean, IsDateString, IsNumber, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import { IsBoolean, IsDateString, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
 
 export class UpdateBankAccountDto {
   @IsString()
@@ -31,6 +31,10 @@ export class UpdateBankAccountDto {
   @IsOptional()
   @MaxLength(10)
   currency?: string;
+
+  @IsOptional()
+  @IsUUID()
+  branchId?: string | null;
 
   @Type(() => Number)
   @IsNumber()

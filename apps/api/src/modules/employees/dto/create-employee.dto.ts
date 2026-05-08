@@ -2,6 +2,8 @@ import {
   IsBoolean,
   IsDateString,
   IsOptional,
+  IsIn,
+  IsNumber,
   IsString,
   IsUUID,
   MaxLength,
@@ -33,6 +35,18 @@ export class CreateEmployeeDto {
   @IsOptional()
   @IsDateString()
   hireDate?: string | null;
+
+  @IsOptional()
+  @IsIn(['fixed_monthly', 'hourly'])
+  payrollMode?: 'fixed_monthly' | 'hourly';
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  baseMonthlySalary?: number;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  hourlyRate?: number;
 
   @IsOptional()
   @IsBoolean()

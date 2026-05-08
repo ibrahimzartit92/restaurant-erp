@@ -11,6 +11,11 @@ export class UpdateItemCategoryDto {
   @MaxLength(160)
   name?: string;
 
+  @IsString()
+  @IsOptional()
+  @MaxLength(20)
+  color?: string;
+
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;

@@ -2576,6 +2576,80 @@ tr:last-child td {
   color: #166534;
 }
 
+.payroll-status.muted {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.payroll-card-muted {
+  background: #f8fafc;
+}
+
+.employee-payroll-section {
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 12px 30px rgba(23, 33, 43, 0.05);
+  padding: 20px;
+}
+
+.employee-payroll-list {
+  display: grid;
+  gap: 10px;
+}
+
+.employee-payroll-panel {
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #f8fafc;
+  overflow: hidden;
+}
+
+.employee-payroll-panel summary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  list-style: none;
+  padding: 14px 16px;
+}
+
+.employee-payroll-panel summary::-webkit-details-marker {
+  display: none;
+}
+
+.employee-payroll-panel summary span:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.employee-payroll-panel summary small {
+  color: #64748b;
+  font-weight: 800;
+}
+
+.employee-payroll-detail,
+.employee-payroll-empty {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid #e2e8f0;
+  background: #fff;
+  padding: 16px;
+}
+
+.employee-payroll-empty {
+  align-items: start;
+}
+
+.employee-payroll-empty p {
+  color: #64748b;
+  line-height: 1.8;
+  margin: 0;
+}
+
 .template-workspace {
   display: grid;
   gap: 20px;

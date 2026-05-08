@@ -20,6 +20,7 @@ export enum BankAccountTransactionType {
   SupplierPaymentBankReversal = 'supplier_payment_bank_reversal',
   ExpenseBank = 'expense_bank',
   ExpenseBankReversal = 'expense_bank_reversal',
+  EmployeeAdvanceBank = 'employee_advance_bank',
   PayrollPaymentBank = 'payroll_payment_bank',
   SalesReceiptBank = 'sales_receipt_bank',
   RefundBank = 'refund_bank',

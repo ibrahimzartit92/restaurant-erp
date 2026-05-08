@@ -13,12 +13,14 @@ export class PayrollController {
     @Query('employee_id') employeeId?: string,
     @Query('payroll_month') payrollMonth?: string,
     @Query('payroll_year') payrollYear?: string,
+    @Query('payment_status') paymentStatus?: string,
   ) {
     return this.payrollService.findAll({
       search,
       employeeId,
       payrollMonth,
       payrollYear,
+      paymentStatus,
     });
   }
 

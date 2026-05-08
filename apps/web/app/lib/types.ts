@@ -54,6 +54,7 @@ export type ItemCategoryOption = {
   id: string;
   code: string;
   name: string;
+  color?: string;
   isActive?: boolean;
 };
 
@@ -115,6 +116,8 @@ export type VaultOption = {
   name: string;
   openingBalance?: number;
   currentBalance?: number;
+  branchId?: string | null;
+  branch?: BranchOption | null;
   isActive?: boolean;
 };
 
@@ -138,6 +141,8 @@ export type BankAccountSummary = {
   iban?: string | null;
   accountNumber?: string | null;
   currency: string;
+  branchId?: string | null;
+  branch?: BranchOption | null;
   openingBalance?: number;
   openingBalanceDate?: string | null;
   isActive: boolean;
@@ -188,6 +193,7 @@ export type ItemOption = {
     name: string;
     code?: string;
   } | null;
+  category?: ItemCategoryOption | null;
 };
 
 export type BranchTransferItemSummary = {
@@ -257,6 +263,9 @@ export type EmployeeSummary = {
   defaultBranchId?: string | null;
   defaultBranch?: BranchOption | null;
   hireDate?: string | null;
+  payrollMode?: 'fixed_monthly' | 'hourly';
+  baseMonthlySalary?: number;
+  hourlyRate?: number;
   isActive: boolean;
   notes?: string | null;
 };
@@ -269,6 +278,10 @@ export type EmployeeAdvanceSummary = {
   amount: number;
   drawerId?: string | null;
   drawer?: DrawerOption | null;
+  bankAccountId?: string | null;
+  bankAccount?: BankAccountOption | null;
+  vaultId?: string | null;
+  vault?: VaultOption | null;
   payrollMonth?: number | null;
   payrollYear?: number | null;
   payrollRecordId?: string | null;
@@ -295,6 +308,12 @@ export type PayrollSummary = {
   payrollMonth: number;
   payrollYear: number;
   baseSalary: number;
+  payrollMode?: 'fixed_monthly' | 'hourly';
+  workHours?: number;
+  hourlyRate?: number;
+  extraHours?: number;
+  extraHourRate?: number;
+  extraHoursAmount?: number;
   allowancesAmount: number;
   advancesDeductionAmount: number;
   penaltiesDeductionAmount: number;

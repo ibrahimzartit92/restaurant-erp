@@ -26,6 +26,7 @@ export enum VaultTransactionType {
   WithdrawalToBank = 'withdrawal_to_bank',
   ExpensePayment = 'expense_payment',
   SupplierPayment = 'supplier_payment',
+  EmployeeAdvance = 'employee_advance',
   PayrollPayment = 'payroll_payment',
   FinancialReversal = 'financial_reversal',
   AdminWithdrawal = 'admin_withdrawal',

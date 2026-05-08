@@ -113,6 +113,7 @@ export class VaultsService {
     const vault = this.vaultRepository.create({
       code,
       name: createDto.name.trim(),
+      branchId: createDto.branchId ?? null,
       openingBalance: Number(createDto.openingBalance ?? 0),
       openingBalanceDate: createDto.openingBalanceDate ?? null,
       isActive: createDto.isActive ?? true,
@@ -131,6 +132,7 @@ export class VaultsService {
     Object.assign(vault, {
       code: code ?? vault.code,
       name: updateDto.name?.trim() ?? vault.name,
+      branchId: updateDto.branchId !== undefined ? updateDto.branchId : vault.branchId,
       openingBalance: updateDto.openingBalance !== undefined ? Number(updateDto.openingBalance) : vault.openingBalance,
       openingBalanceDate: updateDto.openingBalanceDate !== undefined ? updateDto.openingBalanceDate : vault.openingBalanceDate,
       isActive: updateDto.isActive ?? vault.isActive,

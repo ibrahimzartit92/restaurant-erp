@@ -115,7 +115,7 @@ export function PaymentSourceRows({
   }
 
   function addRow(amount = '') {
-    onChange([...rows, createPaymentRow(rows[0]?.paymentDate, amount)]);
+    onChange([createPaymentRow(rows[0]?.paymentDate, amount), ...rows]);
   }
 
   function settleRemaining() {

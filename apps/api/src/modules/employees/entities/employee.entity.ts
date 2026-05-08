@@ -9,6 +9,11 @@ import {
 } from 'typeorm';
 import { BranchEntity } from '../../branches/entities/branch.entity';
 
+export enum EmployeePayrollMode {
+  FixedMonthly = 'fixed_monthly',
+  Hourly = 'hourly',
+}
+
 @Entity('employees')
 export class EmployeeEntity {
   @PrimaryGeneratedColumn('uuid')
@@ -35,6 +40,15 @@ export class EmployeeEntity {
 
   @Column({ name: 'hire_date', type: 'date', nullable: true })
   hireDate!: string | null;
+
+  @Column({ name: 'payroll_mode', type: 'varchar', length: 30, default: EmployeePayrollMode.FixedMonthly })
+  payrollMode!: EmployeePayrollMode;
+
+  @Column({ name: 'base_monthly_salary', type: 'numeric', precision: 12, scale: 2, default: 0 })
+  baseMonthlySalary!: number;
+
+  @Column({ name: 'hourly_rate', type: 'numeric', precision: 12, scale: 2, default: 0 })
+  hourlyRate!: number;
 
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive!: boolean;

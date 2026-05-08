@@ -3,11 +3,14 @@ import {
   CreateDateColumn,
   Entity,
   Index,
+  JoinColumn,
+  ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 import { BankAccountTransactionEntity } from '../../bank-account-transactions/entities/bank-account-transaction.entity';
+import { BranchEntity } from '../../branches/entities/branch.entity';
 import { numericTransformer } from '../../expenses/expense-shared';
 
 @Entity('bank_accounts')
@@ -34,6 +37,13 @@ export class BankAccountEntity {
 
   @Column({ type: 'varchar', length: 10, default: 'SAR' })
   currency!: string;
+
+  @Column({ name: 'branch_id', type: 'uuid', nullable: true })
+  branchId!: string | null;
+
+  @ManyToOne(() => BranchEntity, { eager: true, nullable: true })
+  @JoinColumn({ name: 'branch_id' })
+  branch!: BranchEntity | null;
 
   @Column({
     name: 'opening_balance',

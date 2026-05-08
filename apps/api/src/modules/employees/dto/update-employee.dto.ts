@@ -1,6 +1,8 @@
 import {
   IsBoolean,
   IsDateString,
+  IsIn,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
@@ -35,6 +37,18 @@ export class UpdateEmployeeDto {
   @IsOptional()
   @IsDateString()
   hireDate?: string | null;
+
+  @IsOptional()
+  @IsIn(['fixed_monthly', 'hourly'])
+  payrollMode?: 'fixed_monthly' | 'hourly';
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  baseMonthlySalary?: number;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  hourlyRate?: number;
 
   @IsOptional()
   @IsBoolean()

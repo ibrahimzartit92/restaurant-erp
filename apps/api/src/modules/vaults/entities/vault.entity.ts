@@ -1,4 +1,5 @@
-import { Column, CreateDateColumn, Entity, Index, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
+import { Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
+import { BranchEntity } from '../../branches/entities/branch.entity';
 import { numericTransformer } from '../../expenses/expense-shared';
 import { VaultTransactionEntity } from './vault-transaction.entity';
 
@@ -14,6 +15,13 @@ export class VaultEntity {
   @Index()
   @Column({ type: 'varchar', length: 160 })
   name!: string;
+
+  @Column({ name: 'branch_id', type: 'uuid', nullable: true })
+  branchId!: string | null;
+
+  @ManyToOne(() => BranchEntity, { eager: true, nullable: true })
+  @JoinColumn({ name: 'branch_id' })
+  branch!: BranchEntity | null;
 
   @Column({
     name: 'opening_balance',
