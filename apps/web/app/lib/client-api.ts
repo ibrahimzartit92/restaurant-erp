@@ -20,7 +20,7 @@ export class ApiRequestError extends Error {
 }
 
 function joinUrl(path: string) {
-  return `/api/write${path.startsWith('/') ? path : `/${path}`}`;
+  return `/api${path.startsWith('/') ? path : `/${path}`}`;
 }
 
 function joinReadUrl(path: string) {
@@ -85,11 +85,10 @@ export async function submitJson<T = unknown>(
 ) {
   const accessToken = readAccessTokenFromDocument();
   const response = await fetch(joinUrl(path), {
-    method: 'POST',
+    method,
     credentials: 'same-origin',
     headers: {
       'Content-Type': 'application/json',
-      'x-write-method': method,
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     },
     body: JSON.stringify(body),
@@ -106,7 +105,6 @@ export async function submitFormData(path: string, formData: FormData) {
     method: 'POST',
     credentials: 'same-origin',
     headers: {
-      'x-write-method': 'POST',
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     },
     body: formData,
