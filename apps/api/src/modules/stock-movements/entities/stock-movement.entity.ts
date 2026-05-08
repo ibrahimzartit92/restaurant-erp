@@ -22,6 +22,7 @@ export enum StockMovementType {
   TransferOut = 'transfer_out',
   ManualIn = 'manual_in',
   ManualOut = 'manual_out',
+  WholesaleSaleOut = 'wholesale_sale_out',
   StockCountAdjustment = 'stock_count_adjustment',
 }
 

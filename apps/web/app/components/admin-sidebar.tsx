@@ -47,6 +47,14 @@ const navigationSections: NavigationSection[] = [
     ],
   },
   {
+    id: 'wholesale-sales',
+    title: 'بيع الجملة',
+    items: [
+      { href: '/customers', label: 'العملاء', mark: 'ع', alwaysVisible: true },
+      { href: '/wholesale-sales-invoices', label: 'فواتير بيع الجملة', mark: 'ج', alwaysVisible: true },
+    ],
+  },
+  {
     id: 'inventory',
     title: 'المخزون',
     items: [

@@ -1,0 +1,703 @@
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import ExcelJS = require('exceljs');
+import puppeteer from 'puppeteer';
+import { DataSource, EntityManager, Repository } from 'typeorm';
+import {
+  BankAccountTransactionDirection,
+  BankAccountTransactionEntity,
+  BankAccountTransactionType,
+} from '../bank-account-transactions/entities/bank-account-transaction.entity';
+import { BankAccountEntity } from '../bank-accounts/entities/bank-account.entity';
+import { BranchEntity } from '../branches/entities/branch.entity';
+import { CustomerEntity } from '../customers/entities/customer.entity';
+import {
+  DrawerTransactionDirection,
+  DrawerTransactionEntity,
+  DrawerTransactionType,
+} from '../drawer-transactions/entities/drawer-transaction.entity';
+import { DrawerEntity } from '../drawers/entities/drawer.entity';
+import { ItemEntity } from '../items/entities/item.entity';
+import { StockMovementType } from '../stock-movements/entities/stock-movement.entity';
+import { StockMovementsService } from '../stock-movements/stock-movements.service';
+import { VaultTransactionDirection, VaultTransactionType } from '../vaults/entities/vault-transaction.entity';
+import { VaultsService } from '../vaults/vaults.service';
+import { WarehouseEntity } from '../warehouses/entities/warehouse.entity';
+import { CreateWholesaleSalesInvoiceDto } from './dto/create-wholesale-sales-invoice.dto';
+import { CreateWholesaleSalesPaymentBatchDto } from './dto/create-wholesale-sales-payment-batch.dto';
+import { CreateWholesaleSalesPaymentDto } from './dto/create-wholesale-sales-payment.dto';
+import { TransferWholesaleCashToVaultDto } from './dto/transfer-cash-to-vault.dto';
+import { UpdateWholesaleSalesInvoiceDto } from './dto/update-wholesale-sales-invoice.dto';
+import { WholesaleSalesInvoiceItemEntity } from './entities/wholesale-sales-invoice-item.entity';
+import {
+  WholesaleSalesDocumentStatus,
+  WholesaleSalesInvoiceEntity,
+  WholesaleSalesPaymentStatus,
+} from './entities/wholesale-sales-invoice.entity';
+import { WholesaleSalesPaymentEntity, WholesaleSalesPaymentMethod } from './entities/wholesale-sales-payment.entity';
+
+type WholesaleSalesFilters = {
+  customerId?: string;
+  warehouseId?: string;
+  branchId?: string;
+  documentStatus?: string;
+  paymentStatus?: string;
+  invoiceDateFrom?: string;
+  invoiceDateTo?: string;
+  search?: string;
+};
+
+@Injectable()
+export class WholesaleSalesService {
+  constructor(
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
+    @InjectRepository(WholesaleSalesInvoiceEntity)
+    private readonly invoiceRepository: Repository<WholesaleSalesInvoiceEntity>,
+    @InjectRepository(WholesaleSalesInvoiceItemEntity)
+    private readonly invoiceItemRepository: Repository<WholesaleSalesInvoiceItemEntity>,
+    @InjectRepository(WholesaleSalesPaymentEntity)
+    private readonly paymentRepository: Repository<WholesaleSalesPaymentEntity>,
+    @InjectRepository(CustomerEntity)
+    private readonly customerRepository: Repository<CustomerEntity>,
+    @InjectRepository(BranchEntity)
+    private readonly branchRepository: Repository<BranchEntity>,
+    @InjectRepository(WarehouseEntity)
+    private readonly warehouseRepository: Repository<WarehouseEntity>,
+    @InjectRepository(ItemEntity)
+    private readonly itemRepository: Repository<ItemEntity>,
+    @InjectRepository(DrawerEntity)
+    private readonly drawerRepository: Repository<DrawerEntity>,
+    @InjectRepository(BankAccountEntity)
+    private readonly bankAccountRepository: Repository<BankAccountEntity>,
+    private readonly stockMovementsService: StockMovementsService,
+    private readonly vaultsService: VaultsService,
+  ) {}
+
+  findAll(filters: WholesaleSalesFilters = {}) {
+    const query = this.invoiceRepository
+      .createQueryBuilder('invoice')
+      .leftJoinAndSelect('invoice.customer', 'customer')
+      .leftJoinAndSelect('invoice.branch', 'branch')
+      .leftJoinAndSelect('invoice.warehouse', 'warehouse')
+      .leftJoinAndSelect('invoice.items', 'invoiceItem')
+      .leftJoinAndSelect('invoiceItem.item', 'item')
+      .orderBy('invoice.invoice_date', 'DESC')
+      .addOrderBy('invoice.invoice_number', 'DESC');
+
+    if (filters.customerId) query.andWhere('invoice.customer_id = :customerId', { customerId: filters.customerId });
+    if (filters.warehouseId) query.andWhere('invoice.warehouse_id = :warehouseId', { warehouseId: filters.warehouseId });
+    if (filters.branchId) query.andWhere('invoice.branch_id = :branchId', { branchId: filters.branchId });
+    if (filters.documentStatus) query.andWhere('invoice.document_status = :documentStatus', { documentStatus: filters.documentStatus });
+    if (filters.paymentStatus) query.andWhere('invoice.payment_status = :paymentStatus', { paymentStatus: filters.paymentStatus });
+    if (filters.invoiceDateFrom) query.andWhere('invoice.invoice_date >= :invoiceDateFrom', { invoiceDateFrom: filters.invoiceDateFrom });
+    if (filters.invoiceDateTo) query.andWhere('invoice.invoice_date <= :invoiceDateTo', { invoiceDateTo: filters.invoiceDateTo });
+
+    const search = filters.search?.trim();
+    if (search) {
+      query.andWhere('(invoice.invoice_number ILIKE :search OR customer.name ILIKE :search OR customer.phone ILIKE :search)', {
+        search: `%${search}%`,
+      });
+    }
+
+    return query.getMany();
+  }
+
+  async findDetails(id: string) {
+    const invoice = await this.invoiceRepository.findOne({
+      where: { id },
+      relations: {
+        customer: true,
+        branch: true,
+        warehouse: true,
+        items: { item: { unit: true }, unit: true },
+        payments: { drawer: true, bankAccount: true, branch: true },
+      },
+    });
+
+    if (!invoice) throw new NotFoundException('فاتورة بيع الجملة غير موجودة.');
+    return {
+      ...invoice,
+      stockWarnings: await this.stockWarnings(invoice),
+    };
+  }
+
+  async create(dto: CreateWholesaleSalesInvoiceDto) {
+    await this.ensureInvoiceNumberAvailable(dto.invoiceNumber ?? undefined);
+    await this.validateHeader(dto.customerId, dto.branchId, dto.warehouseId);
+    await this.validateItems(dto.items.map((item) => item.itemId));
+
+    const invoiceNumber = dto.invoiceNumber?.trim().toUpperCase() || (await this.generateInvoiceNumber());
+    const subtotalAmount = this.roundMoney(dto.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0));
+    const discountAmount = this.roundMoney(dto.discountAmount ?? 0);
+    const totalAmount = this.roundMoney(Math.max(subtotalAmount - discountAmount, 0));
+
+    return this.dataSource.transaction(async (manager) => {
+      const invoiceRepository = manager.getRepository(WholesaleSalesInvoiceEntity);
+      const itemRepository = manager.getRepository(WholesaleSalesInvoiceItemEntity);
+      const invoice = await invoiceRepository.save(
+        invoiceRepository.create({
+          invoiceNumber,
+          customerId: dto.customerId,
+          branchId: dto.branchId,
+          warehouseId: dto.warehouseId,
+          invoiceDate: dto.invoiceDate,
+          dueDate: this.optionalText(dto.dueDate),
+          documentStatus: dto.documentStatus ?? WholesaleSalesDocumentStatus.Draft,
+          paymentStatus: WholesaleSalesPaymentStatus.Unpaid,
+          subtotalAmount,
+          discountAmount,
+          totalAmount,
+          paidAmount: 0,
+          remainingAmount: totalAmount,
+          notes: this.optionalText(dto.notes),
+        }),
+      );
+
+      const lines = await itemRepository.save(
+        dto.items.map((line) =>
+          itemRepository.create({
+            invoiceId: invoice.id,
+            itemId: line.itemId,
+            unitId: line.unitId ?? null,
+            quantity: line.quantity,
+            unitPrice: line.unitPrice,
+            lineTotal: this.roundMoney(line.quantity * line.unitPrice),
+            notes: this.optionalText(line.notes),
+          }),
+        ),
+      );
+
+      if (invoice.documentStatus === WholesaleSalesDocumentStatus.Approved) {
+        await this.replaceInventoryMovements(invoice, lines, manager);
+      }
+
+      return this.findDetails(invoice.id);
+    });
+  }
+
+  async update(id: string, dto: UpdateWholesaleSalesInvoiceDto) {
+    const invoice = await this.invoiceRepository.findOne({ where: { id }, relations: { items: true } });
+    if (!invoice) throw new NotFoundException('فاتورة بيع الجملة غير موجودة.');
+    await this.ensureInvoiceNumberAvailable(dto.invoiceNumber ?? undefined, id);
+    await this.validateHeader(dto.customerId ?? invoice.customerId, dto.branchId ?? invoice.branchId, dto.warehouseId ?? invoice.warehouseId);
+
+    Object.assign(invoice, {
+      invoiceNumber: dto.invoiceNumber?.trim().toUpperCase() ?? invoice.invoiceNumber,
+      customerId: dto.customerId ?? invoice.customerId,
+      branchId: dto.branchId ?? invoice.branchId,
+      warehouseId: dto.warehouseId ?? invoice.warehouseId,
+      invoiceDate: dto.invoiceDate ?? invoice.invoiceDate,
+      dueDate: dto.dueDate !== undefined ? this.optionalText(dto.dueDate) : invoice.dueDate,
+      documentStatus: dto.documentStatus ?? invoice.documentStatus,
+      discountAmount: dto.discountAmount !== undefined ? this.roundMoney(dto.discountAmount) : invoice.discountAmount,
+      notes: dto.notes !== undefined ? this.optionalText(dto.notes) : invoice.notes,
+    });
+    invoice.totalAmount = this.roundMoney(Math.max(invoice.subtotalAmount - invoice.discountAmount, 0));
+    await this.ensureNotOverpaid(invoice);
+    this.applyPaymentStatus(invoice);
+
+    return this.dataSource.transaction(async (manager) => {
+      const saved = await manager.getRepository(WholesaleSalesInvoiceEntity).save(invoice);
+      if (saved.documentStatus === WholesaleSalesDocumentStatus.Approved) {
+        await this.replaceInventoryMovements(saved, invoice.items, manager);
+      } else {
+        await this.stockMovementsService.replaceSourceMovements('wholesale_sales_invoice', saved.id, [], manager);
+      }
+      return this.findDetails(saved.id);
+    });
+  }
+
+  async approve(id: string) {
+    const invoice = await this.invoiceRepository.findOne({ where: { id }, relations: { items: true } });
+    if (!invoice) throw new NotFoundException('فاتورة بيع الجملة غير موجودة.');
+    invoice.documentStatus = WholesaleSalesDocumentStatus.Approved;
+    return this.dataSource.transaction(async (manager) => {
+      const saved = await manager.getRepository(WholesaleSalesInvoiceEntity).save(invoice);
+      await this.replaceInventoryMovements(saved, invoice.items, manager);
+      return this.findDetails(saved.id);
+    });
+  }
+
+  async cancel(id: string) {
+    const invoice = await this.invoiceRepository.findOne({ where: { id } });
+    if (!invoice) throw new NotFoundException('فاتورة بيع الجملة غير موجودة.');
+    invoice.documentStatus = WholesaleSalesDocumentStatus.Cancelled;
+    return this.dataSource.transaction(async (manager) => {
+      await this.stockMovementsService.replaceSourceMovements('wholesale_sales_invoice', invoice.id, [], manager);
+      return manager.getRepository(WholesaleSalesInvoiceEntity).save(invoice);
+    });
+  }
+
+  async remove(id: string) {
+    const invoice = await this.invoiceRepository.findOne({ where: { id }, relations: { payments: true } });
+    if (!invoice) throw new NotFoundException('فاتورة بيع الجملة غير موجودة.');
+    if (invoice.documentStatus === WholesaleSalesDocumentStatus.Approved || invoice.payments.length > 0) {
+      throw new BadRequestException('لا يمكن حذف فاتورة معتمدة أو عليها دفعات. استخدم الإلغاء بدل الحذف.');
+    }
+    await this.dataSource.transaction(async (manager) => {
+      await manager.getRepository(WholesaleSalesInvoiceItemEntity).delete({ invoiceId: id });
+      await manager.getRepository(WholesaleSalesInvoiceEntity).remove(invoice);
+    });
+    return { id };
+  }
+
+  async addPayment(invoiceId: string, dto: CreateWholesaleSalesPaymentDto) {
+    return this.createPayments({ invoiceId, branchId: dto.branchId, paymentDate: dto.paymentDate, payments: [dto] });
+  }
+
+  async addPaymentBatch(dto: CreateWholesaleSalesPaymentBatchDto) {
+    return this.createPayments(dto);
+  }
+
+  async transferCashToVault(invoiceId: string, dto: TransferWholesaleCashToVaultDto) {
+    const invoice = await this.invoiceRepository.findOne({ where: { id: invoiceId } });
+    if (!invoice) throw new NotFoundException('فاتورة بيع الجملة غير موجودة.');
+    const cashCollected = await this.cashCollectedAmount(invoiceId);
+    const transferable = this.roundMoney(cashCollected - invoice.cashTransferredAmount);
+    if (dto.amount > transferable) {
+      throw new BadRequestException('مبلغ التحويل أكبر من النقد المتاح للتحويل لهذه الفاتورة.');
+    }
+    const drawer = await this.drawerRepository.findOne({ where: { id: dto.drawerId } });
+    if (!drawer) throw new NotFoundException('الدرج غير موجود.');
+    await this.vaultsService.findEntityByIdOrFail(dto.vaultId);
+
+    return this.dataSource.transaction(async (manager) => {
+      await manager.getRepository(DrawerTransactionEntity).save({
+        drawerId: dto.drawerId,
+        branchId: invoice.branchId,
+        transactionDate: dto.transferDate,
+        transactionType: DrawerTransactionType.TransferToVault,
+        direction: DrawerTransactionDirection.Out,
+        amount: dto.amount,
+        sourceType: 'wholesale_sales_cash_transfer',
+        sourceId: invoice.id,
+        description: `تحويل تحصيل نقدي لفاتورة بيع جملة ${invoice.invoiceNumber} إلى الخزنة`,
+        notes: this.optionalText(dto.notes),
+      });
+      await this.vaultsService.recordTransaction(
+        {
+          vaultId: dto.vaultId,
+          transactionDate: dto.transferDate,
+          transactionType: VaultTransactionType.DepositFromDrawer,
+          direction: VaultTransactionDirection.In,
+          amount: dto.amount,
+          branchId: invoice.branchId,
+          drawerId: dto.drawerId,
+          sourceType: 'wholesale_sales_cash_transfer',
+          sourceId: invoice.id,
+          referenceNumber: invoice.invoiceNumber,
+          description: `استلام تحصيل نقدي لفاتورة بيع جملة ${invoice.invoiceNumber}`,
+          notes: this.optionalText(dto.notes),
+        },
+        manager,
+      );
+      invoice.cashTransferredAmount = this.roundMoney(invoice.cashTransferredAmount + dto.amount);
+      return manager.getRepository(WholesaleSalesInvoiceEntity).save(invoice);
+    });
+  }
+
+  async exportInvoice(id: string, format: 'excel' | 'pdf') {
+    const invoice = await this.findDetails(id);
+    return format === 'pdf' ? this.exportInvoicePdf(invoice) : this.exportInvoiceExcel(invoice);
+  }
+
+  async exportList(filters: WholesaleSalesFilters, format: 'excel' | 'pdf') {
+    const invoices = await this.findAll(filters);
+    return format === 'pdf' ? this.exportListPdf(invoices) : this.exportListExcel(invoices);
+  }
+
+  private async createPayments(dto: { invoiceId: string; branchId: string; paymentDate: string; payments: CreateWholesaleSalesPaymentDto[] }) {
+    const invoice = await this.invoiceRepository.findOne({ where: { id: dto.invoiceId } });
+    if (!invoice) throw new NotFoundException('فاتورة بيع الجملة غير موجودة.');
+    if (invoice.documentStatus === WholesaleSalesDocumentStatus.Cancelled) {
+      throw new BadRequestException('لا يمكن إضافة دفعات إلى فاتورة ملغاة.');
+    }
+    if (invoice.branchId !== dto.branchId) {
+      throw new BadRequestException('فرع الدفعة يجب أن يطابق فرع الفاتورة.');
+    }
+    const total = this.roundMoney(dto.payments.reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0));
+    if (total > invoice.remainingAmount) {
+      throw new BadRequestException('مجموع الدفعات لا يمكن أن يتجاوز المتبقي من الفاتورة.');
+    }
+
+    for (const payment of dto.payments) {
+      await this.validatePaymentSource(payment);
+    }
+
+    return this.dataSource.transaction(async (manager) => {
+      const paymentRepository = manager.getRepository(WholesaleSalesPaymentEntity);
+      const savedPayments: WholesaleSalesPaymentEntity[] = [];
+      for (const row of dto.payments) {
+        const saved = await paymentRepository.save(
+          paymentRepository.create({
+            paymentNumber: row.paymentNumber?.trim().toUpperCase() || (await this.generatePaymentNumber(paymentRepository)),
+            invoiceId: dto.invoiceId,
+            branchId: dto.branchId,
+            paymentDate: row.paymentDate ?? dto.paymentDate,
+            paymentMethod: row.paymentMethod,
+            drawerId: row.paymentMethod === WholesaleSalesPaymentMethod.Cash ? row.drawerId ?? null : null,
+            bankAccountId: row.paymentMethod === WholesaleSalesPaymentMethod.Bank ? row.bankAccountId ?? null : null,
+            amount: Number(row.amount),
+            referenceNumber: this.optionalText(row.referenceNumber),
+            notes: this.optionalText(row.notes),
+          }),
+        );
+        await this.recreatePaymentMovement(saved, manager);
+        savedPayments.push(saved);
+      }
+      await this.recalculatePaymentState(dto.invoiceId, manager);
+      return paymentRepository.find({ where: savedPayments.map((payment) => ({ id: payment.id })) });
+    });
+  }
+
+  private async recreatePaymentMovement(payment: WholesaleSalesPaymentEntity, manager = this.dataSource.manager) {
+    await Promise.all([
+      manager.getRepository(DrawerTransactionEntity).delete({ sourceType: 'wholesale_sales_payment', sourceId: payment.id }),
+      manager.getRepository(BankAccountTransactionEntity).delete({ sourceType: 'wholesale_sales_payment', sourceId: payment.id }),
+    ]);
+
+    if (payment.paymentMethod === WholesaleSalesPaymentMethod.Cash && payment.drawerId) {
+      await manager.getRepository(DrawerTransactionEntity).save({
+        drawerId: payment.drawerId,
+        branchId: payment.branchId,
+        transactionDate: payment.paymentDate,
+        transactionType: DrawerTransactionType.WholesaleSalesCashCollection,
+        direction: DrawerTransactionDirection.In,
+        amount: payment.amount,
+        sourceType: 'wholesale_sales_payment',
+        sourceId: payment.id,
+        description: `تحصيل نقدي فاتورة بيع جملة ${payment.paymentNumber}`,
+        notes: payment.notes,
+      });
+    }
+
+    if (payment.paymentMethod === WholesaleSalesPaymentMethod.Bank && payment.bankAccountId) {
+      await manager.getRepository(BankAccountTransactionEntity).save({
+        bankAccountId: payment.bankAccountId,
+        transactionDate: payment.paymentDate,
+        transactionType: BankAccountTransactionType.WholesaleSalesReceiptBank,
+        direction: BankAccountTransactionDirection.Incoming,
+        amount: payment.amount,
+        branchId: payment.branchId,
+        sourceType: 'wholesale_sales_payment',
+        sourceId: payment.id,
+        referenceNumber: payment.referenceNumber,
+        description: `تحصيل بنكي فاتورة بيع جملة ${payment.paymentNumber}`,
+        notes: payment.notes,
+      });
+    }
+  }
+
+  private async replaceInventoryMovements(
+    invoice: WholesaleSalesInvoiceEntity,
+    lines: WholesaleSalesInvoiceItemEntity[],
+    manager: EntityManager,
+  ) {
+    await this.stockMovementsService.replaceSourceMovements(
+      'wholesale_sales_invoice',
+      invoice.id,
+      lines.map((line) => ({
+        movementDate: invoice.invoiceDate,
+        warehouseId: invoice.warehouseId,
+        itemId: line.itemId,
+        unitId: line.unitId,
+        movementType: StockMovementType.WholesaleSaleOut,
+        quantityOut: line.quantity,
+        sourceType: 'wholesale_sales_invoice',
+        sourceId: invoice.id,
+        sourceLineId: line.id,
+        referenceNumber: invoice.invoiceNumber,
+        notes: invoice.notes,
+      })),
+      manager,
+    );
+  }
+
+  private async stockWarnings(invoice: WholesaleSalesInvoiceEntity) {
+    const stockRows = (await this.stockMovementsService.currentStock(invoice.warehouseId)) as {
+      itemId: string;
+      quantity: string | number;
+    }[];
+    const stockByItem = new Map(stockRows.map((row) => [row.itemId, Number(row.quantity ?? 0)]));
+    return (invoice.items ?? [])
+      .map((line) => ({
+        itemId: line.itemId,
+        itemName: line.item?.name ?? '',
+        requestedQuantity: line.quantity,
+        availableQuantity: stockByItem.get(line.itemId) ?? 0,
+      }))
+      .filter((warning) => warning.availableQuantity < warning.requestedQuantity);
+  }
+
+  private async recalculatePaymentState(invoiceId: string, manager = this.dataSource.manager) {
+    const invoice = await manager.getRepository(WholesaleSalesInvoiceEntity).findOneOrFail({ where: { id: invoiceId } });
+    const payments = await manager.getRepository(WholesaleSalesPaymentEntity).find({ where: { invoiceId } });
+    invoice.paidAmount = this.roundMoney(payments.reduce((sum, payment) => sum + payment.amount, 0));
+    await this.ensureNotOverpaid(invoice);
+    this.applyPaymentStatus(invoice);
+    await manager.getRepository(WholesaleSalesInvoiceEntity).save(invoice);
+  }
+
+  private applyPaymentStatus(invoice: WholesaleSalesInvoiceEntity) {
+    invoice.remainingAmount = this.roundMoney(invoice.totalAmount - invoice.paidAmount);
+    if (invoice.paidAmount <= 0) invoice.paymentStatus = WholesaleSalesPaymentStatus.Unpaid;
+    else if (invoice.paidAmount >= invoice.totalAmount) invoice.paymentStatus = WholesaleSalesPaymentStatus.Paid;
+    else invoice.paymentStatus = WholesaleSalesPaymentStatus.PartiallyPaid;
+  }
+
+  private async ensureNotOverpaid(invoice: WholesaleSalesInvoiceEntity) {
+    if (invoice.paidAmount > invoice.totalAmount) {
+      throw new BadRequestException('المدفوع لا يمكن أن يتجاوز إجمالي الفاتورة.');
+    }
+  }
+
+  private async validateHeader(customerId: string, branchId: string, warehouseId: string) {
+    const [customer, branch, warehouse] = await Promise.all([
+      this.customerRepository.findOne({ where: { id: customerId } }),
+      this.branchRepository.findOne({ where: { id: branchId } }),
+      this.warehouseRepository.findOne({ where: { id: warehouseId } }),
+    ]);
+    if (!customer) throw new NotFoundException('العميل غير موجود.');
+    if (!branch) throw new NotFoundException('الفرع غير موجود.');
+    if (!warehouse) throw new NotFoundException('المخزن غير موجود.');
+  }
+
+  private async validateItems(itemIds: string[]) {
+    const items = await this.itemRepository.find({ where: itemIds.map((id) => ({ id })) });
+    if (items.length !== new Set(itemIds).size) throw new NotFoundException('إحدى مواد الفاتورة غير موجودة.');
+  }
+
+  private async validatePaymentSource(payment: CreateWholesaleSalesPaymentDto) {
+    if (payment.paymentMethod === WholesaleSalesPaymentMethod.Cash) {
+      if (!payment.drawerId) throw new BadRequestException('الدفعة النقدية تحتاج درجًا نقديًا.');
+      const drawer = await this.drawerRepository.findOne({ where: { id: payment.drawerId } });
+      if (!drawer) throw new NotFoundException('الدرج غير موجود.');
+    }
+    if (payment.paymentMethod === WholesaleSalesPaymentMethod.Bank) {
+      if (!payment.bankAccountId) throw new BadRequestException('الدفعة البنكية تحتاج حسابًا بنكيًا.');
+      const account = await this.bankAccountRepository.findOne({ where: { id: payment.bankAccountId } });
+      if (!account) throw new NotFoundException('الحساب البنكي غير موجود.');
+    }
+  }
+
+  private async cashCollectedAmount(invoiceId: string) {
+    const payments = await this.paymentRepository.find({ where: { invoiceId, paymentMethod: WholesaleSalesPaymentMethod.Cash } });
+    return this.roundMoney(payments.reduce((sum, payment) => sum + payment.amount, 0));
+  }
+
+  private async ensureInvoiceNumberAvailable(invoiceNumber?: string, currentId?: string) {
+    if (!invoiceNumber) return;
+    const existing = await this.invoiceRepository.findOne({ where: { invoiceNumber: invoiceNumber.toUpperCase() } });
+    if (existing && existing.id !== currentId) throw new ConflictException('رقم فاتورة بيع الجملة مستخدم من قبل.');
+  }
+
+  private async generateInvoiceNumber(repository = this.invoiceRepository) {
+    const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    return `WS-${stamp}-${String((await repository.count()) + 1).padStart(5, '0')}`;
+  }
+
+  private async generatePaymentNumber(repository = this.paymentRepository) {
+    const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    return `WSP-${stamp}-${String((await repository.count()) + 1).padStart(5, '0')}`;
+  }
+
+  private async exportInvoiceExcel(invoice: WholesaleSalesInvoiceEntity & { stockWarnings?: unknown[] }) {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('فاتورة بيع جملة', {
+      views: [{ rightToLeft: true, showGridLines: false }],
+      pageSetup: { orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
+    });
+    worksheet.columns = [
+      { header: 'المادة', key: 'item', width: 28 },
+      { header: 'الكمية', key: 'quantity', width: 14 },
+      { header: 'سعر الوحدة', key: 'unitPrice', width: 16 },
+      { header: 'الإجمالي', key: 'lineTotal', width: 16 },
+    ];
+    worksheet.mergeCells('A1:D1');
+    worksheet.getCell('A1').value = 'مطعم الجود';
+    worksheet.getCell('A1').font = { bold: true, size: 18 };
+    worksheet.getCell('A2').value = `رقم الفاتورة: ${invoice.invoiceNumber}`;
+    worksheet.getCell('A3').value = `التاريخ: ${invoice.invoiceDate}`;
+    worksheet.getCell('C2').value = `العميل: ${invoice.customer?.name ?? ''}`;
+    worksheet.getCell('C3').value = `المخزن: ${invoice.warehouse?.name ?? ''}`;
+    let rowIndex = 5;
+    worksheet.getRow(rowIndex).values = ['المادة', 'الكمية', 'سعر الوحدة', 'الإجمالي'];
+    worksheet.getRow(rowIndex).font = { bold: true };
+    for (const line of invoice.items ?? []) {
+      rowIndex += 1;
+      worksheet.getRow(rowIndex).values = [line.item?.name ?? line.itemId, line.quantity, line.unitPrice, line.lineTotal];
+    }
+    rowIndex += 2;
+    worksheet.getCell(rowIndex, 3).value = 'إجمالي الفاتورة';
+    worksheet.getCell(rowIndex, 4).value = invoice.totalAmount;
+    worksheet.getRow(rowIndex).font = { bold: true };
+    const body = Buffer.from(await workbook.xlsx.writeBuffer());
+    return {
+      body,
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      filename: `${invoice.invoiceNumber}.xlsx`,
+    };
+  }
+
+  private async exportListExcel(invoices: WholesaleSalesInvoiceEntity[]) {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('فواتير بيع الجملة', {
+      views: [{ rightToLeft: true, showGridLines: false }],
+      pageSetup: { orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
+    });
+    worksheet.columns = [
+      { header: 'رقم الفاتورة', key: 'invoiceNumber', width: 18 },
+      { header: 'التاريخ', key: 'invoiceDate', width: 14 },
+      { header: 'العميل', key: 'customer', width: 28 },
+      { header: 'المخزن', key: 'warehouse', width: 22 },
+      { header: 'حالة الفاتورة', key: 'documentStatus', width: 16 },
+      { header: 'حالة الدفع', key: 'paymentStatus', width: 18 },
+      { header: 'الإجمالي', key: 'totalAmount', width: 16 },
+      { header: 'المدفوع', key: 'paidAmount', width: 16 },
+      { header: 'المتبقي', key: 'remainingAmount', width: 16 },
+    ];
+    worksheet.spliceRows(1, 0, ['مطعم الجود - تقرير فواتير بيع الجملة']);
+    worksheet.mergeCells('A1:I1');
+    worksheet.getCell('A1').font = { bold: true, size: 16 };
+    invoices.forEach((invoice) => {
+      worksheet.addRow({
+        invoiceNumber: invoice.invoiceNumber,
+        invoiceDate: invoice.invoiceDate,
+        customer: invoice.customer?.name ?? '',
+        warehouse: invoice.warehouse?.name ?? '',
+        documentStatus: this.documentStatusLabel(invoice.documentStatus),
+        paymentStatus: this.paymentStatusLabel(invoice.paymentStatus),
+        totalAmount: invoice.totalAmount,
+        paidAmount: invoice.paidAmount,
+        remainingAmount: invoice.remainingAmount,
+      });
+    });
+    return {
+      body: Buffer.from(await workbook.xlsx.writeBuffer()),
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      filename: 'wholesale-sales-invoices.xlsx',
+    };
+  }
+
+  private async exportListPdf(invoices: WholesaleSalesInvoiceEntity[]) {
+    const rows = invoices
+      .map(
+        (invoice) => `<tr>
+          <td>${this.escapeHtml(invoice.invoiceNumber)}</td>
+          <td>${this.escapeHtml(invoice.invoiceDate)}</td>
+          <td>${this.escapeHtml(invoice.customer?.name ?? '')}</td>
+          <td>${this.escapeHtml(invoice.warehouse?.name ?? '')}</td>
+          <td>${this.documentStatusLabel(invoice.documentStatus)}</td>
+          <td>${this.paymentStatusLabel(invoice.paymentStatus)}</td>
+          <td>${invoice.totalAmount.toFixed(2)}</td>
+          <td>${invoice.remainingAmount.toFixed(2)}</td>
+        </tr>`,
+      )
+      .join('');
+    const html = `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8" />
+      <style>
+        body { font-family: Arial, Tahoma, sans-serif; color: #17212b; margin: 0; }
+        main { padding: 28px; }
+        h1 { color: #14746f; margin: 0; }
+        table { width: 100%; border-collapse: collapse; margin-top: 18px; font-size: 12px; }
+        th { background: #14746f; color: #fff; }
+        th, td { border: 1px solid #d9e3ec; padding: 8px; text-align: right; }
+      </style></head><body><main>
+      <h1>مطعم الجود</h1><h2>تقرير فواتير بيع الجملة</h2>
+      <table><thead><tr><th>رقم الفاتورة</th><th>التاريخ</th><th>العميل</th><th>المخزن</th><th>حالة الفاتورة</th><th>حالة الدفع</th><th>الإجمالي</th><th>المتبقي</th></tr></thead>
+      <tbody>${rows}</tbody></table></main></body></html>`;
+    const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+    try {
+      const page = await browser.newPage();
+      await page.setContent(html, { waitUntil: 'networkidle0' });
+      return {
+        body: Buffer.from(await page.pdf({ format: 'A4', landscape: false, printBackground: true })),
+        contentType: 'application/pdf',
+        filename: 'wholesale-sales-invoices.pdf',
+      };
+    } finally {
+      await browser.close();
+    }
+  }
+
+  private async exportInvoicePdf(invoice: WholesaleSalesInvoiceEntity & { stockWarnings?: unknown[] }) {
+    const rows = (invoice.items ?? [])
+      .map(
+        (line) => `
+          <tr>
+            <td>${this.escapeHtml(line.item?.name ?? line.itemId)}</td>
+            <td>${line.quantity}</td>
+            <td>${line.unitPrice.toFixed(2)}</td>
+            <td>${line.lineTotal.toFixed(2)}</td>
+          </tr>`,
+      )
+      .join('');
+    const html = `<!doctype html>
+      <html lang="ar" dir="rtl">
+        <head>
+          <meta charset="utf-8" />
+          <style>
+            body { font-family: "Arial", "Tahoma", sans-serif; color: #17212b; margin: 0; }
+            .page { padding: 28px; }
+            h1 { margin: 0; color: #14746f; font-size: 28px; }
+            .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 18px; margin: 20px 0; }
+            .meta div { border: 1px solid #d9e3ec; border-radius: 8px; padding: 10px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 18px; }
+            th { background: #14746f; color: white; }
+            th, td { border: 1px solid #d9e3ec; padding: 10px; text-align: right; }
+            .total { margin-top: 18px; display: flex; justify-content: flex-start; font-size: 18px; font-weight: 800; }
+          </style>
+        </head>
+        <body>
+          <main class="page">
+            <h1>مطعم الجود</h1>
+            <h2>فاتورة بيع جملة</h2>
+            <section class="meta">
+              <div>رقم الفاتورة: ${this.escapeHtml(invoice.invoiceNumber)}</div>
+              <div>تاريخ الإنشاء: ${this.escapeHtml(invoice.invoiceDate)}</div>
+              <div>العميل: ${this.escapeHtml(invoice.customer?.name ?? '')}</div>
+              <div>المخزن: ${this.escapeHtml(invoice.warehouse?.name ?? '')}</div>
+              <div>حالة الفاتورة: ${this.documentStatusLabel(invoice.documentStatus)}</div>
+              <div>حالة الدفع: ${this.paymentStatusLabel(invoice.paymentStatus)}</div>
+            </section>
+            <table>
+              <thead><tr><th>المادة</th><th>الكمية</th><th>سعر الوحدة</th><th>الإجمالي</th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+            <div class="total">إجمالي الفاتورة: ${invoice.totalAmount.toFixed(2)}</div>
+          </main>
+        </body>
+      </html>`;
+    const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+    try {
+      const page = await browser.newPage();
+      await page.setContent(html, { waitUntil: 'networkidle0' });
+      const body = Buffer.from(await page.pdf({ format: 'A4', landscape: false, printBackground: true }));
+      return { body, contentType: 'application/pdf', filename: `${invoice.invoiceNumber}.pdf` };
+    } finally {
+      await browser.close();
+    }
+  }
+
+  private documentStatusLabel(status: WholesaleSalesDocumentStatus) {
+    return status === WholesaleSalesDocumentStatus.Approved ? 'معتمدة' : status === WholesaleSalesDocumentStatus.Cancelled ? 'ملغاة' : 'مسودة';
+  }
+
+  private paymentStatusLabel(status: WholesaleSalesPaymentStatus) {
+    return status === WholesaleSalesPaymentStatus.Paid ? 'مدفوعة بالكامل' : status === WholesaleSalesPaymentStatus.PartiallyPaid ? 'مدفوعة جزئيًا' : 'غير مدفوعة';
+  }
+
+  private escapeHtml(value: string) {
+    return value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[char] ?? char);
+  }
+
+  private optionalText(value?: string | null) {
+    const normalized = value?.trim();
+    return normalized ? normalized : null;
+  }
+
+  private roundMoney(value: number) {
+    return Math.round((value + Number.EPSILON) * 100) / 100;
+  }
+}

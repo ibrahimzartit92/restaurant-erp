@@ -78,13 +78,14 @@ export function PaymentSourceRows({
   bankAccounts,
   vaults,
   title = 'مصادر الدفع',
-  description = 'يمكن تقسيم الدفع بين الدرج، الحساب البنكي، والخزنة.',
+  description = 'يمكن تقسيم الدفع بين الدرج والحساب البنكي والخزنة.',
   totalAmount,
   currencySymbol = '',
   decimalPlaces = 2,
   showRemaining = false,
   showPaymentDate = true,
   allowSettleRemaining = false,
+  allowedSources = ['drawer', 'bank', 'vault'],
 }: Readonly<{
   rows: UnifiedPaymentRow[];
   onChange: (rows: UnifiedPaymentRow[]) => void;
@@ -99,6 +100,7 @@ export function PaymentSourceRows({
   showRemaining?: boolean;
   showPaymentDate?: boolean;
   allowSettleRemaining?: boolean;
+  allowedSources?: PaymentSourceType[];
 }>) {
   const paidTotal = paymentRowsTotal(rows);
   const remainingAmount = Math.max(Number(totalAmount ?? 0) - paidTotal, 0);
@@ -161,10 +163,20 @@ export function PaymentSourceRows({
             <div className="transfer-item-grid">
               <label>
                 مصدر الدفع
-                <select value={row.sourceType} onChange={(event) => updateRow(index, { sourceType: event.target.value as PaymentSourceType })}>
-                  <option value="drawer">درج</option>
-                  <option value="bank">حساب بنكي</option>
-                  <option value="vault">خزنة</option>
+                <select
+                  value={row.sourceType}
+                  onChange={(event) =>
+                    updateRow(index, {
+                      sourceType: event.target.value as PaymentSourceType,
+                      drawerId: '',
+                      bankAccountId: '',
+                      vaultId: '',
+                    })
+                  }
+                >
+                  {allowedSources.includes('drawer') ? <option value="drawer">درج</option> : null}
+                  {allowedSources.includes('bank') ? <option value="bank">حساب بنكي</option> : null}
+                  {allowedSources.includes('vault') ? <option value="vault">خزنة</option> : null}
                 </select>
               </label>
               {showPaymentDate ? (
@@ -199,17 +211,19 @@ export function PaymentSourceRows({
                   ))}
                 </select>
               </label>
-              <label>
-                الخزنة
-                <select value={row.vaultId} disabled={row.sourceType !== 'vault'} onChange={(event) => updateRow(index, { vaultId: event.target.value })}>
-                  <option value="">اختر الخزنة</option>
-                  {vaults.map((vault) => (
-                    <option key={vault.id} value={vault.id}>
-                      {vault.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              {allowedSources.includes('vault') ? (
+                <label>
+                  الخزنة
+                  <select value={row.vaultId} disabled={row.sourceType !== 'vault'} onChange={(event) => updateRow(index, { vaultId: event.target.value })}>
+                    <option value="">اختر الخزنة</option>
+                    {vaults.map((vault) => (
+                      <option key={vault.id} value={vault.id}>
+                        {vault.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
               <label>
                 رقم المرجع
                 <input maxLength={120} value={row.referenceNumber} onChange={(event) => updateRow(index, { referenceNumber: event.target.value })} />

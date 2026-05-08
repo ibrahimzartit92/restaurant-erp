@@ -10,6 +10,7 @@ import { BranchesModule } from './modules/branches/branches.module';
 import { BootstrapModule } from './modules/bootstrap/bootstrap.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { DailySalesModule } from './modules/daily-sales/daily-sales.module';
+import { CustomersModule } from './modules/customers/customers.module';
 import { DrawerDailySessionsModule } from './modules/drawer-daily-sessions/drawer-daily-sessions.module';
 import { DrawerTransactionsModule } from './modules/drawer-transactions/drawer-transactions.module';
 import { DrawersModule } from './modules/drawers/drawers.module';
@@ -41,6 +42,7 @@ import { UndoActionsModule } from './modules/undo-actions/undo-actions.module';
 import { UsersModule } from './modules/users/users.module';
 import { VaultsModule } from './modules/vaults/vaults.module';
 import { WarehousesModule } from './modules/warehouses/warehouses.module';
+import { WholesaleSalesModule } from './modules/wholesale-sales/wholesale-sales.module';
 
 @Module({
   imports: [
@@ -52,6 +54,7 @@ import { WarehousesModule } from './modules/warehouses/warehouses.module';
     BankAccountTransactionsModule,
     BranchesModule,
     BootstrapModule,
+    CustomersModule,
     DashboardModule,
     DailySalesModule,
     DrawerDailySessionsModule,
@@ -85,6 +88,7 @@ import { WarehousesModule } from './modules/warehouses/warehouses.module';
     UsersModule,
     VaultsModule,
     WarehousesModule,
+    WholesaleSalesModule,
   ],
   controllers: [HealthController],
 })

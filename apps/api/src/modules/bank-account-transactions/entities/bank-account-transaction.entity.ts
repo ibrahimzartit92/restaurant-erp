@@ -22,6 +22,7 @@ export enum BankAccountTransactionType {
   ExpenseBankReversal = 'expense_bank_reversal',
   EmployeeAdvanceBank = 'employee_advance_bank',
   PayrollPaymentBank = 'payroll_payment_bank',
+  WholesaleSalesReceiptBank = 'wholesale_sales_receipt_bank',
   SalesReceiptBank = 'sales_receipt_bank',
   RefundBank = 'refund_bank',
   DepositFromVault = 'deposit_from_vault',

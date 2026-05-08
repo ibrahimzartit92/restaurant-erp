@@ -71,6 +71,15 @@ export type SupplierOption = {
   name: string;
 };
 
+export type CustomerOption = {
+  id: string;
+  name: string;
+  phone?: string | null;
+  address?: string | null;
+  isActive?: boolean;
+  notes?: string | null;
+};
+
 export type PurchaseInvoiceOption = {
   id: string;
   invoiceNumber: string;
@@ -119,6 +128,61 @@ export type VaultOption = {
   branchId?: string | null;
   branch?: BranchOption | null;
   isActive?: boolean;
+};
+
+export type WholesaleSalesInvoiceSummary = {
+  id: string;
+  invoiceNumber: string;
+  customerId: string;
+  customer: CustomerOption;
+  branchId: string;
+  branch: BranchOption;
+  warehouseId: string;
+  warehouse: WarehouseOption;
+  invoiceDate: string;
+  dueDate?: string | null;
+  documentStatus: 'draft' | 'approved' | 'cancelled';
+  paymentStatus: 'unpaid' | 'partially_paid' | 'paid';
+  subtotalAmount: number;
+  discountAmount: number;
+  totalAmount: number;
+  paidAmount: number;
+  remainingAmount: number;
+  cashTransferredAmount?: number;
+  notes?: string | null;
+  items?: {
+    id: string;
+    invoiceId: string;
+    itemId: string;
+    item: ItemOption;
+    unitId?: string | null;
+    unit?: UnitOption | null;
+    quantity: number;
+    unitPrice: number;
+    lineTotal: number;
+    notes?: string | null;
+  }[];
+  payments?: {
+    id: string;
+    paymentNumber: string;
+    invoiceId: string;
+    branchId: string;
+    paymentDate: string;
+    paymentMethod: 'cash' | 'bank';
+    drawerId?: string | null;
+    drawer?: DrawerOption | null;
+    bankAccountId?: string | null;
+    bankAccount?: BankAccountOption | null;
+    amount: number;
+    referenceNumber?: string | null;
+    notes?: string | null;
+  }[];
+  stockWarnings?: {
+    itemId: string;
+    itemName: string;
+    requestedQuantity: number;
+    availableQuantity: number;
+  }[];
 };
 
 export type UndoActionSummary = {

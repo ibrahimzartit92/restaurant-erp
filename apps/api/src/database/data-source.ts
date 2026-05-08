@@ -26,6 +26,7 @@ import { MasterDataStabilization1730000022000 } from './migrations/1730000022000
 import { StockMovements1730000023000 } from './migrations/1730000023000-stock-movements';
 import { UiAuthTemplateStabilization1730000024000 } from './migrations/1730000024000-ui-auth-template-stabilization';
 import { StabilizationBranchesCategoriesAdvancesPayroll1730000025000 } from './migrations/1730000025000-stabilization-branches-categories-advances-payroll';
+import { WholesaleSales1730000026000 } from './migrations/1730000026000-wholesale-sales';
 import { databaseEntities } from './typeorm-options';
 
 export const AppDataSource = new DataSource({
@@ -59,6 +60,7 @@ export const AppDataSource = new DataSource({
     StockMovements1730000023000,
     UiAuthTemplateStabilization1730000024000,
     StabilizationBranchesCategoriesAdvancesPayroll1730000025000,
+    WholesaleSales1730000026000,
   ],
   synchronize: false,
 });

@@ -3,6 +3,7 @@ import { BankAccountEntity } from '../modules/bank-accounts/entities/bank-accoun
 import { BankAccountTransactionEntity } from '../modules/bank-account-transactions/entities/bank-account-transaction.entity';
 import { BranchEntity } from '../modules/branches/entities/branch.entity';
 import { DailySaleEntity } from '../modules/daily-sales/entities/daily-sale.entity';
+import { CustomerEntity } from '../modules/customers/entities/customer.entity';
 import { DrawerDailySessionEntity } from '../modules/drawer-daily-sessions/entities/drawer-daily-session.entity';
 import { DrawerTransactionEntity } from '../modules/drawer-transactions/entities/drawer-transaction.entity';
 import { DrawerEntity } from '../modules/drawers/entities/drawer.entity';
@@ -36,6 +37,9 @@ import { BranchTransferItemEntity } from '../modules/transfers/entities/transfer
 import { TransferEntity } from '../modules/transfers/entities/transfer.entity';
 import { VaultTransactionEntity } from '../modules/vaults/entities/vault-transaction.entity';
 import { VaultEntity } from '../modules/vaults/entities/vault.entity';
+import { WholesaleSalesInvoiceEntity } from '../modules/wholesale-sales/entities/wholesale-sales-invoice.entity';
+import { WholesaleSalesInvoiceItemEntity } from '../modules/wholesale-sales/entities/wholesale-sales-invoice-item.entity';
+import { WholesaleSalesPaymentEntity } from '../modules/wholesale-sales/entities/wholesale-sales-payment.entity';
 
 export const databaseEntities = [
   BankAccountEntity,
@@ -43,6 +47,7 @@ export const databaseEntities = [
   AttendanceFileEntity,
   AttachmentEntity,
   BranchEntity,
+  CustomerEntity,
   DailySaleEntity,
   DrawerDailySessionEntity,
   DrawerTransactionEntity,
@@ -75,6 +80,9 @@ export const databaseEntities = [
   VaultEntity,
   VaultTransactionEntity,
   WarehouseEntity,
+  WholesaleSalesInvoiceEntity,
+  WholesaleSalesInvoiceItemEntity,
+  WholesaleSalesPaymentEntity,
 ];
 
 export function createTypeOrmOptions(): TypeOrmModuleOptions {
