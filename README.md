@@ -60,9 +60,11 @@ restaurant-erp/
 3. Open the app:
 
    - Frontend through Nginx: <http://localhost:8080>
-   - Frontend directly: <http://localhost:3000>
+   - Frontend directly, for local debugging only: <http://localhost:3000>
    - Backend health check through Nginx: <http://localhost:8080/api/health>
-   - Backend health check directly: <http://localhost:3001/health>
+   - Backend health check directly, for local debugging only: <http://localhost:3001/health>
+
+   Use the Nginx URL as the normal app URL. The raw Next.js web port is not the production/public entrypoint.
 
 4. Stop the services:
 
@@ -72,12 +74,14 @@ restaurant-erp/
 
 ## Service Ports
 
-- `3000`: Next.js frontend
-- `3001`: NestJS backend
+- `3000`: Next.js frontend, bound to `127.0.0.1` by default for local debugging
+- `3001`: NestJS backend, bound to `127.0.0.1` by default for local debugging
 - `5432`: PostgreSQL database
-- `8080`: Nginx entry point
+- `8080`: Nginx entry point, bound to `0.0.0.0` by default and intended as the public app URL
 
 These can be changed in `.env`.
+
+For production-like usage, publish only the Nginx port. The raw web/API ports are intentionally localhost-bound by default through `WEB_HOST_BIND=127.0.0.1` and `API_HOST_BIND=127.0.0.1`, while `NGINX_HOST_BIND=0.0.0.0` exposes the reverse proxy.
 
 ## API URL Configuration
 
@@ -87,6 +91,8 @@ The frontend uses separate API paths for server-side and browser-side work:
 - `NEXT_PUBLIC_API_URL`: browser-side requests. Keep this as `/api` for the same-origin proxy path unless you intentionally want direct browser-to-API calls.
 
 The default browser path is same-origin `/api`, which avoids CORS/preflight issues. When the browser calls `/api/settings`, the Next.js proxy or the included Nginx proxy forwards the request to the backend route `/settings`.
+
+When the app is deployed with the included Nginx service, users should open the Nginx URL, for example `http://server:8080`. Opening the raw web port can bypass the intended reverse-proxy path and lead to confusing `/api` behavior in some deployment setups.
 
 ## Frontend Admin Interface
 
