@@ -4,13 +4,31 @@ export class WholesaleSales1730000026000 implements MigrationInterface {
   name = 'WholesaleSales1730000026000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`ALTER TYPE "stock_movements_movement_type_enum" ADD VALUE IF NOT EXISTS 'wholesale_sale_out'`);
-    await queryRunner.query(`ALTER TYPE "drawer_transactions_transaction_type_enum" ADD VALUE IF NOT EXISTS 'wholesale_sales_cash_collection'`);
-    await queryRunner.query(`ALTER TYPE "bank_account_transactions_transaction_type_enum" ADD VALUE IF NOT EXISTS 'wholesale_sales_receipt_bank'`);
+    await queryRunner.query(`
+      DO $$ BEGIN
+        IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'stock_movements_movement_type_enum') THEN
+          ALTER TYPE "stock_movements_movement_type_enum" ADD VALUE IF NOT EXISTS 'wholesale_sale_out';
+        END IF;
+      END $$;
+    `);
+    await queryRunner.query(`
+      DO $$ BEGIN
+        IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'drawer_transactions_transaction_type_enum') THEN
+          ALTER TYPE "drawer_transactions_transaction_type_enum" ADD VALUE IF NOT EXISTS 'wholesale_sales_cash_collection';
+        END IF;
+      END $$;
+    `);
+    await queryRunner.query(`
+      DO $$ BEGIN
+        IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'bank_account_transactions_transaction_type_enum') THEN
+          ALTER TYPE "bank_account_transactions_transaction_type_enum" ADD VALUE IF NOT EXISTS 'wholesale_sales_receipt_bank';
+        END IF;
+      END $$;
+    `);
 
     await queryRunner.query(`
       CREATE TABLE IF NOT EXISTS "customers" (
-        "id" uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         "name" varchar(180) NOT NULL,
         "phone" varchar(40),
         "address" text,
@@ -43,7 +61,7 @@ export class WholesaleSales1730000026000 implements MigrationInterface {
 
     await queryRunner.query(`
       CREATE TABLE IF NOT EXISTS "wholesale_sales_invoices" (
-        "id" uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         "invoice_number" varchar(50) NOT NULL UNIQUE,
         "customer_id" uuid NOT NULL REFERENCES "customers"("id"),
         "branch_id" uuid NOT NULL REFERENCES "branches"("id"),
@@ -72,7 +90,7 @@ export class WholesaleSales1730000026000 implements MigrationInterface {
 
     await queryRunner.query(`
       CREATE TABLE IF NOT EXISTS "wholesale_sales_invoice_items" (
-        "id" uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         "invoice_id" uuid NOT NULL REFERENCES "wholesale_sales_invoices"("id") ON DELETE CASCADE,
         "item_id" uuid NOT NULL REFERENCES "items"("id"),
         "unit_id" uuid REFERENCES "units"("id"),
@@ -87,7 +105,7 @@ export class WholesaleSales1730000026000 implements MigrationInterface {
 
     await queryRunner.query(`
       CREATE TABLE IF NOT EXISTS "wholesale_sales_payments" (
-        "id" uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         "payment_number" varchar(50) NOT NULL UNIQUE,
         "invoice_id" uuid NOT NULL REFERENCES "wholesale_sales_invoices"("id") ON DELETE CASCADE,
         "branch_id" uuid NOT NULL REFERENCES "branches"("id"),
