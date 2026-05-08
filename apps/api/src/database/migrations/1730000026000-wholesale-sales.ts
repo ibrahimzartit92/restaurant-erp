@@ -6,8 +6,8 @@ export class WholesaleSales1730000026000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
       DO $$ BEGIN
-        IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'stock_movements_movement_type_enum') THEN
-          ALTER TYPE "stock_movements_movement_type_enum" ADD VALUE IF NOT EXISTS 'wholesale_sale_out';
+        IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'stock_movement_type_enum') THEN
+          ALTER TYPE stock_movement_type_enum ADD VALUE IF NOT EXISTS 'wholesale_sale_out';
         END IF;
       END $$;
     `);
