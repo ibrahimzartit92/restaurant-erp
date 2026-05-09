@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { AutoApplyFilterForm } from '../../components/auto-apply-filter-form';
 import { DataTable, type DataColumn } from '../../components/data-table';
 import { PageHeader } from '../../components/page-header';
 import { StatusBadge } from '../../components/status-badge';
@@ -106,7 +107,7 @@ export default async function PurchaseInvoicesPage({ searchParams }: PurchaseInv
       />
 
       <section className="report-toolbar">
-        <form className="filters report-filters" action="">
+        <AutoApplyFilterForm className="filters report-filters">
           <label>
             المورد
             <select name="supplier_id" defaultValue={currentParams.supplier_id ?? ''}>
@@ -167,11 +168,10 @@ export default async function PurchaseInvoicesPage({ searchParams }: PurchaseInv
               defaultValue={currentParams.search ?? ''}
             />
           </label>
-          <button type="submit">تطبيق</button>
           <Link className="secondary-button" href="/purchase-invoices">
             مسح
           </Link>
-        </form>
+        </AutoApplyFilterForm>
 
         <div className="report-export-actions">
           <a className="secondary-button" href={`${exportBase}${purchaseInvoiceExportQuery(currentParams, 'excel')}`}>

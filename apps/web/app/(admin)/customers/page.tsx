@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { ArchiveDeleteButton } from '../../components/archive-delete-button';
+import { AutoApplyFilterForm } from '../../components/auto-apply-filter-form';
 import { DataTable, type DataColumn } from '../../components/data-table';
 import { PageHeader } from '../../components/page-header';
 import { StatusBadge } from '../../components/status-badge';
@@ -33,7 +34,7 @@ export default async function CustomersPage({ searchParams }: { searchParams?: P
     <>
       <PageHeader title="العملاء" description="إدارة عملاء بيع الجملة واستخدامهم في فواتير المبيعات." />
       <div className="page-toolbar">
-        <form action="" className="filters">
+        <AutoApplyFilterForm className="filters">
           <label>
             بحث
             <input defaultValue={params.search ?? ''} name="search" placeholder="اسم العميل أو الهاتف" />
@@ -46,8 +47,7 @@ export default async function CustomersPage({ searchParams }: { searchParams?: P
               <option value="false">مؤرشف</option>
             </select>
           </label>
-          <button type="submit">تطبيق</button>
-        </form>
+        </AutoApplyFilterForm>
         <Link className="primary-button" href="/customers/new">
           عميل جديد
         </Link>

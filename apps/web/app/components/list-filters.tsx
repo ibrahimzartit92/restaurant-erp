@@ -1,3 +1,5 @@
+import { AutoApplyFilterForm } from './auto-apply-filter-form';
+
 export function ListFilters({
   searchPlaceholder = 'بحث',
   showBranch = false,
@@ -12,7 +14,7 @@ export function ListFilters({
   showDateRange?: boolean;
 }>) {
   return (
-    <form className="filters" action="">
+    <AutoApplyFilterForm className="filters">
       <label>
         بحث
         <input name="search" placeholder={searchPlaceholder} />
@@ -47,7 +49,6 @@ export function ListFilters({
           </label>
         </>
       ) : null}
-      <button type="submit">تطبيق</button>
-    </form>
+    </AutoApplyFilterForm>
   );
 }

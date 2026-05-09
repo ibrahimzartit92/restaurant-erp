@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { CSSProperties } from 'react';
+import { AutoApplyFilterForm } from '../components/auto-apply-filter-form';
 import { buildQuery, fetchList, fetchOne, formatDate, getMoneyFormatter } from '../lib/api';
 import type { BranchOption } from '../lib/types';
 
@@ -61,23 +62,20 @@ const periodOptions = [
   { value: 'this_year', label: 'هذه السنة' },
 ];
 
-const kpiOrder = [
-  { key: 'paid_supplier_amounts', label: 'المدفوع للموردين' },
-  { key: 'supplier_due', label: 'مستحقات الموردين' },
+const secondaryMetricOrder = [
   { key: 'wholesale_customer_receivables', label: 'ذمم عملاء الجملة' },
-  { key: 'outstanding_payroll', label: 'مستحقات الرواتب' },
-  { key: 'total_sales', label: 'إجمالي المبيعات' },
-  { key: 'regular_sales', label: 'المبيعات اليومية' },
+  { key: 'supplier_due', label: 'مستحقات الموردين' },
+  { key: 'paid_supplier_amounts', label: 'المدفوع للموردين' },
   { key: 'wholesale_collected_sales', label: 'مبيعات الجملة المحصلة' },
-  { key: 'total_purchases', label: 'إجمالي المشتريات' },
+  { key: 'regular_sales', label: 'المبيعات اليومية' },
+  { key: 'vault_balance', label: 'رصيد الخزنة الحالي' },
+  { key: 'bank_balance', label: 'الرصيد البنكي الحالي' },
+  { key: 'outstanding_payroll', label: 'مستحقات الرواتب' },
+  { key: 'total_payroll', label: 'الرواتب' },
+  { key: 'total_employee_advances', label: 'سلف الموظفين' },
   { key: 'total_operating_expenses', label: 'المصاريف التشغيلية' },
   { key: 'total_miscellaneous_expenses', label: 'المصاريف الإضافية' },
-  { key: 'total_employee_advances', label: 'سلف الموظفين' },
-  { key: 'total_payroll', label: 'الرواتب' },
-  { key: 'net_after_purchases', label: 'صافي الربح المبسط' },
-  { key: 'bank_balance', label: 'الرصيد البنكي الحالي' },
-  { key: 'vault_balance', label: 'رصيد الخزنة الحالي' },
-];
+] as const;
 
 const chartSeries = [
   { key: 'sales', label: 'المبيعات', color: '#14746f' },
@@ -157,7 +155,29 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   });
   const pdfExportHref = `/api/dashboard/export${exportQuery}${exportQuery ? '&' : '?'}format=pdf`;
   const excelExportHref = `/api/dashboard/export${exportQuery}${exportQuery ? '&' : '?'}format=excel`;
-  const visibleKpis = kpiOrder.filter((item) => item.key !== 'total_payroll' || hasMetric(dashboard.metrics, 'total_payroll'));
+  const totalSales = metricValue(dashboard.metrics, 'total_sales');
+  const totalPurchases = metricValue(dashboard.metrics, 'total_purchases');
+  const totalExpenses =
+    metricValue(dashboard.metrics, 'total_operating_expenses') +
+    metricValue(dashboard.metrics, 'total_miscellaneous_expenses') +
+    metricValue(dashboard.metrics, 'total_payroll') +
+    metricValue(dashboard.metrics, 'total_employee_advances');
+  const estimatedProfit = totalSales - totalExpenses - totalPurchases;
+  const primaryMetrics = [
+    { key: 'total_sales', label: 'إجمالي المبيعات', value: totalSales, danger: false, status: null },
+    { key: 'total_expenses', label: 'إجمالي المصاريف', value: totalExpenses, danger: false, status: null },
+    { key: 'total_purchases', label: 'إجمالي المشتريات', value: totalPurchases, danger: false, status: null },
+    {
+      key: 'estimated_profit',
+      label: 'الربح التقديري',
+      value: estimatedProfit,
+      danger: estimatedProfit < 0,
+      status: estimatedProfit < 0 ? 'خسارة' : 'ربح',
+    },
+  ];
+  const secondaryMetrics = secondaryMetricOrder
+    .map((item) => ({ ...item, value: metricValue(dashboard.metrics, item.key) }))
+    .filter((item) => item.value !== 0);
   const width = 960;
   const height = 260;
   const maxChartValue = Math.max(
@@ -185,7 +205,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         </div>
       </div>
 
-      <form className="filter-toolbar dashboard-filter-toolbar">
+      <AutoApplyFilterForm className="filter-toolbar dashboard-filter-toolbar">
         <label>
           الفرع
           <select name="branch_id" defaultValue={dashboard.filters.branchId ?? ''}>
@@ -216,24 +236,40 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           <input name="date_to" type="date" defaultValue={dashboard.filters.dateTo} />
         </label>
         <div className="filter-actions">
-          <button className="dashboard-apply-button" type="submit">تطبيق</button>
           <Link className="secondary-button dashboard-reset-button" href="/">
             إعادة ضبط
           </Link>
         </div>
-      </form>
+      </AutoApplyFilterForm>
 
-      <div className="modern-kpi-grid">
-        {visibleKpis.map((item) => {
-          const value = metricValue(dashboard.metrics, item.key);
-          return (
-            <article className={value < 0 ? 'modern-kpi-card danger' : 'modern-kpi-card'} key={item.key}>
-              <span>{item.label}</span>
-              <strong>{formatMoney(value)}</strong>
-            </article>
-          );
-        })}
+      <div className="dashboard-primary-summary-grid">
+        {primaryMetrics.map((item) => (
+          <article className={item.danger ? 'dashboard-primary-card danger' : 'dashboard-primary-card'} key={item.key}>
+            <span>{item.label}</span>
+            <strong>{formatMoney(item.value)}</strong>
+            {item.status ? <small>{item.status}</small> : null}
+          </article>
+        ))}
       </div>
+
+      {secondaryMetrics.length ? (
+        <details className="dashboard-secondary-details" open>
+          <summary>
+            <span>تفاصيل إضافية</span>
+            <small>{secondaryMetrics.length} مؤشر</small>
+          </summary>
+          <div className="dashboard-secondary-grid">
+            {secondaryMetrics.map((item) => (
+              <article className="dashboard-secondary-card" key={item.key}>
+                <span>{item.label}</span>
+                <strong>{formatMoney(item.value)}</strong>
+              </article>
+            ))}
+          </div>
+        </details>
+      ) : (
+        <p className="dashboard-secondary-empty">لا توجد مؤشرات إضافية للفلاتر المحددة.</p>
+      )}
 
       <section className="dashboard-panel">
         <div className="section-heading">

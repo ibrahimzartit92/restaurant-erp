@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { AutoApplyFilterForm } from '../../components/auto-apply-filter-form';
 import { DataTable, type DataColumn } from '../../components/data-table';
 import { PageHeader } from '../../components/page-header';
 import { StatusBadge } from '../../components/status-badge';
@@ -65,7 +66,7 @@ export default async function StockCountsPage({
         description="تابع عمليات الجرد اليدوي مع الفرع والمخزن والتاريخ وفروقات الكميات والتكلفة."
       />
       <div className="page-toolbar">
-        <form action="" className="filters">
+        <AutoApplyFilterForm className="filters">
           <label>
             بحث
             <input defaultValue={params.search ?? ''} name="search" placeholder="ابحث برقم الجرد أو اسم الفرع أو المخزن" />
@@ -100,8 +101,7 @@ export default async function StockCountsPage({
             إلى تاريخ
             <input defaultValue={params.date_to ?? ''} name="date_to" type="date" />
           </label>
-          <button type="submit">تطبيق</button>
-        </form>
+        </AutoApplyFilterForm>
         <Link className="primary-button" href="/stock-counts/new">
           جرد جديد
         </Link>

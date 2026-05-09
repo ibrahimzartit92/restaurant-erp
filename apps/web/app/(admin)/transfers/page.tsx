@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { AutoApplyFilterForm } from '../../components/auto-apply-filter-form';
 import { DataTable, type DataColumn } from '../../components/data-table';
 import { PageHeader } from '../../components/page-header';
 import { StatusBadge } from '../../components/status-badge';
@@ -55,7 +56,7 @@ export default async function TransfersPage({
         description="تابع التحويلات بين الفروع مع إظهار الفرع المصدر والمستهدف والتاريخ والمواد والتكلفة الإجمالية."
       />
       <div className="page-toolbar">
-        <form action="" className="filters">
+        <AutoApplyFilterForm className="filters">
           <label>
             بحث
             <input defaultValue={params.search ?? ''} name="search" placeholder="ابحث برقم التحويل أو اسم الفرع" />
@@ -90,8 +91,7 @@ export default async function TransfersPage({
             إلى تاريخ
             <input defaultValue={params.date_to ?? ''} name="date_to" type="date" />
           </label>
-          <button type="submit">تطبيق</button>
-        </form>
+        </AutoApplyFilterForm>
         <Link className="primary-button" href="/transfers/new">
           تحويل جديد
         </Link>

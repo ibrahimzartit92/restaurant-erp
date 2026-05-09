@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { AutoApplyFilterForm } from '../../components/auto-apply-filter-form';
 import { DataTable, type DataColumn } from '../../components/data-table';
 import { DeleteFinancialRecordButton } from '../../components/delete-financial-record-button';
 import { MonthSelect, YearSelect } from '../../components/month-year-selects';
@@ -41,7 +42,7 @@ export default async function EmployeePenaltiesPage({ searchParams }: { searchPa
     <>
       <PageHeader title="قائمة العقوبات" description="متابعة العقوبات المسجلة للموظفين وإعدادها للربط مع الرواتب لاحقا." />
       <div className="page-toolbar">
-        <form action="" className="filters">
+        <AutoApplyFilterForm className="filters">
           <label>
             بحث
             <input defaultValue={params.search ?? ''} name="search" placeholder="ابحث باسم الموظف أو السبب" />
@@ -65,8 +66,7 @@ export default async function EmployeePenaltiesPage({ searchParams }: { searchPa
             السنة
             <YearSelect defaultValue={params.payroll_year} name="payroll_year" />
           </label>
-          <button type="submit">تطبيق</button>
-        </form>
+        </AutoApplyFilterForm>
         <Link className="primary-button" href="/employee-penalties/new">
           إضافة عقوبة
         </Link>

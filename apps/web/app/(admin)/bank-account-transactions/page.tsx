@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { AutoApplyFilterForm } from '../../components/auto-apply-filter-form';
 import { DataTable, type DataColumn } from '../../components/data-table';
 import { PageHeader } from '../../components/page-header';
 import { StatusBadge } from '../../components/status-badge';
@@ -53,7 +54,7 @@ export default async function BankAccountTransactionsPage({
     <>
       <PageHeader title="قائمة حركات البنك" description="عرض حركات البنك مع التصفية حسب الحساب والفرع والتاريخ ونوع الحركة." />
       <div className="page-toolbar">
-        <form className="filters">
+        <AutoApplyFilterForm className="filters">
           <label>
             بحث
             <input defaultValue={params.search ?? ''} name="search" placeholder="الوصف أو المرجع" />
@@ -98,8 +99,7 @@ export default async function BankAccountTransactionsPage({
             إلى تاريخ
             <input defaultValue={params.date_to ?? ''} name="date_to" type="date" />
           </label>
-          <button type="submit">تطبيق</button>
-        </form>
+        </AutoApplyFilterForm>
         <Link className="primary-button" href="/bank-account-transactions/new">
           حركة بنكية جديدة
         </Link>

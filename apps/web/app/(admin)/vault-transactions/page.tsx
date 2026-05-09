@@ -1,3 +1,4 @@
+import { AutoApplyFilterForm } from '../../components/auto-apply-filter-form';
 import { DataTable, type DataColumn } from '../../components/data-table';
 import { PageHeader } from '../../components/page-header';
 import { StatusBadge } from '../../components/status-badge';
@@ -76,7 +77,7 @@ export default async function VaultTransactionsPage({
     <>
       <PageHeader title="حركات الخزنة" description="سجل مركزي لكل الداخل والخارج من الخزن مع الفلاتر اليومية." />
 
-      <form className="filter-bar">
+      <AutoApplyFilterForm className="filter-bar">
         <label>
           الخزنة
           <select name="vault_id" defaultValue={params.vault_id ?? ''}>
@@ -120,12 +121,11 @@ export default async function VaultTransactionsPage({
           <input name="search" defaultValue={params.search ?? ''} placeholder="الوصف أو المرجع" />
         </label>
         <div className="form-actions">
-          <button type="submit">تطبيق</button>
           <a className="secondary-button" href="/vault-transactions">
             إعادة ضبط
           </a>
         </div>
-      </form>
+      </AutoApplyFilterForm>
 
       {transactions.error ? <p className="notice">{transactions.error}</p> : null}
       <DataTable columns={columns} rows={transactions.data} emptyTitle="لا توجد حركات" emptyText="لا توجد حركات خزنة مطابقة للفلاتر الحالية." />

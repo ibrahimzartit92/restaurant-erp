@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { AutoApplyFilterForm } from '../../components/auto-apply-filter-form';
 import { DeleteFinancialRecordButton } from '../../components/delete-financial-record-button';
 import { MonthSelect, YearSelect } from '../../components/month-year-selects';
 import { PageHeader } from '../../components/page-header';
@@ -94,7 +95,7 @@ export default async function PayrollPage({ searchParams }: { searchParams?: Pro
     <>
       <PageHeader title="قائمة الرواتب" description="متابعة رواتب الشهر المحدد وحالة الدفع لكل موظف بوضوح." />
       <div className="page-toolbar">
-        <form action="" className="filters">
+        <AutoApplyFilterForm className="filters">
           <label>
             بحث
             <input defaultValue={params.search ?? ''} name="search" placeholder="ابحث باسم الموظف أو رقمه" />
@@ -128,8 +129,7 @@ export default async function PayrollPage({ searchParams }: { searchParams?: Pro
               <option value="no_record">لا يوجد راتب مسجل</option>
             </select>
           </label>
-          <button type="submit">تطبيق</button>
-        </form>
+        </AutoApplyFilterForm>
         <Link className="primary-button" href={`/payrolls/new?payroll_month=${selectedMonth}&payroll_year=${selectedYear}`}>
           إضافة راتب
         </Link>

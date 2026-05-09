@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { AutoApplyFilterForm } from '../../components/auto-apply-filter-form';
 import { DataTable, type DataColumn } from '../../components/data-table';
 import { MonthSelect, YearSelect } from '../../components/month-year-selects';
 import { PageHeader } from '../../components/page-header';
@@ -167,7 +168,7 @@ export default async function EmployeesPage({
     <>
       <PageHeader title="قائمة الموظفين" description="تابع بيانات الموظفين ورواتب الشهر المختار من مكان واحد." />
       <div className="page-toolbar">
-        <form action="" className="filters">
+        <AutoApplyFilterForm className="filters">
           <label>
             بحث
             <input defaultValue={params.search ?? ''} name="search" placeholder="ابحث بالاسم أو رقم الموظف أو الهاتف" />
@@ -191,8 +192,7 @@ export default async function EmployeesPage({
             سنة الراتب
             <YearSelect defaultValue={selectedYear} name="payroll_year" />
           </label>
-          <button type="submit">تطبيق</button>
-        </form>
+        </AutoApplyFilterForm>
         <Link className="primary-button" href="/employees/new">
           موظف جديد
         </Link>

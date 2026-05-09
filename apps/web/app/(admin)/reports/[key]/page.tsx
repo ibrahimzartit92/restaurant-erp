@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { AutoApplyFilterForm } from '../../../components/auto-apply-filter-form';
 import { PageHeader } from '../../../components/page-header';
 import { StatusBadge } from '../../../components/status-badge';
 import { buildQuery, fetchOne, formatDate, getMoneyFormatter } from '../../../lib/api';
@@ -91,7 +92,7 @@ export default async function ReportDetailsPage({ params, searchParams }: Report
       <PageHeader title={report.title} description={report.description} />
 
       <section className="report-toolbar">
-        <form className="filters report-filters" action="">
+        <AutoApplyFilterForm className="filters report-filters">
           <label>
             الفرع
             <input name="branch_id" placeholder="معرف الفرع" defaultValue={currentParams.branch_id ?? ''} />
@@ -132,11 +133,10 @@ export default async function ReportDetailsPage({ params, searchParams }: Report
               defaultValue={currentParams.payment_method ?? ''}
             />
           </label>
-          <button type="submit">تطبيق</button>
           <Link className="secondary-button" href={`/reports/${key}`}>
             مسح
           </Link>
-        </form>
+        </AutoApplyFilterForm>
         <div className="report-export-actions">
           <a className="secondary-button" href={`${exportBase}${reportQuery(currentParams, 'excel')}`}>
             Excel

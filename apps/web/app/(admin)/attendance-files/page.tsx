@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { AutoApplyFilterForm } from '../../components/auto-apply-filter-form';
 import { DataTable, type DataColumn } from '../../components/data-table';
 import { PageHeader } from '../../components/page-header';
 import { buildQuery, fetchList } from '../../lib/api';
@@ -41,7 +42,7 @@ export default async function AttendanceFilesPage({ searchParams }: { searchPara
     <>
       <PageHeader title="قائمة ملفات البصمة" description="متابعة ملفات الحضور والبصمة المحفوظة للموظفين والفروع." />
       <div className="page-toolbar">
-        <form action="" className="filters">
+        <AutoApplyFilterForm className="filters">
           <label><input defaultValue={params.search ?? ''} name="search" placeholder="ابحث باسم الملف أو الموظف أو الفرع" /></label>
           <label>
             الموظف
@@ -59,8 +60,7 @@ export default async function AttendanceFilesPage({ searchParams }: { searchPara
           </label>
           <label><input defaultValue={params.month ?? ''} max="12" min="1" name="month" placeholder="الشهر" type="number" /></label>
           <label><input defaultValue={params.year ?? ''} max="2100" min="2000" name="year" placeholder="السنة" type="number" /></label>
-          <button type="submit">تطبيق</button>
-        </form>
+        </AutoApplyFilterForm>
         <Link className="primary-button" href="/attendance-files/new">رفع ملف بصمة</Link>
       </div>
       {result.error ? <p className="notice">{result.error}</p> : null}

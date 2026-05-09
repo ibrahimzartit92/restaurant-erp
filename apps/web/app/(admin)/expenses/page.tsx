@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { AutoApplyFilterForm } from '../../components/auto-apply-filter-form';
 import { DataTable, type DataColumn } from '../../components/data-table';
 import { PageHeader } from '../../components/page-header';
 import { StatusBadge } from '../../components/status-badge';
@@ -95,7 +96,7 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
       />
 
       <section className="report-toolbar">
-        <form action="" className="filters report-filters">
+        <AutoApplyFilterForm className="filters report-filters">
           <label>
             الفرع
             <select defaultValue={params.branch_id ?? ''} name="branch_id">
@@ -141,11 +142,10 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
             بحث
             <input defaultValue={params.search ?? ''} name="search" placeholder="رقم أو عنوان المصروف" />
           </label>
-          <button type="submit">تطبيق</button>
           <Link className="secondary-button" href="/expenses">
             مسح
           </Link>
-        </form>
+        </AutoApplyFilterForm>
 
         <div className="report-export-actions">
           <a className="secondary-button" href={`${exportBase}${expensesExportQuery(params, 'excel')}`}>

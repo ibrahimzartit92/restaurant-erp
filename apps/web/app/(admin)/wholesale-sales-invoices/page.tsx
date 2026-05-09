@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { AutoApplyFilterForm } from '../../components/auto-apply-filter-form';
 import { DataTable, type DataColumn } from '../../components/data-table';
 import { PageHeader } from '../../components/page-header';
 import { buildQuery, fetchList, formatDate, formatMoney } from '../../lib/api';
@@ -99,7 +100,7 @@ export default async function WholesaleSalesInvoicesPage({ searchParams }: { sea
     <>
       <PageHeader title="فواتير بيع الجملة" description="إدارة فواتير البيع، التحصيلات الواردة، وحالة الخصم من المخزون." />
       <div className="page-toolbar">
-        <form className="filters report-filters" action="">
+        <AutoApplyFilterForm className="filters report-filters">
           <label>
             بحث
             <input defaultValue={params.search ?? ''} name="search" placeholder="رقم الفاتورة أو العميل" />
@@ -163,8 +164,10 @@ export default async function WholesaleSalesInvoicesPage({ searchParams }: { sea
             إلى تاريخ
             <input defaultValue={params.invoice_date_to ?? ''} name="invoice_date_to" type="date" />
           </label>
-          <button type="submit">تطبيق</button>
-        </form>
+          <Link className="secondary-button" href="/wholesale-sales-invoices">
+            مسح
+          </Link>
+        </AutoApplyFilterForm>
         <div className="report-export-actions">
           <Link className="primary-button" href="/wholesale-sales-invoices/new">
             فاتورة جديدة

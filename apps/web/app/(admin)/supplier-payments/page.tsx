@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { AutoApplyFilterForm } from '../../components/auto-apply-filter-form';
 import { DataTable, type DataColumn } from '../../components/data-table';
 import { DeleteFinancialRecordButton } from '../../components/delete-financial-record-button';
 import { PageHeader } from '../../components/page-header';
@@ -112,7 +113,7 @@ export default async function SupplierPaymentsPage({ searchParams }: SupplierPay
       />
 
       <section className="report-toolbar">
-        <form className="filters report-filters" action="">
+        <AutoApplyFilterForm className="filters report-filters">
           <label>
             المورد
             <select name="supplier_id" defaultValue={currentParams.supplier_id ?? ''}>
@@ -162,11 +163,10 @@ export default async function SupplierPaymentsPage({ searchParams }: SupplierPay
               defaultValue={currentParams.search ?? ''}
             />
           </label>
-          <button type="submit">تطبيق</button>
           <Link className="secondary-button" href="/supplier-payments">
             مسح
           </Link>
-        </form>
+        </AutoApplyFilterForm>
 
         <div className="report-export-actions">
           <a className="secondary-button" href={`${exportBase}${supplierPaymentExportQuery(currentParams, 'excel')}`}>

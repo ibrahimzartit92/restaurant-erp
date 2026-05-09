@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { AutoApplyFilterForm } from '../../components/auto-apply-filter-form';
 import { PageHeader } from '../../components/page-header';
 import { buildQuery, fetchList, fetchOne } from '../../lib/api';
 import type { ItemOption, WarehouseOption } from '../../lib/types';
@@ -97,7 +98,7 @@ export default async function StockMovementsPage({
         description="دفتر حركة لكل مادة ومخزن مع تقرير عملي بين تاريخين أو بين جردين."
       />
       <div className="page-toolbar">
-        <form className="filters-form">
+        <AutoApplyFilterForm className="filters-form">
           <label>
             المخزن
             <select name="warehouseId" defaultValue={params.warehouseId ?? ''}>
@@ -128,11 +129,10 @@ export default async function StockMovementsPage({
             إلى تاريخ
             <input name="dateTo" type="date" defaultValue={params.dateTo ?? ''} />
           </label>
-          <button type="submit">تطبيق</button>
           <Link className="secondary-button" href="/stock-movements">
             إعادة ضبط
           </Link>
-        </form>
+        </AutoApplyFilterForm>
         <Link className="primary-button" href="/stock-movements/new">
           حركة يدوية
         </Link>
