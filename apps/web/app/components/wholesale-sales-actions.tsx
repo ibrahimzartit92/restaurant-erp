@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -26,7 +26,7 @@ export function WholesaleInvoiceStatusActions({ invoiceId, canApprove }: Readonl
       await submitJson(path, 'POST', {});
       router.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'طھط¹ط°ط± طھظ†ظپظٹط° ط§ظ„ط¹ظ…ظ„ظٹط©.');
+      setMessage(error instanceof Error ? error.message : 'تعذر تنفيذ العملية.');
     } finally {
       setIsSaving(false);
     }
@@ -36,12 +36,12 @@ export function WholesaleInvoiceStatusActions({ invoiceId, canApprove }: Readonl
     <span className="inline-action-stack">
       <span className="inline-actions">
         {canApprove ? (
-          <button className="secondary-button" disabled={isSaving} onClick={() => run(`/wholesale-sales-invoices/${invoiceId}/approve`, 'ط³ظٹطھظ… ط§ط¹طھظ…ط§ط¯ ط§ظ„ظپط§طھظˆط±ط© ظˆط®طµظ… ط§ظ„ظ…ط®ط²ظˆظ† ظ…ظ† ط§ظ„ظ…ط®ط²ظ† ط§ظ„ظ…ط­ط¯ط¯. ظ…طھط§ط¨ط¹ط©طں')} type="button">
-            ط§ط¹طھظ…ط§ط¯ ط§ظ„ظپط§طھظˆط±ط©
+          <button className="secondary-button" disabled={isSaving} onClick={() => run(`/wholesale-sales-invoices/${invoiceId}/approve`, 'سيتم اعتماد الفاتورة وخصم المخزون من المخزن المحدد. متابعة؟')} type="button">
+            اعتماد الفاتورة
           </button>
         ) : null}
-        <button className="secondary-button danger" disabled={isSaving} onClick={() => run(`/wholesale-sales-invoices/${invoiceId}/cancel`, 'ط³ظٹطھظ… ط¥ظ„ط؛ط§ط، ط§ظ„ظپط§طھظˆط±ط© ظˆط¥ط²ط§ظ„ط© ط£ط«ط±ظ‡ط§ ط§ظ„ظ…ط®ط²ظ†ظٹ. ظ…طھط§ط¨ط¹ط©طں')} type="button">
-          ط¥ظ„ط؛ط§ط، ط§ظ„ظپط§طھظˆط±ط©
+        <button className="secondary-button danger" disabled={isSaving} onClick={() => run(`/wholesale-sales-invoices/${invoiceId}/cancel`, 'سيتم إلغاء الفاتورة وإزالة أثرها المخزني. متابعة؟')} type="button">
+          إلغاء الفاتورة
         </button>
       </span>
       {message ? <small className="field-hint danger">{message}</small> : null}
@@ -77,27 +77,27 @@ export function TransferWholesaleCashForm({
         transferDate: String(formData.get('transferDate') ?? ''),
         notes: String(formData.get('notes') ?? '').trim() || null,
       });
-      setMessage('طھظ… طھط­ظˆظٹظ„ ط§ظ„طھط­طµظٹظ„ ط§ظ„ظ†ظ‚ط¯ظٹ ط¥ظ„ظ‰ ط§ظ„ط®ط²ظ†ط©.');
+      setMessage('تم تحويل التحصيل النقدي إلى الخزنة.');
       router.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'طھط¹ط°ط± طھط­ظˆظٹظ„ ط§ظ„طھط­طµظٹظ„ ط§ظ„ظ†ظ‚ط¯ظٹ.');
+      setMessage(error instanceof Error ? error.message : 'تعذر تحويل التحصيل النقدي.');
     } finally {
       setIsSaving(false);
     }
   }
 
   if (availableAmount <= 0) {
-    return <p className="notice">ظ„ط§ ظٹظˆط¬ط¯ طھط­طµظٹظ„ ظ†ظ‚ط¯ظٹ ظپظٹ ط§ظ„ط¯ط±ط¬ ظ…طھط§ط­ ظ„ظ„طھط­ظˆظٹظ„ ط¥ظ„ظ‰ ط§ظ„ط®ط²ظ†ط© ظ„ظ‡ط°ظ‡ ط§ظ„ظپط§طھظˆط±ط©.</p>;
+    return <p className="notice">لا يوجد تحصيل نقدي في الدرج متاح للتحويل إلى الخزنة لهذه الفاتورة.</p>;
   }
 
   return (
     <form className="form-panel" onSubmit={handleSubmit}>
-      {message ? <p className={message.startsWith('طھظ…') ? 'notice success' : 'notice danger'}>{message}</p> : null}
+      {message ? <p className={message.startsWith('تم') ? 'notice success' : 'notice danger'}>{message}</p> : null}
       <div className="form-grid">
         <label>
-          ط§ظ„ط¯ط±ط¬ ط§ظ„ظ…ط­طµظ„ ظ…ظ†ظ‡
+          الدرج المحصل منه
           <select name="drawerId" required>
-            <option value="">ط§ط®طھط± ط§ظ„ط¯ط±ط¬</option>
+            <option value="">اختر الدرج</option>
             {drawers.map((drawer) => (
               <option key={drawer.id} value={drawer.id}>
                 {drawer.name}
@@ -106,9 +106,9 @@ export function TransferWholesaleCashForm({
           </select>
         </label>
         <label>
-          ط§ظ„ط®ط²ظ†ط© ط§ظ„ظ…ط³طھظ„ظ…ط©
+          الخزنة المستلمة
           <select name="vaultId" required>
-            <option value="">ط§ط®طھط± ط§ظ„ط®ط²ظ†ط©</option>
+            <option value="">اختر الخزنة</option>
             {vaults.map((vault) => (
               <option key={vault.id} value={vault.id}>
                 {vault.name}
@@ -117,21 +117,21 @@ export function TransferWholesaleCashForm({
           </select>
         </label>
         <label>
-          ط§ظ„ظ…ط¨ظ„ط؛
+          المبلغ
           <input defaultValue={availableAmount} max={availableAmount} min="0.01" name="amount" required step="0.01" type="number" />
         </label>
         <label>
-          طھط§ط±ظٹط® ط§ظ„طھط­ظˆظٹظ„
+          تاريخ التحويل
           <input defaultValue={new Date().toISOString().slice(0, 10)} name="transferDate" required type="date" />
         </label>
       </div>
       <label>
-        ظ…ظ„ط§ط­ط¸ط§طھ
+        ملاحظات
         <textarea name="notes" rows={2} />
       </label>
       <div className="form-actions">
         <button disabled={isSaving} type="submit">
-          {isSaving ? 'ط¬ط§ط± ط§ظ„طھط­ظˆظٹظ„...' : 'طھط­ظˆظٹظ„ ط§ظ„طھط­طµظٹظ„ ط¥ظ„ظ‰ ط§ظ„ط®ط²ظ†ط©'}
+          {isSaving ? 'جار التحويل...' : 'تحويل التحصيل إلى الخزنة'}
         </button>
       </div>
     </form>
@@ -162,7 +162,7 @@ export function WholesalePaymentBatchForm({
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!hasPersistedInvoiceId) {
-      setMessage('ظٹط¬ط¨ ط­ظپط¸ ط§ظ„ظپط§طھظˆط±ط© ط£ظˆظ„ظ‹ط§ ظ‚ط¨ظ„ طھط³ط¬ظٹظ„ ط§ظ„طھط­طµظٹظ„ط§طھ.');
+      setMessage('يجب حفظ الفاتورة أولًا قبل تسجيل التحصيلات.');
       return;
     }
     const activeRows = activeCollectionRows(rows);
@@ -181,41 +181,41 @@ export function WholesalePaymentBatchForm({
         payments: activeRows.map(toBackendCollection),
       });
       setRows([createCollectionRow()]);
-      setMessage('طھظ… طھط³ط¬ظٹظ„ ط§ظ„طھط­طµظٹظ„ط§طھ.');
+      setMessage('تم تسجيل التحصيلات.');
       router.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'طھط¹ط°ط± طھط³ط¬ظٹظ„ ط§ظ„طھط­طµظٹظ„ط§طھ.');
+      setMessage(error instanceof Error ? error.message : 'تعذر تسجيل التحصيلات.');
     } finally {
       setIsSaving(false);
     }
   }
 
   if (remainingAmount <= 0) {
-    return <p className="notice success">طھظ… طھط­طµظٹظ„ ط§ظ„ظپط§طھظˆط±ط© ط¨ط§ظ„ظƒط§ظ…ظ„.</p>;
+    return <p className="notice success">تم تحصيل الفاتورة بالكامل.</p>;
   }
 
   if (!hasPersistedInvoiceId) {
-    return <p className="notice warning">ظٹط¬ط¨ ط­ظپط¸ ط§ظ„ظپط§طھظˆط±ط© ط£ظˆظ„ظ‹ط§ ظ‚ط¨ظ„ طھط³ط¬ظٹظ„ ط§ظ„طھط­طµظٹظ„ط§طھ.</p>;
+    return <p className="notice warning">يجب حفظ الفاتورة أولًا قبل تسجيل التحصيلات.</p>;
   }
 
   return (
     <form className="stacked-sections" onSubmit={handleSubmit}>
-      {message ? <p className={message.startsWith('طھظ…') ? 'notice success' : 'notice danger'}>{message}</p> : null}
+      {message ? <p className={message.startsWith('تم') ? 'notice success' : 'notice danger'}>{message}</p> : null}
       <CollectionDestinationRows
         rows={rows}
         onChange={setRows}
         drawers={drawers}
         vaults={vaults}
         bankAccounts={bankAccounts}
-        title="ط¥ط¶ط§ظپط© طھط­طµظٹظ„ط§طھ"
-        description="ط³ط¬ظ„ طھط­طµظٹظ„ظ‹ط§ ظˆط§ط±ط¯ظ‹ط§ ط¥ظ„ظ‰ ط§ظ„ط¯ط±ط¬ ط£ظˆ ط§ظ„ط®ط²ظ†ط© ط£ظˆ ط§ظ„ط­ط³ط§ط¨ ط§ظ„ط¨ظ†ظƒظٹ."
+        title="إضافة تحصيلات"
+        description="سجل تحصيلًا واردًا إلى الدرج أو الخزنة أو الحساب البنكي."
         totalAmount={remainingAmount}
         showRemaining
         allowSettleRemaining
       />
       <div className="form-actions">
         <button disabled={isSaving} type="submit">
-          {isSaving ? 'ط¬ط§ط± ط§ظ„طھط³ط¬ظٹظ„...' : 'طھط³ط¬ظٹظ„ ط§ظ„طھط­طµظٹظ„ط§طھ'}
+          {isSaving ? 'جار التسجيل...' : 'تسجيل التحصيلات'}
         </button>
       </div>
     </form>

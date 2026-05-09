@@ -55,17 +55,17 @@ export class WholesaleSalesController {
     return response.send(file.body);
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.wholesaleSalesService.findDetails(id);
-  }
-
   @Get(':id/export')
   async exportInvoice(@Param('id') id: string, @Query('format') format: 'excel' | 'pdf' = 'excel', @Res() response: any) {
     const file = await this.wholesaleSalesService.exportInvoice(id, format === 'pdf' ? 'pdf' : 'excel');
     response.setHeader('Content-Type', file.contentType);
     response.setHeader('Content-Disposition', `attachment; filename="${file.filename}"`);
     return response.send(file.body);
+  }
+
+  @Get(':id')
+  findOne(@Param('id') id: string) {
+    return this.wholesaleSalesService.findDetails(id);
   }
 
   @Post()
