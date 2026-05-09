@@ -36,11 +36,11 @@ export function WholesaleInvoiceStatusActions({ invoiceId, canApprove }: Readonl
     <span className="inline-action-stack">
       <span className="inline-actions">
         {canApprove ? (
-          <button className="secondary-button" disabled={isSaving} onClick={() => run(`/api/wholesale-sales-invoices/${invoiceId}/approve`, 'ط³ظٹطھظ… ط§ط¹طھظ…ط§ط¯ ط§ظ„ظپط§طھظˆط±ط© ظˆط®طµظ… ط§ظ„ظ…ط®ط²ظˆظ† ظ…ظ† ط§ظ„ظ…ط®ط²ظ† ط§ظ„ظ…ط­ط¯ط¯. ظ…طھط§ط¨ط¹ط©طں')} type="button">
+          <button className="secondary-button" disabled={isSaving} onClick={() => run(`/wholesale-sales-invoices/${invoiceId}/approve`, 'ط³ظٹطھظ… ط§ط¹طھظ…ط§ط¯ ط§ظ„ظپط§طھظˆط±ط© ظˆط®طµظ… ط§ظ„ظ…ط®ط²ظˆظ† ظ…ظ† ط§ظ„ظ…ط®ط²ظ† ط§ظ„ظ…ط­ط¯ط¯. ظ…طھط§ط¨ط¹ط©طں')} type="button">
             ط§ط¹طھظ…ط§ط¯ ط§ظ„ظپط§طھظˆط±ط©
           </button>
         ) : null}
-        <button className="secondary-button danger" disabled={isSaving} onClick={() => run(`/api/wholesale-sales-invoices/${invoiceId}/cancel`, 'ط³ظٹطھظ… ط¥ظ„ط؛ط§ط، ط§ظ„ظپط§طھظˆط±ط© ظˆط¥ط²ط§ظ„ط© ط£ط«ط±ظ‡ط§ ط§ظ„ظ…ط®ط²ظ†ظٹ. ظ…طھط§ط¨ط¹ط©طں')} type="button">
+        <button className="secondary-button danger" disabled={isSaving} onClick={() => run(`/wholesale-sales-invoices/${invoiceId}/cancel`, 'ط³ظٹطھظ… ط¥ظ„ط؛ط§ط، ط§ظ„ظپط§طھظˆط±ط© ظˆط¥ط²ط§ظ„ط© ط£ط«ط±ظ‡ط§ ط§ظ„ظ…ط®ط²ظ†ظٹ. ظ…طھط§ط¨ط¹ط©طں')} type="button">
           ط¥ظ„ط؛ط§ط، ط§ظ„ظپط§طھظˆط±ط©
         </button>
       </span>
@@ -70,7 +70,7 @@ export function TransferWholesaleCashForm({
     setMessage(null);
     const formData = new FormData(event.currentTarget);
     try {
-      await submitJson(`/api/wholesale-sales-invoices/${invoiceId}/transfer-cash-to-vault`, 'POST', {
+      await submitJson(`/wholesale-sales-invoices/${invoiceId}/transfer-cash-to-vault`, 'POST', {
         drawerId: String(formData.get('drawerId') ?? ''),
         vaultId: String(formData.get('vaultId') ?? ''),
         amount: Number(formData.get('amount') ?? 0),
@@ -174,7 +174,7 @@ export function WholesalePaymentBatchForm({
     setIsSaving(true);
     setMessage(null);
     try {
-      await submitJson(`/api/wholesale-sales-invoices/${invoiceId}/payments/batch`, 'POST', {
+      await submitJson(`/wholesale-sales-invoices/${invoiceId}/payments/batch`, 'POST', {
         invoiceId,
         branchId,
         paymentDate: activeRows[0]?.collectionDate ?? new Date().toISOString().slice(0, 10),

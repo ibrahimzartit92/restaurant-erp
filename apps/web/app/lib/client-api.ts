@@ -20,18 +20,10 @@ export class ApiRequestError extends Error {
 }
 
 function joinUrl(path: string) {
-  if (path.startsWith('/api/')) {
-    return path;
-  }
-
   return `/api${path.startsWith('/') ? path : `/${path}`}`;
 }
 
 function joinReadUrl(path: string) {
-  if (path.startsWith('/api/')) {
-    return path;
-  }
-
   return `/api${path.startsWith('/') ? path : `/${path}`}`;
 }
 
