@@ -63,9 +63,17 @@ export function TransferWholesaleCashForm({
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const hasPersistedInvoiceId = invoiceId.trim().length > 0 && invoiceId !== 'new';
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    event.stopPropagation();
+    if (isSaving) return;
+    if (!hasPersistedInvoiceId) {
+      console.warn('Wholesale cash transfer submit blocked: missing persisted invoice id.');
+      setMessage('يجب حفظ الفاتورة أولًا قبل تحويل التحصيل النقدي.');
+      return;
+    }
     setIsSaving(true);
     setMessage(null);
     const formData = new FormData(event.currentTarget);
@@ -91,7 +99,7 @@ export function TransferWholesaleCashForm({
   }
 
   return (
-    <form className="form-panel" onSubmit={handleSubmit}>
+    <form className="form-panel" method="post" onSubmit={handleSubmit}>
       {message ? <p className={message.startsWith('تم') ? 'notice success' : 'notice danger'}>{message}</p> : null}
       <div className="form-grid">
         <label>
@@ -159,9 +167,10 @@ export function WholesalePaymentBatchForm({
   const [isSaving, setIsSaving] = useState(false);
   const hasPersistedInvoiceId = invoiceId.trim().length > 0 && invoiceId !== 'new';
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function submitCollections() {
+    if (isSaving) return;
     if (!hasPersistedInvoiceId) {
+      console.warn('Wholesale collection submit blocked: missing persisted invoice id.');
       setMessage('يجب حفظ الفاتورة أولًا قبل تسجيل التحصيلات.');
       return;
     }
@@ -190,6 +199,12 @@ export function WholesalePaymentBatchForm({
     }
   }
 
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    void submitCollections();
+  }
+
   if (remainingAmount <= 0) {
     return <p className="notice success">تم تحصيل الفاتورة بالكامل.</p>;
   }
@@ -199,7 +214,7 @@ export function WholesalePaymentBatchForm({
   }
 
   return (
-    <form className="stacked-sections" onSubmit={handleSubmit}>
+    <form className="stacked-sections" method="post" onSubmit={handleSubmit}>
       {message ? <p className={message.startsWith('تم') ? 'notice success' : 'notice danger'}>{message}</p> : null}
       <CollectionDestinationRows
         rows={rows}
