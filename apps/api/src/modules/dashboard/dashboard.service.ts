@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { BankAccountsService } from '../bank-accounts/bank-accounts.service';
 import { BranchEntity } from '../branches/entities/branch.entity';
 import { DailySaleEntity } from '../daily-sales/entities/daily-sale.entity';
 import { EmployeeAdvanceEntity } from '../employee-advances/entities/employee-advance.entity';
 import { ExpenseEntity } from '../expenses/entities/expense.entity';
+import { hasExpenseHierarchySchema } from '../expenses/expense-schema.guard';
 import { PayrollRecordEntity } from '../payroll/entities/payroll-record.entity';
 import { PurchaseInvoiceEntity, PurchaseInvoiceStatus } from '../purchase-invoices/entities/purchase-invoice.entity';
 import { ReportExportService } from '../reports/report-export.service';
@@ -45,6 +46,8 @@ type Totals = {
 @Injectable()
 export class DashboardService {
   constructor(
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
     @InjectRepository(BranchEntity)
     private readonly branchesRepository: Repository<BranchEntity>,
     @InjectRepository(DailySaleEntity)
@@ -301,13 +304,7 @@ export class DashboardService {
         .where('sale.sales_date BETWEEN :dateFrom AND :dateTo', range)
         .andWhere(branchId ? 'sale.branch_id = :branchId' : '1=1', { branchId })
         .getMany(),
-      this.expensesRepository
-        .createQueryBuilder('expense')
-        .leftJoinAndSelect('expense.branch', 'branch')
-        .leftJoinAndSelect('expense.expenseCategory', 'category')
-        .where('expense.expense_date BETWEEN :dateFrom AND :dateTo', range)
-        .andWhere(branchId ? 'expense.branch_id = :branchId' : '1=1', { branchId })
-        .getMany(),
+      this.loadExpensesForDashboard(range, branchId),
       this.purchaseInvoicesRepository
         .createQueryBuilder('invoice')
         .leftJoinAndSelect('invoice.branch', 'branch')
@@ -333,6 +330,41 @@ export class DashboardService {
     ]);
 
     return { dailySales, expenses, invoices, payrolls, employeeAdvances, wholesaleCollectedSales };
+  }
+
+  private async loadExpensesForDashboard(range: Range, branchId?: string) {
+    if (await hasExpenseHierarchySchema(this.dataSource)) {
+      return this.expensesRepository
+        .createQueryBuilder('expense')
+        .leftJoinAndSelect('expense.branch', 'branch')
+        .leftJoinAndSelect('expense.expenseCategory', 'category')
+        .where('expense.expense_date BETWEEN :dateFrom AND :dateTo', range)
+        .andWhere(branchId ? 'expense.branch_id = :branchId' : '1=1', { branchId })
+        .getMany();
+    }
+
+    const rows = await this.dataSource.query(
+      `
+        SELECT
+          expense.amount,
+          COALESCE(
+            (
+              SELECT SUM(COALESCE((payment ->> 'amount')::numeric, 0))
+              FROM jsonb_array_elements(COALESCE(expense.payment_allocations, '[]'::jsonb)) payment
+            ),
+            CASE WHEN expense.payment_method IN ('cash', 'bank', 'vault') THEN expense.amount ELSE 0 END
+          ) AS "paidAmount",
+          expense.is_fixed AS "isFixed",
+          jsonb_build_object('isFixed', COALESCE(category.is_fixed, false)) AS "expenseCategory"
+        FROM expenses expense
+        LEFT JOIN expense_categories category ON category.id = expense.expense_category_id
+        WHERE expense.expense_date BETWEEN $1 AND $2
+          AND ($3::uuid IS NULL OR expense.branch_id = $3::uuid)
+      `,
+      [range.dateFrom, range.dateTo, branchId ?? null],
+    );
+
+    return rows as ExpenseEntity[];
   }
 
   private async getOpenInvoices(branchId?: string): Promise<DashboardOpenInvoice[]> {

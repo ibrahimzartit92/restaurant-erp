@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { ObjectLiteral, Repository, SelectQueryBuilder } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, ObjectLiteral, Repository, SelectQueryBuilder } from 'typeorm';
 import { BankAccountTransactionEntity } from '../bank-account-transactions/entities/bank-account-transaction.entity';
 import { BranchEntity } from '../branches/entities/branch.entity';
 import { DailySaleEntity } from '../daily-sales/entities/daily-sale.entity';
@@ -8,6 +8,7 @@ import { DrawerDailySessionEntity } from '../drawer-daily-sessions/entities/draw
 import { EmployeeAdvanceEntity } from '../employee-advances/entities/employee-advance.entity';
 import { EmployeePenaltyEntity } from '../employee-penalties/entities/employee-penalty.entity';
 import { ExpenseEntity } from '../expenses/entities/expense.entity';
+import { hasExpenseHierarchySchema } from '../expenses/expense-schema.guard';
 import { PayrollRecordEntity } from '../payroll/entities/payroll-record.entity';
 import { PurchaseInvoiceEntity } from '../purchase-invoices/entities/purchase-invoice.entity';
 import { ItemCategoryEntity } from '../item-categories/entities/item-category.entity';
@@ -39,6 +40,8 @@ export class ReportsService {
   };
 
   constructor(
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
     @InjectRepository(DailySaleEntity)
     private readonly dailySalesRepository: Repository<DailySaleEntity>,
     @InjectRepository(BranchEntity)
@@ -306,6 +309,10 @@ export class ReportsService {
   }
 
   private async expenses(filters: ReportFilters) {
+    if (!(await hasExpenseHierarchySchema(this.dataSource))) {
+      return this.expensesLegacy(filters);
+    }
+
     const query = this.expensesRepository
       .createQueryBuilder('expense')
       .leftJoinAndSelect('expense.branch', 'branch')
@@ -406,6 +413,105 @@ export class ReportsService {
       ...(filters.categoryId ? [{ label: 'التصنيف', value: filters.categoryId }] : []),
       ...(filters.paymentMethod ? [{ label: 'طريقة الدفع', value: filters.paymentMethod }] : []),
     ]);
+    return report;
+  }
+
+  private async expensesLegacy(filters: ReportFilters) {
+    const conditions: string[] = [];
+    const parameters: unknown[] = [];
+    const addParameter = (value: unknown) => {
+      parameters.push(value);
+      return `$${parameters.length}`;
+    };
+
+    if (filters.branchId) conditions.push(`expense.branch_id = ${addParameter(filters.branchId)}`);
+    if (filters.categoryId) conditions.push(`expense.expense_category_id = ${addParameter(filters.categoryId)}`);
+    if (filters.paymentMethod) conditions.push(`expense.payment_method = ${addParameter(filters.paymentMethod)}`);
+    if (filters.dateFrom) conditions.push(`expense.expense_date >= ${addParameter(filters.dateFrom)}`);
+    if (filters.dateTo) conditions.push(`expense.expense_date <= ${addParameter(filters.dateTo)}`);
+    if (filters.search) {
+      const searchParameter = addParameter(`%${filters.search}%`);
+      conditions.push(`(expense.expense_number ILIKE ${searchParameter} OR expense.title ILIKE ${searchParameter})`);
+    }
+
+    const expenses = await this.dataSource.query(
+      `
+        SELECT
+          expense.expense_date AS "expenseDate",
+          expense.title,
+          expense.amount,
+          expense.payment_method AS "paymentMethod",
+          expense.is_fixed AS "isFixed",
+          COALESCE(category.is_fixed, false) AS "categoryIsFixed",
+          COALESCE(
+            (
+              SELECT SUM(COALESCE((payment ->> 'amount')::numeric, 0))
+              FROM jsonb_array_elements(COALESCE(expense.payment_allocations, '[]'::jsonb)) payment
+            ),
+            CASE WHEN expense.payment_method IN ('cash', 'bank', 'vault') THEN expense.amount ELSE 0 END
+          ) AS "paidAmount"
+        FROM expenses expense
+        LEFT JOIN expense_categories category ON category.id = expense.expense_category_id
+        ${conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''}
+        ORDER BY expense.expense_date DESC
+      `,
+      parameters,
+    );
+    const dailyRows = new Map<string, ReportRow>();
+
+    for (const expense of expenses) {
+      const row = dailyRows.get(expense.expenseDate) ?? {
+        date: expense.expenseDate,
+        branch: filters.branchId ? '' : 'كل الفروع',
+        operating: 0,
+        miscellaneous: 0,
+        cash: 0,
+        bank: 0,
+        other: 0,
+        total: 0,
+        count: 0,
+        notes: '',
+      };
+      const amount = Number(expense.paidAmount ?? expense.amount ?? 0);
+      const isOperating = Boolean(expense.isFixed || expense.categoryIsFixed);
+      row.operating = this.round(Number(row.operating ?? 0) + (isOperating ? amount : 0));
+      row.miscellaneous = this.round(Number(row.miscellaneous ?? 0) + (isOperating ? 0 : amount));
+      row.cash = this.round(Number(row.cash ?? 0) + (expense.paymentMethod === 'cash' ? amount : 0));
+      row.bank = this.round(Number(row.bank ?? 0) + (expense.paymentMethod === 'bank' ? amount : 0));
+      row.other = this.round(Number(row.other ?? 0) + (!['cash', 'bank'].includes(expense.paymentMethod) ? amount : 0));
+      row.total = this.round(Number(row.total ?? 0) + amount);
+      row.count = Number(row.count ?? 0) + 1;
+      row.notes = [row.notes, expense.title].filter(Boolean).join(' / ');
+      dailyRows.set(expense.expenseDate, row);
+    }
+
+    const rows = [...dailyRows.values()].sort((first, second) => String(first.date).localeCompare(String(second.date)));
+    const report = this.baseResult(
+      'expenses',
+      'تقرير المصاريف',
+      'ملخص مؤقت للمصاريف قبل اكتمال ترحيل تسلسل المصاريف.',
+      filters,
+      [
+        { key: 'date', label: 'التاريخ', type: 'date' },
+        { key: 'branch', label: 'الفرع' },
+        { key: 'operating', label: 'مصاريف تشغيلية مدفوعة', type: 'money' },
+        { key: 'miscellaneous', label: 'مصاريف متفرقة مدفوعة', type: 'money' },
+        { key: 'cash', label: 'نقدي', type: 'money' },
+        { key: 'bank', label: 'بنكي', type: 'money' },
+        { key: 'other', label: 'أخرى', type: 'money' },
+        { key: 'total', label: 'إجمالي المدفوع فعليًا', type: 'money' },
+        { key: 'count', label: 'عدد الحركات', type: 'number' },
+        { key: 'notes', label: 'تفاصيل مختصرة' },
+      ],
+      rows,
+      [
+        this.numberSummary('count', 'عدد الأيام', rows.length),
+        this.moneySummary('operating', 'إجمالي التشغيلية المدفوعة', this.sum(rows, 'operating')),
+        this.moneySummary('miscellaneous', 'إجمالي المتفرقة المدفوعة', this.sum(rows, 'miscellaneous')),
+        this.moneySummary('total', 'إجمالي المدفوع فعليًا', this.sum(rows, 'total')),
+      ],
+    );
+    report.filterSummary = await this.buildFilterSummary(filters);
     return report;
   }
 

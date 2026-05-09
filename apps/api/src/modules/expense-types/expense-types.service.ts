@@ -1,8 +1,9 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { ILike, Not, Repository } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, ILike, Not, Repository } from 'typeorm';
 import { ExpenseCategoryEntity } from '../expense-categories/entities/expense-category.entity';
 import { ExpenseEntity } from '../expenses/entities/expense.entity';
+import { hasExpenseHierarchySchema } from '../expenses/expense-schema.guard';
 import { CreateExpenseTypeDto } from './dto/create-expense-type.dto';
 import { UpdateExpenseTypeDto } from './dto/update-expense-type.dto';
 import { ExpenseTypeEntity } from './entities/expense-type.entity';
@@ -10,6 +11,8 @@ import { ExpenseTypeEntity } from './entities/expense-type.entity';
 @Injectable()
 export class ExpenseTypesService {
   constructor(
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
     @InjectRepository(ExpenseTypeEntity)
     private readonly expenseTypeRepository: Repository<ExpenseTypeEntity>,
     @InjectRepository(ExpenseCategoryEntity)
@@ -19,6 +22,14 @@ export class ExpenseTypesService {
   ) {}
 
   findAll(filters: { search?: string; categoryId?: string; activeOnly?: boolean }) {
+    return this.findAllSafely(filters);
+  }
+
+  private async findAllSafely(filters: { search?: string; categoryId?: string; activeOnly?: boolean }) {
+    if (!(await hasExpenseHierarchySchema(this.dataSource))) {
+      return [];
+    }
+
     const query = this.expenseTypeRepository
       .createQueryBuilder('expenseType')
       .leftJoinAndSelect('expenseType.category', 'category')
@@ -42,12 +53,18 @@ export class ExpenseTypesService {
   }
 
   async findByIdOrFail(id: string) {
+    if (!(await hasExpenseHierarchySchema(this.dataSource))) {
+      throw new NotFoundException('نوع المصروف غير موجود. يجب تشغيل ترحيل المصاريف أولًا.');
+    }
     const expenseType = await this.expenseTypeRepository.findOne({ where: { id } });
     if (!expenseType) throw new NotFoundException('نوع المصروف غير موجود.');
     return expenseType;
   }
 
   async create(dto: CreateExpenseTypeDto) {
+    if (!(await hasExpenseHierarchySchema(this.dataSource))) {
+      throw new BadRequestException('يجب تشغيل ترحيل قاعدة البيانات الخاص بتسلسل المصاريف قبل إدارة أنواع المصاريف.');
+    }
     const category = await this.expenseCategoryRepository.findOne({ where: { id: dto.categoryId } });
     if (!category) throw new NotFoundException('تصنيف المصروف غير موجود.');
     if (category.isActive === false) throw new BadRequestException('لا يمكن إضافة نوع داخل تصنيف مؤرشف.');
@@ -68,6 +85,9 @@ export class ExpenseTypesService {
   }
 
   async update(id: string, dto: UpdateExpenseTypeDto) {
+    if (!(await hasExpenseHierarchySchema(this.dataSource))) {
+      throw new BadRequestException('يجب تشغيل ترحيل قاعدة البيانات الخاص بتسلسل المصاريف قبل إدارة أنواع المصاريف.');
+    }
     const expenseType = await this.findByIdOrFail(id);
     const categoryId = dto.categoryId ?? expenseType.categoryId;
 
@@ -95,6 +115,9 @@ export class ExpenseTypesService {
   }
 
   async remove(id: string) {
+    if (!(await hasExpenseHierarchySchema(this.dataSource))) {
+      throw new BadRequestException('يجب تشغيل ترحيل قاعدة البيانات الخاص بتسلسل المصاريف قبل إدارة أنواع المصاريف.');
+    }
     const expenseType = await this.findByIdOrFail(id);
     const linkedExpenses = await this.expenseRepository.count({ where: { expenseTypeId: id } });
 

@@ -24,6 +24,7 @@ import { VaultsService } from '../vaults/vaults.service';
 import { CreateExpenseDto } from './dto/create-expense.dto';
 import { UpdateExpenseDto } from './dto/update-expense.dto';
 import { ExpenseEntity, ExpensePaymentAllocation, ExpensePaymentStatus } from './entities/expense.entity';
+import { hasExpenseHierarchySchema } from './expense-schema.guard';
 import { ExpensePaymentMethod } from './expense-shared';
 
 @Injectable()
@@ -47,7 +48,7 @@ export class ExpensesService {
     private readonly undoActionsService: UndoActionsService,
   ) {}
 
-  findAll(filters: {
+  async findAll(filters: {
     search?: string;
     branchId?: string;
     categoryId?: string;
@@ -59,6 +60,10 @@ export class ExpensesService {
     dateFrom?: string;
     dateTo?: string;
   }) {
+    if (!(await hasExpenseHierarchySchema(this.dataSource))) {
+      return this.findAllLegacy(filters);
+    }
+
     const query = this.expenseRepository
       .createQueryBuilder('expense')
       .leftJoinAndSelect('expense.branch', 'branch')
@@ -108,12 +113,50 @@ export class ExpensesService {
   }
 
   async findByIdOrFail(id: string) {
+    if (!(await hasExpenseHierarchySchema(this.dataSource))) {
+      const rows = await this.dataSource.query(
+        `
+          SELECT
+            expense.id,
+            expense.expense_number AS "expenseNumber",
+            expense.expense_date AS "expenseDate",
+            expense.branch_id AS "branchId",
+            expense.expense_category_id AS "expenseCategoryId",
+            NULL::uuid AS "expenseTypeId",
+            expense.title,
+            expense.amount,
+            expense.amount AS "paidAmount",
+            0::numeric AS "remainingAmount",
+            'paid' AS "paymentStatus",
+            expense.payment_method AS "paymentMethod",
+            expense.drawer_id AS "drawerId",
+            expense.bank_account_id AS "bankAccountId",
+            expense.vault_id AS "vaultId",
+            expense.payment_allocations AS "paymentAllocations",
+            expense.is_fixed AS "isFixed",
+            NULL::uuid AS "templateId",
+            expense.notes,
+            expense.created_at AS "createdAt",
+            expense.updated_at AS "updatedAt"
+          FROM expenses expense
+          WHERE expense.id = $1
+          LIMIT 1
+        `,
+        [id],
+      );
+      if (!rows[0]) throw new NotFoundException('Expense was not found.');
+      return rows[0] as ExpenseEntity;
+    }
+
     const expense = await this.expenseRepository.findOne({ where: { id } });
     if (!expense) throw new NotFoundException('Expense was not found.');
     return expense;
   }
 
   async create(createExpenseDto: CreateExpenseDto) {
+    if (!(await hasExpenseHierarchySchema(this.dataSource))) {
+      throw new BadRequestException('يجب تشغيل ترحيل قاعدة البيانات الخاص بتسلسل المصاريف قبل إضافة مصروف جديد.');
+    }
     await this.ensureNumberIsAvailable(createExpenseDto.expenseNumber);
     const expenseType = await this.findExpenseTypeForWrite(createExpenseDto.expenseTypeId, createExpenseDto.expenseCategoryId);
     const expenseCategoryId = expenseType.categoryId;
@@ -165,6 +208,9 @@ export class ExpensesService {
   }
 
   async update(id: string, updateExpenseDto: UpdateExpenseDto) {
+    if (!(await hasExpenseHierarchySchema(this.dataSource))) {
+      throw new BadRequestException('يجب تشغيل ترحيل قاعدة البيانات الخاص بتسلسل المصاريف قبل تعديل المصاريف.');
+    }
     const expense = await this.findByIdOrFail(id);
     await this.ensureNumberIsAvailable(updateExpenseDto.expenseNumber, id);
     const nextExpense = { ...expense, ...updateExpenseDto };
@@ -500,6 +546,115 @@ export class ExpensesService {
         await this.vaultsService.findEntityByIdOrFail(allocation.vaultId);
       }
     }
+  }
+
+  private async findAllLegacy(filters: {
+    search?: string;
+    branchId?: string;
+    categoryId?: string;
+    paymentMethod?: ExpensePaymentMethod;
+    paymentStatus?: ExpensePaymentStatus;
+    expenseTypeId?: string;
+    vaultId?: string;
+    bankAccountId?: string;
+    dateFrom?: string;
+    dateTo?: string;
+  }) {
+    if (filters.expenseTypeId || filters.paymentStatus) {
+      return [];
+    }
+
+    const conditions: string[] = [];
+    const parameters: unknown[] = [];
+    const addParameter = (value: unknown) => {
+      parameters.push(value);
+      return `$${parameters.length}`;
+    };
+
+    if (filters.branchId) conditions.push(`expense.branch_id = ${addParameter(filters.branchId)}`);
+    if (filters.categoryId) conditions.push(`expense.expense_category_id = ${addParameter(filters.categoryId)}`);
+    if (filters.paymentMethod) conditions.push(`expense.payment_method = ${addParameter(filters.paymentMethod)}`);
+    if (filters.vaultId) conditions.push(`expense.vault_id = ${addParameter(filters.vaultId)}`);
+    if (filters.bankAccountId) conditions.push(`expense.bank_account_id = ${addParameter(filters.bankAccountId)}`);
+    if (filters.dateFrom) conditions.push(`expense.expense_date >= ${addParameter(filters.dateFrom)}`);
+    if (filters.dateTo) conditions.push(`expense.expense_date <= ${addParameter(filters.dateTo)}`);
+    if (filters.search?.trim()) {
+      const searchParameter = addParameter(`%${filters.search.trim()}%`);
+      conditions.push(`(expense.expense_number ILIKE ${searchParameter} OR expense.title ILIKE ${searchParameter})`);
+    }
+
+    const rows = await this.dataSource.query(
+      `
+        SELECT
+          expense.id,
+          expense.expense_number AS "expenseNumber",
+          expense.expense_date AS "expenseDate",
+          expense.branch_id AS "branchId",
+          expense.expense_category_id AS "expenseCategoryId",
+          NULL::uuid AS "expenseTypeId",
+          expense.title,
+          expense.amount,
+          COALESCE(
+            (
+              SELECT SUM(COALESCE((payment ->> 'amount')::numeric, 0))
+              FROM jsonb_array_elements(COALESCE(expense.payment_allocations, '[]'::jsonb)) payment
+            ),
+            CASE WHEN expense.payment_method IN ('cash', 'bank', 'vault') THEN expense.amount ELSE 0 END
+          ) AS "paidAmount",
+          GREATEST(
+            expense.amount - COALESCE(
+              (
+                SELECT SUM(COALESCE((payment ->> 'amount')::numeric, 0))
+                FROM jsonb_array_elements(COALESCE(expense.payment_allocations, '[]'::jsonb)) payment
+              ),
+              CASE WHEN expense.payment_method IN ('cash', 'bank', 'vault') THEN expense.amount ELSE 0 END
+            ),
+            0
+          ) AS "remainingAmount",
+          CASE
+            WHEN COALESCE(
+              (
+                SELECT SUM(COALESCE((payment ->> 'amount')::numeric, 0))
+                FROM jsonb_array_elements(COALESCE(expense.payment_allocations, '[]'::jsonb)) payment
+              ),
+              CASE WHEN expense.payment_method IN ('cash', 'bank', 'vault') THEN expense.amount ELSE 0 END
+            ) <= 0 THEN 'unpaid'
+            WHEN GREATEST(
+              expense.amount - COALESCE(
+                (
+                  SELECT SUM(COALESCE((payment ->> 'amount')::numeric, 0))
+                  FROM jsonb_array_elements(COALESCE(expense.payment_allocations, '[]'::jsonb)) payment
+                ),
+                CASE WHEN expense.payment_method IN ('cash', 'bank', 'vault') THEN expense.amount ELSE 0 END
+              ),
+              0
+            ) <= 0 THEN 'paid'
+            ELSE 'partially_paid'
+          END AS "paymentStatus",
+          expense.payment_method AS "paymentMethod",
+          expense.drawer_id AS "drawerId",
+          expense.bank_account_id AS "bankAccountId",
+          expense.vault_id AS "vaultId",
+          expense.payment_allocations AS "paymentAllocations",
+          expense.is_fixed AS "isFixed",
+          expense.notes,
+          jsonb_build_object('id', branch.id, 'name', branch.name) AS branch,
+          jsonb_build_object('id', category.id, 'name', category.name, 'isFixed', category.is_fixed, 'classification', category.classification, 'isActive', true) AS "expenseCategory",
+          NULL AS "expenseType",
+          CASE WHEN drawer.id IS NULL THEN NULL ELSE jsonb_build_object('id', drawer.id, 'name', drawer.name) END AS drawer,
+          CASE WHEN bank_account.id IS NULL THEN NULL ELSE jsonb_build_object('id', bank_account.id, 'name', bank_account.account_name) END AS "bankAccount"
+        FROM expenses expense
+        LEFT JOIN branches branch ON branch.id = expense.branch_id
+        LEFT JOIN expense_categories category ON category.id = expense.expense_category_id
+        LEFT JOIN drawers drawer ON drawer.id = expense.drawer_id
+        LEFT JOIN bank_accounts bank_account ON bank_account.id = expense.bank_account_id
+        ${conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''}
+        ORDER BY expense.expense_date DESC, expense.expense_number DESC
+      `,
+      parameters,
+    );
+
+    return rows as ExpenseEntity[];
   }
 
   private legacyExpenseAllocations(expense: ExpenseEntity): ExpensePaymentAllocation[] {
