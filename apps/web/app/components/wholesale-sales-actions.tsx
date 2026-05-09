@@ -166,8 +166,10 @@ export function WholesalePaymentBatchForm({
   const [message, setMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const hasPersistedInvoiceId = invoiceId.trim().length > 0 && invoiceId !== 'new';
+  const formId = `wholesale-collections-form-${invoiceId || 'missing'}`;
 
   async function submitCollections() {
+    console.log('Wholesale collection submit handler started.', { invoiceId });
     if (isSaving) return;
     if (!hasPersistedInvoiceId) {
       console.warn('Wholesale collection submit blocked: missing persisted invoice id.');
@@ -183,6 +185,10 @@ export function WholesalePaymentBatchForm({
     setIsSaving(true);
     setMessage(null);
     try {
+      console.log('Wholesale collection submitJson request.', {
+        path: `/wholesale-sales-invoices/${invoiceId}/payments/batch`,
+        rowCount: activeRows.length,
+      });
       await submitJson(`/wholesale-sales-invoices/${invoiceId}/payments/batch`, 'POST', {
         invoiceId,
         branchId,
@@ -205,6 +211,12 @@ export function WholesalePaymentBatchForm({
     void submitCollections();
   }
 
+  function handleSaveClick(event: React.MouseEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    void submitCollections();
+  }
+
   if (remainingAmount <= 0) {
     return <p className="notice success">تم تحصيل الفاتورة بالكامل.</p>;
   }
@@ -214,7 +226,7 @@ export function WholesalePaymentBatchForm({
   }
 
   return (
-    <form className="stacked-sections" method="post" onSubmit={handleSubmit}>
+    <form className="stacked-sections" id={formId} method="post" onSubmit={handleSubmit}>
       {message ? <p className={message.startsWith('تم') ? 'notice success' : 'notice danger'}>{message}</p> : null}
       <CollectionDestinationRows
         rows={rows}
@@ -229,7 +241,7 @@ export function WholesalePaymentBatchForm({
         allowSettleRemaining
       />
       <div className="form-actions">
-        <button disabled={isSaving} type="submit">
+        <button disabled={isSaving} form={formId} onClick={handleSaveClick} type="button">
           {isSaving ? 'جار التسجيل...' : 'تسجيل التحصيلات'}
         </button>
       </div>
