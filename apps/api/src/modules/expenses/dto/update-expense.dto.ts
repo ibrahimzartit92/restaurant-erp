@@ -21,6 +21,10 @@ export class UpdateExpenseDto {
   @IsOptional()
   expenseCategoryId?: string;
 
+  @IsUUID()
+  @IsOptional()
+  expenseTypeId?: string;
+
   @IsString()
   @IsOptional()
   @MaxLength(180)

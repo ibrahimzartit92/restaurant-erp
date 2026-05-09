@@ -12,6 +12,7 @@ import { EmployeePenaltyEntity } from '../modules/employee-penalties/entities/em
 import { EmployeeEntity } from '../modules/employees/entities/employee.entity';
 import { ExpenseCategoryEntity } from '../modules/expense-categories/entities/expense-category.entity';
 import { ExpenseTemplateEntity } from '../modules/expense-templates/entities/expense-template.entity';
+import { ExpenseTypeEntity } from '../modules/expense-types/entities/expense-type.entity';
 import { ExpenseEntity } from '../modules/expenses/entities/expense.entity';
 import { ItemCategoryEntity } from '../modules/item-categories/entities/item-category.entity';
 import { ItemEntity } from '../modules/items/entities/item.entity';
@@ -56,6 +57,7 @@ export const databaseEntities = [
   EmployeeAdvanceEntity,
   EmployeePenaltyEntity,
   ExpenseCategoryEntity,
+  ExpenseTypeEntity,
   ExpenseEntity,
   ExpenseTemplateEntity,
   ItemCategoryEntity,

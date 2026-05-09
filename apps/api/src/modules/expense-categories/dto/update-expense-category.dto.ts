@@ -11,6 +11,10 @@ export class UpdateExpenseCategoryDto {
   @IsOptional()
   isFixed?: boolean;
 
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
+
   @IsIn(Object.values(ExpenseCategoryClassification))
   @IsOptional()
   classification?: ExpenseCategoryClassification;

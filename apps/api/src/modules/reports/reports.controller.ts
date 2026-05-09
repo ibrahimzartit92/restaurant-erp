@@ -22,13 +22,17 @@ export class ReportsController {
     @Query('date_to') dateTo: string | undefined,
     @Query('status') status: string | undefined,
     @Query('category_id') categoryId: string | undefined,
+    @Query('expense_type_id') expenseTypeId: string | undefined,
     @Query('payment_method') paymentMethod: string | undefined,
+    @Query('payment_status') paymentStatus: string | undefined,
+    @Query('vault_id') vaultId: string | undefined,
+    @Query('bank_account_id') bankAccountId: string | undefined,
     @Query('search') search: string | undefined,
     @Res() response: any,
   ) {
     const exportFile = await this.reportsService.exportReport(
       key,
-      { branchId, supplierId, employeeId, dateFrom, dateTo, status, categoryId, paymentMethod, search },
+      { branchId, supplierId, employeeId, dateFrom, dateTo, status, categoryId, expenseTypeId, paymentMethod, paymentStatus, vaultId, bankAccountId, search },
       format === 'pdf' ? 'pdf' : 'excel',
     );
 
@@ -47,7 +51,11 @@ export class ReportsController {
     @Query('date_to') dateTo?: string,
     @Query('status') status?: string,
     @Query('category_id') categoryId?: string,
+    @Query('expense_type_id') expenseTypeId?: string,
     @Query('payment_method') paymentMethod?: string,
+    @Query('payment_status') paymentStatus?: string,
+    @Query('vault_id') vaultId?: string,
+    @Query('bank_account_id') bankAccountId?: string,
     @Query('search') search?: string,
   ) {
     const filters: ReportFilters = {
@@ -58,7 +66,11 @@ export class ReportsController {
       dateTo,
       status,
       categoryId,
+      expenseTypeId,
       paymentMethod,
+      paymentStatus,
+      vaultId,
+      bankAccountId,
       search,
     };
 

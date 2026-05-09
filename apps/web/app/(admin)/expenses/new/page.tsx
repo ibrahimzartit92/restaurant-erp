@@ -1,25 +1,13 @@
 import { ExpenseForm } from '../../../components/expense-form';
 import { PageHeader } from '../../../components/page-header';
 import { fetchList } from '../../../lib/api';
-import type {
-  BankAccountOption,
-  BranchOption,
-  DrawerOption,
-  ExpenseCategoryOption,
-  ExpenseTemplateOption,
-  VaultOption,
-} from '../../../lib/types';
+import type { BankAccountOption, BranchOption, DrawerOption, ExpenseCategoryOption, ExpenseTypeOption, VaultOption } from '../../../lib/types';
 
-export default async function NewExpensePage({
-  searchParams,
-}: {
-  searchParams?: Promise<Record<string, string | undefined>>;
-}) {
-  const params = (await searchParams) ?? {};
-  const [branches, categories, templates, drawers, bankAccounts, vaults] = await Promise.all([
+export default async function NewExpensePage() {
+  const [branches, categories, expenseTypes, drawers, bankAccounts, vaults] = await Promise.all([
     fetchList<BranchOption>('/branches'),
     fetchList<ExpenseCategoryOption>('/expense-categories'),
-    fetchList<ExpenseTemplateOption>('/expense-templates'),
+    fetchList<ExpenseTypeOption>('/expense-types'),
     fetchList<DrawerOption>('/drawers'),
     fetchList<BankAccountOption>('/bank-accounts'),
     fetchList<VaultOption>('/vaults'),
@@ -27,13 +15,12 @@ export default async function NewExpensePage({
 
   return (
     <>
-      <PageHeader title="إضافة مصروف" description="تسجيل مصروف جديد وربطه بالفرع ومصدر الدفع المناسب." />
+      <PageHeader title="إضافة مصروف" description="تسجيل مصروف جديد بتصنيف ونوع واضحين، مع دفع جزئي أو كامل عند الحاجة." />
       <ExpenseForm
         mode="create"
-        initialTemplateId={params.templateId}
         branches={branches.data}
         categories={categories.data}
-        templates={templates.data}
+        expenseTypes={expenseTypes.data}
         drawers={drawers.data}
         bankAccounts={bankAccounts.data}
         vaults={vaults.data}

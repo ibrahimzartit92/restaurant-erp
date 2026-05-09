@@ -310,11 +310,26 @@ export class ReportsService {
       .createQueryBuilder('expense')
       .leftJoinAndSelect('expense.branch', 'branch')
       .leftJoinAndSelect('expense.expenseCategory', 'category')
+      .leftJoinAndSelect('expense.expenseType', 'expenseType')
       .orderBy('expense.expenseDate', 'DESC');
 
     if (filters.branchId) query.andWhere('expense.branch_id = :branchId', { branchId: filters.branchId });
     if (filters.categoryId) query.andWhere('expense.expense_category_id = :categoryId', { categoryId: filters.categoryId });
+    if (filters.expenseTypeId) query.andWhere('expense.expense_type_id = :expenseTypeId', { expenseTypeId: filters.expenseTypeId });
     if (filters.paymentMethod) query.andWhere('expense.payment_method = :paymentMethod', { paymentMethod: filters.paymentMethod });
+    if (filters.paymentStatus) query.andWhere('expense.payment_status = :paymentStatus', { paymentStatus: filters.paymentStatus });
+    if (filters.vaultId) {
+      query.andWhere(
+        "(expense.vault_id = :vaultId OR expense.payment_allocations @> jsonb_build_array(jsonb_build_object('vaultId', :vaultId::text)))",
+        { vaultId: filters.vaultId },
+      );
+    }
+    if (filters.bankAccountId) {
+      query.andWhere(
+        "(expense.bank_account_id = :bankAccountId OR expense.payment_allocations @> jsonb_build_array(jsonb_build_object('bankAccountId', :bankAccountId::text)))",
+        { bankAccountId: filters.bankAccountId },
+      );
+    }
     if (filters.search) {
       query.andWhere('(expense.expense_number ILIKE :search OR expense.title ILIKE :search)', {
         search: `%${filters.search}%`,
@@ -334,18 +349,26 @@ export class ReportsService {
         miscellaneous: 0,
         cash: 0,
         bank: 0,
+        vault: 0,
         other: 0,
+        paid: 0,
+        remaining: 0,
         total: 0,
         count: 0,
         notes: '',
       };
       const amount = Number(expense.amount ?? 0);
+      const paidAmount = Number(expense.paidAmount ?? 0);
+      const remainingAmount = Number(expense.remainingAmount ?? Math.max(amount - paidAmount, 0));
       const isOperating = Boolean(expense.isFixed || expense.expenseCategory?.isFixed);
-      row.operating = this.round(Number(row.operating ?? 0) + (isOperating ? amount : 0));
-      row.miscellaneous = this.round(Number(row.miscellaneous ?? 0) + (isOperating ? 0 : amount));
-      row.cash = this.round(Number(row.cash ?? 0) + (expense.paymentMethod === 'cash' ? amount : 0));
-      row.bank = this.round(Number(row.bank ?? 0) + (expense.paymentMethod === 'bank' ? amount : 0));
-      row.other = this.round(Number(row.other ?? 0) + (!['cash', 'bank'].includes(expense.paymentMethod) ? amount : 0));
+      row.operating = this.round(Number(row.operating ?? 0) + (isOperating ? paidAmount : 0));
+      row.miscellaneous = this.round(Number(row.miscellaneous ?? 0) + (isOperating ? 0 : paidAmount));
+      row.cash = this.round(Number(row.cash ?? 0) + (expense.paymentMethod === 'cash' ? paidAmount : 0));
+      row.bank = this.round(Number(row.bank ?? 0) + (expense.paymentMethod === 'bank' ? paidAmount : 0));
+      row.vault = this.round(Number(row.vault ?? 0) + (expense.paymentMethod === 'vault' ? paidAmount : 0));
+      row.other = this.round(Number(row.other ?? 0) + (!['cash', 'bank', 'vault'].includes(expense.paymentMethod) ? paidAmount : 0));
+      row.paid = this.round(Number(row.paid ?? 0) + paidAmount);
+      row.remaining = this.round(Number(row.remaining ?? 0) + remainingAmount);
       row.total = this.round(Number(row.total ?? 0) + amount);
       row.count = Number(row.count ?? 0) + 1;
       row.notes = [row.notes, expense.title].filter(Boolean).join(' / ');

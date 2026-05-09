@@ -48,6 +48,18 @@ export type ExpenseCategoryOption = {
   name: string;
   isFixed: boolean;
   classification?: 'operating' | 'miscellaneous';
+  isActive?: boolean;
+  notes?: string | null;
+};
+
+export type ExpenseTypeOption = {
+  id: string;
+  categoryId: string;
+  category?: ExpenseCategoryOption | null;
+  name: string;
+  code: string;
+  isActive?: boolean;
+  notes?: string | null;
 };
 
 export type ItemCategoryOption = {
@@ -86,23 +98,6 @@ export type PurchaseInvoiceOption = {
   branchId: string;
   remainingAmount: number;
   supplier?: SupplierOption | null;
-};
-
-export type ExpenseTemplateOption = {
-  id: string;
-  name: string;
-  branchId?: string | null;
-  expenseCategoryId?: string | null;
-  defaultAmount?: number;
-  paymentMethod?: 'cash' | 'bank' | 'vault' | 'other';
-  drawerId?: string | null;
-  bankAccountId?: string | null;
-  vaultId?: string | null;
-  isActive?: boolean;
-  isRecurring?: boolean;
-  notes?: string | null;
-  branch?: BranchOption | null;
-  expenseCategory?: ExpenseCategoryOption | null;
 };
 
 export type DrawerOption = {

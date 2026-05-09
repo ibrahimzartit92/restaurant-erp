@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { CreateExpenseDto } from './dto/create-expense.dto';
 import { UpdateExpenseDto } from './dto/update-expense.dto';
+import { ExpensePaymentStatus } from './entities/expense.entity';
 import { ExpensePaymentMethod } from './expense-shared';
 import { ExpensesService } from './expenses.service';
 
@@ -13,11 +14,26 @@ export class ExpensesController {
     @Query('search') search?: string,
     @Query('branch_id') branchId?: string,
     @Query('category_id') categoryId?: string,
+    @Query('expense_type_id') expenseTypeId?: string,
     @Query('payment_method') paymentMethod?: ExpensePaymentMethod,
+    @Query('payment_status') paymentStatus?: ExpensePaymentStatus,
+    @Query('vault_id') vaultId?: string,
+    @Query('bank_account_id') bankAccountId?: string,
     @Query('date_from') dateFrom?: string,
     @Query('date_to') dateTo?: string,
   ) {
-    return this.expensesService.findAll({ search, branchId, categoryId, paymentMethod, dateFrom, dateTo });
+    return this.expensesService.findAll({
+      search,
+      branchId,
+      categoryId,
+      expenseTypeId,
+      paymentMethod,
+      paymentStatus,
+      vaultId,
+      bankAccountId,
+      dateFrom,
+      dateTo,
+    });
   }
 
   @Get(':id')

@@ -7,6 +7,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { ExpenseTypeEntity } from '../../expense-types/entities/expense-type.entity';
 import { ExpenseTemplateEntity } from '../../expense-templates/entities/expense-template.entity';
 import { ExpenseEntity } from '../../expenses/entities/expense.entity';
 
@@ -35,8 +36,14 @@ export class ExpenseCategoryEntity {
   })
   classification!: ExpenseCategoryClassification;
 
+  @Column({ name: 'is_active', type: 'boolean', default: true })
+  isActive!: boolean;
+
   @Column({ type: 'text', nullable: true })
   notes!: string | null;
+
+  @OneToMany(() => ExpenseTypeEntity, (expenseType) => expenseType.category)
+  expenseTypes!: ExpenseTypeEntity[];
 
   @OneToMany(() => ExpenseTemplateEntity, (template) => template.expenseCategory)
   templates!: ExpenseTemplateEntity[];

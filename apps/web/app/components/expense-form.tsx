@@ -3,14 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { submitJson } from '../lib/client-api';
-import type {
-  BankAccountOption,
-  BranchOption,
-  DrawerOption,
-  ExpenseCategoryOption,
-  ExpenseTemplateOption,
-  VaultOption,
-} from '../lib/types';
+import type { BankAccountOption, BranchOption, DrawerOption, ExpenseCategoryOption, ExpenseTypeOption, VaultOption } from '../lib/types';
 import {
   PaymentSourceRows,
   activePaymentRows,
@@ -18,7 +11,6 @@ import {
   paymentRowsTotal,
   toBackendPayment,
   validatePaymentRows,
-  type PaymentSourceType,
   type UnifiedPaymentRow,
 } from './payment-source-rows';
 
@@ -38,15 +30,11 @@ type ExpenseFormRecord = {
   expenseDate?: string;
   branchId?: string;
   expenseCategoryId?: string;
+  expenseTypeId?: string | null;
   title?: string;
   amount?: number;
-  paymentMethod?: string;
-  drawerId?: string | null;
-  bankAccountId?: string | null;
-  vaultId?: string | null;
   paymentAllocations?: ExpensePaymentAllocation[] | null;
   isFixed?: boolean;
-  templateId?: string | null;
   notes?: string | null;
 };
 
@@ -63,65 +51,40 @@ function fromBackendPayment(row: ExpensePaymentAllocation, fallbackDate: string)
   };
 }
 
-function legacyPaymentRow(initialExpense?: ExpenseFormRecord | null): UnifiedPaymentRow {
-  const paymentDate = initialExpense?.expenseDate ?? new Date().toISOString().slice(0, 10);
-  const sourceType =
-    initialExpense?.paymentMethod === 'bank' ? 'bank' : initialExpense?.paymentMethod === 'vault' ? 'vault' : 'drawer';
-
-  return {
-    ...createPaymentRow(paymentDate, initialExpense?.amount ? String(initialExpense.amount) : ''),
-    sourceType,
-    drawerId: initialExpense?.drawerId ?? '',
-    bankAccountId: initialExpense?.bankAccountId ?? '',
-    vaultId: initialExpense?.vaultId ?? '',
-  };
-}
-
 export function ExpenseForm({
   mode,
   initialExpense,
-  initialTemplateId,
   branches,
   categories,
-  templates,
+  expenseTypes,
   drawers,
   bankAccounts,
   vaults,
 }: Readonly<{
   mode: 'create' | 'edit';
   initialExpense?: ExpenseFormRecord | null;
-  initialTemplateId?: string;
   branches: BranchOption[];
   categories: ExpenseCategoryOption[];
-  templates: ExpenseTemplateOption[];
+  expenseTypes: ExpenseTypeOption[];
   drawers: DrawerOption[];
   bankAccounts: BankAccountOption[];
   vaults: VaultOption[];
 }>) {
   const router = useRouter();
-  const initialTemplate = templates.find((template) => template.id === initialTemplateId);
   const initialExpenseDate = initialExpense?.expenseDate ?? new Date().toISOString().slice(0, 10);
+  const activeCategories = categories.filter((category) => category.isActive !== false || category.id === initialExpense?.expenseCategoryId);
+  const activeExpenseTypes = expenseTypes.filter((expenseType) => expenseType.isActive !== false || expenseType.id === initialExpense?.expenseTypeId);
+  const [selectedCategoryId, setSelectedCategoryId] = useState(initialExpense?.expenseCategoryId ?? activeCategories[0]?.id ?? '');
+  const [selectedExpenseTypeId, setSelectedExpenseTypeId] = useState(initialExpense?.expenseTypeId ?? '');
+  const filteredExpenseTypes = activeExpenseTypes.filter((expenseType) => expenseType.categoryId === selectedCategoryId);
   const initialRows = useMemo(
     () =>
       initialExpense?.paymentAllocations?.length
         ? initialExpense.paymentAllocations.map((row) => fromBackendPayment(row, initialExpenseDate))
-        : initialTemplate && mode === 'create'
-          ? [
-              {
-                ...createPaymentRow(initialExpenseDate, initialTemplate.defaultAmount ? String(initialTemplate.defaultAmount) : ''),
-                sourceType: (
-                  initialTemplate.paymentMethod === 'bank'
-                    ? 'bank'
-                    : initialTemplate.paymentMethod === 'vault'
-                      ? 'vault'
-                      : 'drawer'
-                ) as PaymentSourceType,
-              },
-            ]
-        : [legacyPaymentRow(initialExpense)],
-    [initialExpense, initialExpenseDate, initialTemplate, mode],
+        : [createPaymentRow(initialExpenseDate, '')],
+    [initialExpense, initialExpenseDate],
   );
-  const [amount, setAmount] = useState(String(initialExpense?.amount ?? initialTemplate?.defaultAmount ?? ''));
+  const [amount, setAmount] = useState(String(initialExpense?.amount ?? ''));
   const [rows, setRows] = useState<UnifiedPaymentRow[]>(initialRows);
   const [message, setMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -131,9 +94,11 @@ export function ExpenseForm({
     event.preventDefault();
     setIsSaving(true);
     setMessage(null);
+
     const formData = new FormData(event.currentTarget);
-    const validationMessage = validatePaymentRows(rows);
-    const paidTotal = paymentRowsTotal(rows);
+    const selectedRows = activePaymentRows(rows);
+    const validationMessage = selectedRows.length ? validatePaymentRows(rows) : null;
+    const paidTotal = paymentRowsTotal(selectedRows);
 
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
       setMessage('أدخل مبلغ المصروف بشكل صحيح.');
@@ -147,8 +112,15 @@ export function ExpenseForm({
       return;
     }
 
-    if (Math.round((paidTotal + Number.EPSILON) * 100) / 100 !== Math.round((numericAmount + Number.EPSILON) * 100) / 100) {
-      setMessage('يجب أن يساوي مجموع الدفعات مبلغ المصروف.');
+    if (Math.round((paidTotal + Number.EPSILON) * 100) / 100 > Math.round((numericAmount + Number.EPSILON) * 100) / 100) {
+      setMessage('لا يمكن أن يتجاوز مجموع المدفوعات مبلغ المصروف.');
+      setIsSaving(false);
+      return;
+    }
+
+    const expenseTypeId = String(formData.get('expenseTypeId') ?? '');
+    if (!expenseTypeId) {
+      setMessage('اختر نوع المصروف.');
       setIsSaving(false);
       return;
     }
@@ -156,21 +128,16 @@ export function ExpenseForm({
     const payload = {
       expenseDate: String(formData.get('expenseDate') ?? ''),
       branchId: String(formData.get('branchId') ?? ''),
-      expenseCategoryId: String(formData.get('expenseCategoryId') ?? '') || null,
+      expenseTypeId,
       title: String(formData.get('title') ?? '') || null,
       amount: numericAmount,
-      payments: activePaymentRows(rows).map(toBackendPayment),
+      payments: selectedRows.map(toBackendPayment),
       isFixed: formData.get('isFixed') === 'on',
-      templateId: String(formData.get('templateId') ?? '') || null,
       notes: String(formData.get('notes') ?? '') || null,
     };
 
     try {
-      await submitJson(
-        mode === 'create' ? '/expenses' : `/expenses/${initialExpense?.id}`,
-        mode === 'create' ? 'POST' : 'PATCH',
-        payload,
-      );
+      await submitJson(mode === 'create' ? '/expenses' : `/expenses/${initialExpense?.id}`, mode === 'create' ? 'POST' : 'PATCH', payload);
       router.push('/expenses');
       router.refresh();
     } catch (error) {
@@ -183,8 +150,8 @@ export function ExpenseForm({
   async function handleDelete(reverseFinancialEffect: boolean) {
     if (!initialExpense?.id) return;
     const confirmation = reverseFinancialEffect
-      ? 'سيتم حذف المصروف وتسجيل حركة عكسية. هل تريد المتابعة؟'
-      : 'سيتم حذف المصروف. هل تريد المتابعة؟';
+      ? 'سيتم حذف المصروف وتسجيل حركة عكسية للمبالغ المدفوعة فعليًا. هل تريد المتابعة؟'
+      : 'سيتم حذف المصروف وإزالة حركاته المالية المسجلة. هل تريد المتابعة؟';
     if (!confirm(confirmation)) return;
 
     setIsSaving(true);
@@ -211,7 +178,7 @@ export function ExpenseForm({
         </label>
         <label>
           الفرع
-          <select name="branchId" defaultValue={initialExpense?.branchId ?? initialTemplate?.branchId ?? ''} required>
+          <select name="branchId" defaultValue={initialExpense?.branchId ?? ''} required>
             <option value="">اختر الفرع</option>
             {branches.map((branch) => (
               <option key={branch.id} value={branch.id}>
@@ -221,10 +188,18 @@ export function ExpenseForm({
           </select>
         </label>
         <label>
-          نوع المصروف
-          <select name="expenseCategoryId" defaultValue={initialExpense?.expenseCategoryId ?? initialTemplate?.expenseCategoryId ?? ''}>
-            <option value="">تصنيف عام</option>
-            {categories.map((category) => (
+          تصنيف المصروف
+          <select
+            name="expenseCategoryId"
+            value={selectedCategoryId}
+            onChange={(event) => {
+              setSelectedCategoryId(event.target.value);
+              setSelectedExpenseTypeId('');
+            }}
+            required
+          >
+            <option value="">اختر التصنيف</option>
+            {activeCategories.map((category) => (
               <option key={category.id} value={category.id}>
                 {category.name}
               </option>
@@ -232,27 +207,32 @@ export function ExpenseForm({
           </select>
         </label>
         <label>
-          القالب
-          <select name="templateId" defaultValue={initialExpense?.templateId ?? initialTemplateId ?? ''}>
-            <option value="">بدون قالب</option>
-            {templates.map((template) => (
-              <option key={template.id} value={template.id}>
-                {template.name}
+          نوع المصروف
+          <select
+            name="expenseTypeId"
+            value={selectedExpenseTypeId || filteredExpenseTypes[0]?.id || ''}
+            onChange={(event) => setSelectedExpenseTypeId(event.target.value)}
+            required
+          >
+            <option value="">اختر النوع</option>
+            {filteredExpenseTypes.map((expenseType) => (
+              <option key={expenseType.id} value={expenseType.id}>
+                {expenseType.name}
               </option>
             ))}
           </select>
         </label>
         <label>
           العنوان
-          <input name="title" defaultValue={initialExpense?.title ?? initialTemplate?.name ?? ''} placeholder="اختياري" />
+          <input name="title" defaultValue={initialExpense?.title ?? ''} placeholder="اختياري" />
         </label>
         <label>
-          مبلغ المصروف
+          إجمالي تكلفة المصروف
           <input name="amount" type="number" min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} required />
         </label>
         <label className="checkbox-field">
           <input name="isFixed" type="checkbox" defaultChecked={initialExpense?.isFixed ?? false} />
-          مصروف ثابت
+          مصروف تشغيلي
         </label>
       </div>
 
@@ -263,14 +243,14 @@ export function ExpenseForm({
         bankAccounts={bankAccounts}
         vaults={vaults}
         totalAmount={Number.isFinite(numericAmount) ? numericAmount : 0}
-        title="مصادر دفع المصروف"
-        description="قسم المصروف بين درج، حساب بنكي، أو خزنة. يجب أن يساوي مجموع الدفعات مبلغ المصروف."
+        title="المدفوعات الفعلية"
+        description="أضف المبالغ المدفوعة فعليًا فقط. إذا لم يتم دفع المصروف بعد فاترك المدفوعات فارغة وسيظهر كغير مدفوع."
         showRemaining
       />
 
       <label>
         ملاحظات
-        <textarea name="notes" defaultValue={initialExpense?.notes ?? initialTemplate?.notes ?? ''} rows={4} />
+        <textarea name="notes" defaultValue={initialExpense?.notes ?? ''} rows={4} />
       </label>
 
       <div className="form-actions">
@@ -280,7 +260,7 @@ export function ExpenseForm({
         {mode === 'edit' ? (
           <>
             <button className="secondary-button" type="button" disabled={isSaving} onClick={() => handleDelete(false)}>
-              حذف فقط
+              حذف مع إزالة الحركات
             </button>
             <button className="secondary-button" type="button" disabled={isSaving} onClick={() => handleDelete(true)}>
               حذف مع عكس الأثر المالي

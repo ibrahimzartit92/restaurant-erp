@@ -1,7 +1,7 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ILike, Not, Repository } from 'typeorm';
-import { ExpenseTemplateEntity } from '../expense-templates/entities/expense-template.entity';
+import { ExpenseTypeEntity } from '../expense-types/entities/expense-type.entity';
 import { ExpenseEntity } from '../expenses/entities/expense.entity';
 import { CreateExpenseCategoryDto } from './dto/create-expense-category.dto';
 import { UpdateExpenseCategoryDto } from './dto/update-expense-category.dto';
@@ -14,8 +14,8 @@ export class ExpenseCategoriesService {
     private readonly expenseCategoryRepository: Repository<ExpenseCategoryEntity>,
     @InjectRepository(ExpenseEntity)
     private readonly expenseRepository: Repository<ExpenseEntity>,
-    @InjectRepository(ExpenseTemplateEntity)
-    private readonly expenseTemplateRepository: Repository<ExpenseTemplateEntity>,
+    @InjectRepository(ExpenseTypeEntity)
+    private readonly expenseTypeRepository: Repository<ExpenseTypeEntity>,
   ) {}
 
   findAll(search?: string) {
@@ -31,7 +31,7 @@ export class ExpenseCategoriesService {
     const category = await this.expenseCategoryRepository.findOne({ where: { id } });
 
     if (!category) {
-      throw new NotFoundException('Expense category was not found.');
+      throw new NotFoundException('تصنيف المصروف غير موجود.');
     }
 
     return category;
@@ -41,14 +41,15 @@ export class ExpenseCategoriesService {
     await this.ensureNameIsAvailable(createExpenseCategoryDto.name);
 
     const category = this.expenseCategoryRepository.create({
-      name: createExpenseCategoryDto.name,
+      name: createExpenseCategoryDto.name.trim(),
       isFixed: createExpenseCategoryDto.isFixed ?? false,
+      isActive: createExpenseCategoryDto.isActive ?? true,
       classification:
         createExpenseCategoryDto.classification ??
         (createExpenseCategoryDto.isFixed
           ? ExpenseCategoryClassification.Operating
           : ExpenseCategoryClassification.Miscellaneous),
-      notes: createExpenseCategoryDto.notes ?? null,
+      notes: createExpenseCategoryDto.notes?.trim() || null,
     });
 
     return this.expenseCategoryRepository.save(category);
@@ -61,7 +62,14 @@ export class ExpenseCategoriesService {
       await this.ensureNameIsAvailable(updateExpenseCategoryDto.name, id);
     }
 
-    Object.assign(category, updateExpenseCategoryDto);
+    Object.assign(category, {
+      ...updateExpenseCategoryDto,
+      name: updateExpenseCategoryDto.name?.trim() ?? category.name,
+      notes:
+        updateExpenseCategoryDto.notes !== undefined
+          ? updateExpenseCategoryDto.notes?.trim() || null
+          : category.notes,
+    });
 
     return this.expenseCategoryRepository.save(category);
   }
@@ -69,24 +77,26 @@ export class ExpenseCategoriesService {
   async remove(id: string) {
     const category = await this.findByIdOrFail(id);
     const linkedExpenses = await this.expenseRepository.count({ where: { expenseCategoryId: id } });
-    const linkedTemplates = await this.expenseTemplateRepository.count({ where: { expenseCategoryId: id } });
+    const linkedTypes = await this.expenseTypeRepository.count({ where: { categoryId: id } });
 
-    if (linkedExpenses > 0 || linkedTemplates > 0) {
-      throw new BadRequestException('لا يمكن حذف نوع مصروف مستخدم في مصاريف أو قوالب محفوظة.');
+    if (linkedExpenses > 0 || linkedTypes > 0) {
+      category.isActive = false;
+      await this.expenseCategoryRepository.save(category);
+      return { id, deleted: false, archived: true };
     }
 
     await this.expenseCategoryRepository.remove(category);
 
-    return { id };
+    return { id, deleted: true, archived: false };
   }
 
   private async ensureNameIsAvailable(name: string, currentId?: string) {
     const existingCategory = await this.expenseCategoryRepository.findOne({
-      where: { name: ILike(name), ...(currentId ? { id: Not(currentId) } : {}) },
+      where: { name: ILike(name.trim()), ...(currentId ? { id: Not(currentId) } : {}) },
     });
 
     if (existingCategory) {
-      throw new ConflictException('يوجد نوع مصروف بنفس الاسم.');
+      throw new ConflictException('يوجد تصنيف مصروف بنفس الاسم.');
     }
   }
 }

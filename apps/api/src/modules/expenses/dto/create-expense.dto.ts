@@ -19,6 +19,9 @@ export class CreateExpenseDto {
   @IsOptional()
   expenseCategoryId?: string;
 
+  @IsUUID()
+  expenseTypeId!: string;
+
   @IsString()
   @IsOptional()
   @MaxLength(180)

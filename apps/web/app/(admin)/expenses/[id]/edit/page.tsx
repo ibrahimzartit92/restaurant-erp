@@ -8,40 +8,40 @@ import type {
   BranchOption,
   DrawerOption,
   ExpenseCategoryOption,
-  ExpenseTemplateOption,
+  ExpenseTypeOption,
   VaultOption,
 } from '../../../../lib/types';
 
 export default async function EditExpensePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [expense, branches, categories, templates, drawers, bankAccounts, vaults] = await Promise.all([
+  const [expense, branches, categories, expenseTypes, drawers, bankAccounts, vaults] = await Promise.all([
     fetchOne<{
       id: string;
       expenseDate: string;
       branchId: string;
       expenseCategoryId: string;
+      expenseTypeId?: string | null;
       title: string;
       amount: number;
-      paymentMethod: string;
-      drawerId?: string | null;
-      bankAccountId?: string | null;
-      vaultId?: string | null;
+      paidAmount?: number;
+      remainingAmount?: number;
+      paymentStatus?: 'unpaid' | 'partially_paid' | 'paid';
       paymentAllocations?: {
         paymentMethod: 'cash' | 'bank' | 'vault';
-        drawerId: string;
-        bankAccountId: string;
-        vaultId: string;
+        drawerId?: string | null;
+        bankAccountId?: string | null;
+        vaultId?: string | null;
         amount: string;
-        referenceNumber: string;
-        notes: string;
+        paymentDate?: string | null;
+        referenceNumber?: string | null;
+        notes?: string | null;
       }[] | null;
       isFixed: boolean;
-      templateId?: string | null;
       notes?: string | null;
     }>(`/expenses/${id}`),
     fetchList<BranchOption>('/branches'),
     fetchList<ExpenseCategoryOption>('/expense-categories'),
-    fetchList<ExpenseTemplateOption>('/expense-templates'),
+    fetchList<ExpenseTypeOption>('/expense-types'),
     fetchList<DrawerOption>('/drawers'),
     fetchList<BankAccountOption>('/bank-accounts'),
     fetchList<VaultOption>('/vaults'),
@@ -52,14 +52,14 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
 
   return (
     <>
-      <PageHeader title="تعديل مصروف" description="تحديث بيانات المصروف وطريقة الدفع." />
+      <PageHeader title="تعديل مصروف" description="تحديث بيانات المصروف ونوعه والمدفوعات الفعلية المرتبطة به." />
       {expense.error ? <p className="notice">{expense.error}</p> : null}
       <ExpenseForm
         mode="edit"
         initialExpense={expense.data}
         branches={branches.data}
         categories={categories.data}
-        templates={templates.data}
+        expenseTypes={expenseTypes.data}
         drawers={drawers.data}
         bankAccounts={bankAccounts.data}
         vaults={vaults.data}

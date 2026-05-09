@@ -387,10 +387,10 @@ export class DashboardService {
     const websiteSales = dailySales.reduce((sum, sale) => sum + Number(sale.websiteSalesAmount ?? 0), 0);
     const operatingExpenses = expenses
       .filter((expense) => expense.isFixed || expense.expenseCategory?.isFixed)
-      .reduce((sum, expense) => sum + Number(expense.amount ?? 0), 0);
+      .reduce((sum, expense) => sum + Number(expense.paidAmount ?? expense.amount ?? 0), 0);
     const miscellaneousExpenses = expenses
       .filter((expense) => !(expense.isFixed || expense.expenseCategory?.isFixed))
-      .reduce((sum, expense) => sum + Number(expense.amount ?? 0), 0);
+      .reduce((sum, expense) => sum + Number(expense.paidAmount ?? expense.amount ?? 0), 0);
 
     const regularSales = dailySales.reduce((sum, sale) => sum + Number(sale.netSalesAmount ?? 0), 0);
     const wholesaleCollectedSalesTotal = wholesaleCollectedSales.total;

@@ -15,7 +15,7 @@ import {
 } from '../drawer-transactions/entities/drawer-transaction.entity';
 import { DrawerEntity } from '../drawers/entities/drawer.entity';
 import { ExpenseCategoryEntity } from '../expense-categories/entities/expense-category.entity';
-import { ExpenseTemplateEntity } from '../expense-templates/entities/expense-template.entity';
+import { ExpenseTypeEntity } from '../expense-types/entities/expense-type.entity';
 import { FinancialPaymentMethod, PaymentAllocationDto } from '../shared/payment-allocation.dto';
 import { UndoActionEntity } from '../undo-actions/entities/undo-action.entity';
 import { UndoActionsService } from '../undo-actions/undo-actions.service';
@@ -23,7 +23,7 @@ import { VaultTransactionDirection, VaultTransactionType } from '../vaults/entit
 import { VaultsService } from '../vaults/vaults.service';
 import { CreateExpenseDto } from './dto/create-expense.dto';
 import { UpdateExpenseDto } from './dto/update-expense.dto';
-import { ExpenseEntity, ExpensePaymentAllocation } from './entities/expense.entity';
+import { ExpenseEntity, ExpensePaymentAllocation, ExpensePaymentStatus } from './entities/expense.entity';
 import { ExpensePaymentMethod } from './expense-shared';
 
 @Injectable()
@@ -37,8 +37,8 @@ export class ExpensesService {
     private readonly branchRepository: Repository<BranchEntity>,
     @InjectRepository(ExpenseCategoryEntity)
     private readonly expenseCategoryRepository: Repository<ExpenseCategoryEntity>,
-    @InjectRepository(ExpenseTemplateEntity)
-    private readonly expenseTemplateRepository: Repository<ExpenseTemplateEntity>,
+    @InjectRepository(ExpenseTypeEntity)
+    private readonly expenseTypeRepository: Repository<ExpenseTypeEntity>,
     @InjectRepository(DrawerEntity)
     private readonly drawerRepository: Repository<DrawerEntity>,
     @InjectRepository(BankAccountEntity)
@@ -52,6 +52,10 @@ export class ExpensesService {
     branchId?: string;
     categoryId?: string;
     paymentMethod?: ExpensePaymentMethod;
+    paymentStatus?: ExpensePaymentStatus;
+    expenseTypeId?: string;
+    vaultId?: string;
+    bankAccountId?: string;
     dateFrom?: string;
     dateTo?: string;
   }) {
@@ -59,7 +63,7 @@ export class ExpensesService {
       .createQueryBuilder('expense')
       .leftJoinAndSelect('expense.branch', 'branch')
       .leftJoinAndSelect('expense.expenseCategory', 'expenseCategory')
-      .leftJoinAndSelect('expense.template', 'template')
+      .leftJoinAndSelect('expense.expenseType', 'expenseType')
       .leftJoinAndSelect('expense.drawer', 'drawer')
       .leftJoinAndSelect('expense.bankAccount', 'bankAccount')
       .orderBy('expense.expenseDate', 'DESC')
@@ -69,8 +73,26 @@ export class ExpensesService {
     if (filters.categoryId) {
       query.andWhere('expense.expense_category_id = :categoryId', { categoryId: filters.categoryId });
     }
+    if (filters.expenseTypeId) {
+      query.andWhere('expense.expense_type_id = :expenseTypeId', { expenseTypeId: filters.expenseTypeId });
+    }
     if (filters.paymentMethod) {
       query.andWhere('expense.payment_method = :paymentMethod', { paymentMethod: filters.paymentMethod });
+    }
+    if (filters.paymentStatus) {
+      query.andWhere('expense.payment_status = :paymentStatus', { paymentStatus: filters.paymentStatus });
+    }
+    if (filters.vaultId) {
+      query.andWhere(
+        "(expense.vault_id = :vaultId OR expense.payment_allocations @> jsonb_build_array(jsonb_build_object('vaultId', :vaultId::text)))",
+        { vaultId: filters.vaultId },
+      );
+    }
+    if (filters.bankAccountId) {
+      query.andWhere(
+        "(expense.bank_account_id = :bankAccountId OR expense.payment_allocations @> jsonb_build_array(jsonb_build_object('bankAccountId', :bankAccountId::text)))",
+        { bankAccountId: filters.bankAccountId },
+      );
     }
     if (filters.dateFrom) query.andWhere('expense.expense_date >= :dateFrom', { dateFrom: filters.dateFrom });
     if (filters.dateTo) query.andWhere('expense.expense_date <= :dateTo', { dateTo: filters.dateTo });
@@ -93,7 +115,8 @@ export class ExpensesService {
 
   async create(createExpenseDto: CreateExpenseDto) {
     await this.ensureNumberIsAvailable(createExpenseDto.expenseNumber);
-    const expenseCategoryId = createExpenseDto.expenseCategoryId ?? (await this.getDefaultExpenseCategory()).id;
+    const expenseType = await this.findExpenseTypeForWrite(createExpenseDto.expenseTypeId, createExpenseDto.expenseCategoryId);
+    const expenseCategoryId = expenseType.categoryId;
     const paymentAllocations = await this.resolvePaymentAllocations({
       branchId: createExpenseDto.branchId,
       amount: createExpenseDto.amount,
@@ -108,23 +131,29 @@ export class ExpensesService {
     await this.validateReferences({
       ...createExpenseDto,
       expenseCategoryId,
+      expenseTypeId: expenseType.id,
       paymentMethod,
     });
 
     const expenseNumber = createExpenseDto.expenseNumber?.toUpperCase() ?? (await this.generateExpenseNumber());
-    const category = await this.expenseCategoryRepository.findOneOrFail({ where: { id: expenseCategoryId } });
+    const category = expenseType.category;
+    const paymentTotals = this.calculatePaymentTotals(createExpenseDto.amount, paymentAllocations);
     const expense = this.expenseRepository.create({
       ...createExpenseDto,
       expenseNumber,
       expenseCategoryId,
+      expenseTypeId: expenseType.id,
       title: createExpenseDto.title?.trim() || category.name,
+      paidAmount: paymentTotals.paidAmount,
+      remainingAmount: paymentTotals.remainingAmount,
+      paymentStatus: paymentTotals.paymentStatus,
       paymentMethod,
       drawerId: primaryAllocation?.drawerId ?? null,
       bankAccountId: primaryAllocation?.bankAccountId ?? null,
       vaultId: primaryAllocation?.vaultId ?? null,
       paymentAllocations,
       isFixed: createExpenseDto.isFixed ?? category.isFixed,
-      templateId: createExpenseDto.templateId ?? null,
+      templateId: null,
       notes: createExpenseDto.notes ?? null,
     });
 
@@ -139,6 +168,8 @@ export class ExpensesService {
     const expense = await this.findByIdOrFail(id);
     await this.ensureNumberIsAvailable(updateExpenseDto.expenseNumber, id);
     const nextExpense = { ...expense, ...updateExpenseDto };
+    const expenseType = await this.findExpenseTypeForWrite(nextExpense.expenseTypeId ?? undefined, nextExpense.expenseCategoryId);
+    nextExpense.expenseCategoryId = expenseType.categoryId;
     const paymentAllocations = await this.resolvePaymentAllocations({
       branchId: nextExpense.branchId,
       amount: nextExpense.amount,
@@ -152,16 +183,25 @@ export class ExpensesService {
 
     await this.validateReferences({
       ...nextExpense,
+      expenseCategoryId: expenseType.categoryId,
+      expenseTypeId: expenseType.id,
       paymentMethod,
     });
+    const paymentTotals = this.calculatePaymentTotals(nextExpense.amount, paymentAllocations);
 
     Object.assign(expense, {
       ...updateExpenseDto,
+      expenseCategoryId: expenseType.categoryId,
+      expenseTypeId: expenseType.id,
+      paidAmount: paymentTotals.paidAmount,
+      remainingAmount: paymentTotals.remainingAmount,
+      paymentStatus: paymentTotals.paymentStatus,
       paymentMethod,
       drawerId: primaryAllocation?.drawerId ?? null,
       bankAccountId: primaryAllocation?.bankAccountId ?? null,
       vaultId: primaryAllocation?.vaultId ?? null,
       paymentAllocations,
+      templateId: null,
       expenseNumber: updateExpenseDto.expenseNumber?.toUpperCase() ?? expense.expenseNumber,
     });
 
@@ -216,7 +256,7 @@ export class ExpensesService {
         await manager.getRepository(DrawerTransactionEntity).save({
           drawerId: allocation.drawerId,
           branchId: expense.branchId,
-          transactionDate: expense.expenseDate,
+          transactionDate: allocation.paymentDate ?? expense.expenseDate,
           transactionType: DrawerTransactionType.ExpenseCash,
           direction: DrawerTransactionDirection.Out,
           amount: allocation.amount,
@@ -229,7 +269,7 @@ export class ExpensesService {
       if (allocation.paymentMethod === FinancialPaymentMethod.Bank && allocation.bankAccountId) {
         await manager.getRepository(BankAccountTransactionEntity).save({
           bankAccountId: allocation.bankAccountId,
-          transactionDate: expense.expenseDate,
+          transactionDate: allocation.paymentDate ?? expense.expenseDate,
           transactionType: BankAccountTransactionType.ExpenseBank,
           direction: BankAccountTransactionDirection.Outgoing,
           amount: allocation.amount,
@@ -245,7 +285,7 @@ export class ExpensesService {
         await this.vaultsService.recordTransaction(
           {
             vaultId: allocation.vaultId,
-            transactionDate: expense.expenseDate,
+            transactionDate: allocation.paymentDate ?? expense.expenseDate,
             transactionType: VaultTransactionType.ExpensePayment,
             direction: VaultTransactionDirection.Out,
             amount: allocation.amount,
@@ -357,20 +397,20 @@ export class ExpensesService {
   private async validateReferences(data: {
     branchId: string;
     expenseCategoryId: string;
+    expenseTypeId?: string | null;
     paymentMethod: ExpensePaymentMethod;
-    templateId?: string | null;
   }) {
-    const [branch, category] = await Promise.all([
+    const [branch, category, expenseType] = await Promise.all([
       this.branchRepository.findOne({ where: { id: data.branchId } }),
       this.expenseCategoryRepository.findOne({ where: { id: data.expenseCategoryId } }),
+      data.expenseTypeId ? this.expenseTypeRepository.findOne({ where: { id: data.expenseTypeId } }) : null,
     ]);
 
     if (!branch) throw new NotFoundException('Branch was not found.');
     if (!category) throw new NotFoundException('Expense category was not found.');
-
-    if (data.templateId) {
-      const template = await this.expenseTemplateRepository.findOne({ where: { id: data.templateId } });
-      if (!template) throw new NotFoundException('Expense template was not found.');
+    if (data.expenseTypeId && !expenseType) throw new NotFoundException('Expense type was not found.');
+    if (expenseType && expenseType.categoryId !== data.expenseCategoryId) {
+      throw new BadRequestException('Expense type must belong to the selected category.');
     }
   }
 
@@ -419,8 +459,8 @@ export class ExpensesService {
     }
 
     const paidTotal = this.roundMoney(allocations.reduce((sum, allocation) => sum + allocation.amount, 0));
-    if (paidTotal !== this.roundMoney(data.amount)) {
-      throw new BadRequestException('Expense payment rows must equal the expense amount.');
+    if (paidTotal > this.roundMoney(data.amount)) {
+      throw new BadRequestException('Expense paid amount cannot exceed the total amount.');
     }
 
     await this.validatePaymentAllocations(data.branchId, allocations);
@@ -463,16 +503,18 @@ export class ExpensesService {
   }
 
   private legacyExpenseAllocations(expense: ExpenseEntity): ExpensePaymentAllocation[] {
+    const amount = Number(expense.paidAmount ?? expense.amount ?? 0);
+    if (amount <= 0) return [];
     if (expense.paymentMethod === ExpensePaymentMethod.Cash && expense.drawerId) {
-      return [{ paymentMethod: FinancialPaymentMethod.Cash, drawerId: expense.drawerId, amount: expense.amount }];
+      return [{ paymentMethod: FinancialPaymentMethod.Cash, drawerId: expense.drawerId, amount }];
     }
 
     if (expense.paymentMethod === ExpensePaymentMethod.Bank && expense.bankAccountId) {
-      return [{ paymentMethod: FinancialPaymentMethod.Bank, bankAccountId: expense.bankAccountId, amount: expense.amount }];
+      return [{ paymentMethod: FinancialPaymentMethod.Bank, bankAccountId: expense.bankAccountId, amount }];
     }
 
     if (expense.paymentMethod === ExpensePaymentMethod.Vault && expense.vaultId) {
-      return [{ paymentMethod: FinancialPaymentMethod.Vault, vaultId: expense.vaultId, amount: expense.amount }];
+      return [{ paymentMethod: FinancialPaymentMethod.Vault, vaultId: expense.vaultId, amount }];
     }
 
     return [];
@@ -506,6 +548,50 @@ export class ExpensesService {
     return this.expenseCategoryRepository.save(category);
   }
 
+  private async findExpenseTypeForWrite(expenseTypeId?: string | null, expenseCategoryId?: string | null) {
+    if (expenseTypeId) {
+      const expenseType = await this.expenseTypeRepository.findOne({ where: { id: expenseTypeId } });
+      if (!expenseType) throw new NotFoundException('Expense type was not found.');
+      if (expenseType.isActive === false || expenseType.category?.isActive === false) {
+        throw new BadRequestException('Archived expense types cannot be used for new expense entries.');
+      }
+      return expenseType;
+    }
+
+    const category = expenseCategoryId
+      ? await this.expenseCategoryRepository.findOne({ where: { id: expenseCategoryId } })
+      : await this.getDefaultExpenseCategory();
+    if (!category) throw new NotFoundException('Expense category was not found.');
+
+    const existingType = await this.expenseTypeRepository.findOne({
+      where: { categoryId: category.id, name: ILike('عام') },
+    });
+    if (existingType) return existingType;
+
+    const expenseType = this.expenseTypeRepository.create({
+      categoryId: category.id,
+      name: 'عام',
+      code: 'GENERAL',
+      isActive: true,
+      notes: 'نوع افتراضي للمصاريف القديمة أو غير المصنفة.',
+    });
+    return this.expenseTypeRepository.save(expenseType);
+  }
+
+  private calculatePaymentTotals(amount: number, allocations: ExpensePaymentAllocation[]) {
+    const totalAmount = this.roundMoney(Number(amount ?? 0));
+    const paidAmount = this.roundMoney(allocations.reduce((sum, allocation) => sum + Number(allocation.amount ?? 0), 0));
+    const remainingAmount = this.roundMoney(Math.max(totalAmount - paidAmount, 0));
+    const paymentStatus =
+      paidAmount <= 0
+        ? ExpensePaymentStatus.Unpaid
+        : remainingAmount <= 0
+          ? ExpensePaymentStatus.Paid
+          : ExpensePaymentStatus.PartiallyPaid;
+
+    return { paidAmount, remainingAmount, paymentStatus };
+  }
+
   private roundMoney(value: number) {
     return Math.round((value + Number.EPSILON) * 100) / 100;
   }
@@ -517,9 +603,13 @@ export class ExpensesService {
       expenseDate: expense.expenseDate,
       branchId: expense.branchId,
       expenseCategoryId: expense.expenseCategoryId,
+      expenseTypeId: expense.expenseTypeId,
       templateId: expense.templateId,
       title: expense.title,
       amount: expense.amount,
+      paidAmount: expense.paidAmount,
+      remainingAmount: expense.remainingAmount,
+      paymentStatus: expense.paymentStatus,
       paymentMethod: expense.paymentMethod,
       drawerId: expense.drawerId,
       bankAccountId: expense.bankAccountId,

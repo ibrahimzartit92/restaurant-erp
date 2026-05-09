@@ -1,13 +1,13 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ExpenseTemplateEntity } from '../expense-templates/entities/expense-template.entity';
+import { ExpenseTypeEntity } from '../expense-types/entities/expense-type.entity';
 import { ExpenseEntity } from '../expenses/entities/expense.entity';
 import { ExpenseCategoryEntity } from './entities/expense-category.entity';
 import { ExpenseCategoriesController } from './expense-categories.controller';
 import { ExpenseCategoriesService } from './expense-categories.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([ExpenseCategoryEntity, ExpenseEntity, ExpenseTemplateEntity])],
+  imports: [TypeOrmModule.forFeature([ExpenseCategoryEntity, ExpenseEntity, ExpenseTypeEntity])],
   controllers: [ExpenseCategoriesController],
   providers: [ExpenseCategoriesService],
   exports: [ExpenseCategoriesService],

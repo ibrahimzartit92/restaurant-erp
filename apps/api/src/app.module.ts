@@ -18,7 +18,7 @@ import { EmployeeAdvancesModule } from './modules/employee-advances/employee-adv
 import { EmployeePenaltiesModule } from './modules/employee-penalties/employee-penalties.module';
 import { EmployeesModule } from './modules/employees/employees.module';
 import { ExpenseCategoriesModule } from './modules/expense-categories/expense-categories.module';
-import { ExpenseTemplatesModule } from './modules/expense-templates/expense-templates.module';
+import { ExpenseTypesModule } from './modules/expense-types/expense-types.module';
 import { ExpensesModule } from './modules/expenses/expenses.module';
 import { ItemCategoriesModule } from './modules/item-categories/item-categories.module';
 import { ItemsModule } from './modules/items/items.module';
@@ -64,7 +64,7 @@ import { WholesaleSalesModule } from './modules/wholesale-sales/wholesale-sales.
     EmployeePenaltiesModule,
     EmployeesModule,
     ExpenseCategoriesModule,
-    ExpenseTemplatesModule,
+    ExpenseTypesModule,
     ExpensesModule,
     ItemCategoriesModule,
     ItemsModule,

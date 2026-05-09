@@ -20,7 +20,11 @@ export type ReportFilters = {
   dateTo?: string;
   status?: string;
   categoryId?: string;
+  expenseTypeId?: string;
   paymentMethod?: string;
+  paymentStatus?: string;
+  vaultId?: string;
+  bankAccountId?: string;
   search?: string;
 };
 
