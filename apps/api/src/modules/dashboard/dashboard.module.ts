@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { BankAccountTransactionEntity } from '../bank-account-transactions/entities/bank-account-transaction.entity';
-import { BankAccountEntity } from '../bank-accounts/entities/bank-account.entity';
+import { BankAccountsModule } from '../bank-accounts/bank-accounts.module';
 import { BranchEntity } from '../branches/entities/branch.entity';
 import { DailySaleEntity } from '../daily-sales/entities/daily-sale.entity';
 import { EmployeeAdvanceEntity } from '../employee-advances/entities/employee-advance.entity';
@@ -10,8 +9,7 @@ import { PayrollRecordEntity } from '../payroll/entities/payroll-record.entity';
 import { PurchaseInvoiceEntity } from '../purchase-invoices/entities/purchase-invoice.entity';
 import { ReportsModule } from '../reports/reports.module';
 import { SettingsModule } from '../settings/settings.module';
-import { VaultTransactionEntity } from '../vaults/entities/vault-transaction.entity';
-import { VaultEntity } from '../vaults/entities/vault.entity';
+import { VaultsModule } from '../vaults/vaults.module';
 import { WholesaleSalesModule } from '../wholesale-sales/wholesale-sales.module';
 import { DashboardController } from './dashboard.controller';
 import { DashboardService } from './dashboard.service';
@@ -21,17 +19,15 @@ import { DashboardService } from './dashboard.service';
     SettingsModule,
     ReportsModule,
     WholesaleSalesModule,
+    BankAccountsModule,
+    VaultsModule,
     TypeOrmModule.forFeature([
-      BankAccountEntity,
-      BankAccountTransactionEntity,
       BranchEntity,
       DailySaleEntity,
       EmployeeAdvanceEntity,
       ExpenseEntity,
       PayrollRecordEntity,
       PurchaseInvoiceEntity,
-      VaultEntity,
-      VaultTransactionEntity,
     ]),
   ],
   controllers: [DashboardController],

@@ -35,6 +35,18 @@ export class BankAccountsService {
     return Promise.all(bankAccounts.map((bankAccount) => this.enrichBankAccount(bankAccount)));
   }
 
+  async getTotalCurrentBalance(branchId?: string) {
+    const bankAccounts = await this.bankAccountRepository.find({
+      where: branchId ? { branchId } : undefined,
+      order: { name: 'ASC' },
+    });
+    const enrichedBankAccounts = await Promise.all(bankAccounts.map((bankAccount) => this.enrichBankAccount(bankAccount)));
+
+    return this.roundMoney(
+      enrichedBankAccounts.reduce((sum, bankAccount) => sum + Number(bankAccount.currentBalance ?? 0), 0),
+    );
+  }
+
   findEntityByIdOrFail(id: string) {
     return this.bankAccountRepository.findOne({ where: { id } }).then((bankAccount) => {
       if (!bankAccount) {
@@ -165,5 +177,9 @@ export class BankAccountsService {
   private normalizeOptionalText(value?: string | null) {
     const normalizedValue = value?.trim();
     return normalizedValue ? normalizedValue : null;
+  }
+
+  private roundMoney(value: number) {
+    return Math.round((value + Number.EPSILON) * 100) / 100;
   }
 }

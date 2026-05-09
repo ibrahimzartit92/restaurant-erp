@@ -49,6 +49,16 @@ export class VaultsService {
     return Promise.all(vaults.map((vault) => this.enrichVault(vault)));
   }
 
+  async getTotalCurrentBalance(branchId?: string) {
+    const vaults = await this.vaultRepository.find({
+      where: branchId ? { branchId } : undefined,
+      order: { name: 'ASC' },
+    });
+    const enrichedVaults = await Promise.all(vaults.map((vault) => this.enrichVault(vault)));
+
+    return this.roundMoney(enrichedVaults.reduce((sum, vault) => sum + Number(vault.currentBalance ?? 0), 0));
+  }
+
   async findByIdOrFail(id: string) {
     const vault = await this.vaultRepository.findOne({ where: { id } });
     if (!vault) throw new NotFoundException('Vault was not found.');

@@ -1,11 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import {
-  BankAccountTransactionDirection,
-  BankAccountTransactionEntity,
-} from '../bank-account-transactions/entities/bank-account-transaction.entity';
-import { BankAccountEntity } from '../bank-accounts/entities/bank-account.entity';
+import { BankAccountsService } from '../bank-accounts/bank-accounts.service';
 import { BranchEntity } from '../branches/entities/branch.entity';
 import { DailySaleEntity } from '../daily-sales/entities/daily-sale.entity';
 import { EmployeeAdvanceEntity } from '../employee-advances/entities/employee-advance.entity';
@@ -15,11 +11,7 @@ import { PurchaseInvoiceEntity, PurchaseInvoiceStatus } from '../purchase-invoic
 import { ReportExportService } from '../reports/report-export.service';
 import { ReportResult } from '../reports/reports.types';
 import { SettingsService } from '../settings/settings.service';
-import {
-  VaultTransactionDirection,
-  VaultTransactionEntity,
-} from '../vaults/entities/vault-transaction.entity';
-import { VaultEntity } from '../vaults/entities/vault.entity';
+import { VaultsService } from '../vaults/vaults.service';
 import { WholesaleCollectedSalesSummary, WholesaleSalesService } from '../wholesale-sales/wholesale-sales.service';
 import {
   DashboardBranchComparison,
@@ -65,14 +57,8 @@ export class DashboardService {
     private readonly purchaseInvoicesRepository: Repository<PurchaseInvoiceEntity>,
     @InjectRepository(PayrollRecordEntity)
     private readonly payrollRepository: Repository<PayrollRecordEntity>,
-    @InjectRepository(BankAccountEntity)
-    private readonly bankAccountsRepository: Repository<BankAccountEntity>,
-    @InjectRepository(BankAccountTransactionEntity)
-    private readonly bankTransactionsRepository: Repository<BankAccountTransactionEntity>,
-    @InjectRepository(VaultEntity)
-    private readonly vaultsRepository: Repository<VaultEntity>,
-    @InjectRepository(VaultTransactionEntity)
-    private readonly vaultTransactionsRepository: Repository<VaultTransactionEntity>,
+    private readonly bankAccountsService: BankAccountsService,
+    private readonly vaultsService: VaultsService,
     private readonly settingsService: SettingsService,
     private readonly reportExportService: ReportExportService,
     private readonly wholesaleSalesService: WholesaleSalesService,
@@ -380,43 +366,11 @@ export class DashboardService {
   }
 
   private async getBankBalance(branchId?: string) {
-    const accounts = await this.bankAccountsRepository.find();
-    const rows = await this.bankTransactionsRepository
-      .createQueryBuilder('transaction')
-      .select('transaction.bank_account_id', 'bankAccountId')
-      .addSelect(
-        'COALESCE(SUM(CASE WHEN transaction.direction = :incoming THEN transaction.amount ELSE -transaction.amount END), 0)',
-        'movementTotal',
-      )
-      .where(branchId ? 'transaction.branch_id = :branchId' : '1=1', { branchId })
-      .groupBy('transaction.bank_account_id')
-      .setParameter('incoming', BankAccountTransactionDirection.Incoming)
-      .getRawMany<{ bankAccountId: string; movementTotal: string }>();
-    const movementByAccount = new Map(rows.map((row) => [row.bankAccountId, Number(row.movementTotal ?? 0)]));
-
-    return this.round(
-      accounts.reduce((sum, account) => sum + Number(account.openingBalance ?? 0) + (movementByAccount.get(account.id) ?? 0), 0),
-    );
+    return this.bankAccountsService.getTotalCurrentBalance(branchId);
   }
 
   private async getVaultBalance(branchId?: string) {
-    const vaults = await this.vaultsRepository.find({ where: { isActive: true } });
-    const rows = await this.vaultTransactionsRepository
-      .createQueryBuilder('transaction')
-      .select('transaction.vault_id', 'vaultId')
-      .addSelect(
-        'COALESCE(SUM(CASE WHEN transaction.direction = :incoming THEN transaction.amount ELSE -transaction.amount END), 0)',
-        'movementTotal',
-      )
-      .where(branchId ? 'transaction.branch_id = :branchId' : '1=1', { branchId })
-      .groupBy('transaction.vault_id')
-      .setParameter('incoming', VaultTransactionDirection.In)
-      .getRawMany<{ vaultId: string; movementTotal: string }>();
-    const movementByVault = new Map(rows.map((row) => [row.vaultId, Number(row.movementTotal ?? 0)]));
-
-    return this.round(
-      vaults.reduce((sum, vault) => sum + Number(vault.openingBalance ?? 0) + (movementByVault.get(vault.id) ?? 0), 0),
-    );
+    return this.vaultsService.getTotalCurrentBalance(branchId);
   }
 
   private calculateTotals(
