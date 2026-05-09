@@ -7,6 +7,8 @@ export type DashboardFilters = {
 
 export type DashboardMetricKey =
   | 'total_sales'
+  | 'regular_sales'
+  | 'wholesale_collected_sales'
   | 'total_purchases'
   | 'paid_supplier_amounts'
   | 'total_operating_expenses'
@@ -18,7 +20,8 @@ export type DashboardMetricKey =
   | 'net_after_purchases'
   | 'bank_balance'
   | 'vault_balance'
-  | 'supplier_due';
+  | 'supplier_due'
+  | 'wholesale_customer_receivables';
 
 export type DashboardMetric = {
   key: DashboardMetricKey;
@@ -33,6 +36,8 @@ export type DashboardMetric = {
 export type DashboardPoint = {
   date: string;
   sales: number;
+  regularSales: number;
+  wholesaleCollectedSales: number;
   purchases: number;
   paidSupplierAmounts: number;
   outstandingSupplierAmounts: number;
@@ -53,6 +58,8 @@ export type DashboardBranchComparison = {
   branchId: string;
   branchName: string;
   sales: number;
+  regularSales: number;
+  wholesaleCollectedSales: number;
   netAfterPurchases: number;
 };
 

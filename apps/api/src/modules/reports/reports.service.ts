@@ -16,6 +16,7 @@ import { ReportExportService } from './report-export.service';
 import { StockCountEntity } from '../stock-counts/entities/stock-count.entity';
 import { SupplierPaymentEntity } from '../supplier-payments/entities/supplier-payment.entity';
 import { TransferEntity } from '../transfers/entities/transfer.entity';
+import { WholesaleSalesService } from '../wholesale-sales/wholesale-sales.service';
 import { ReportColumn, ReportFilters, ReportKey, ReportResult, ReportRow, ReportSummary } from './reports.types';
 
 type ReportBuilder = (filters: ReportFilters) => Promise<ReportResult>;
@@ -66,6 +67,7 @@ export class ReportsService {
     private readonly penaltiesRepository: Repository<EmployeePenaltyEntity>,
     private readonly settingsService: SettingsService,
     private readonly reportExportService: ReportExportService,
+    private readonly wholesaleSalesService: WholesaleSalesService,
   ) {}
 
   getCatalog() {
@@ -208,7 +210,15 @@ export class ReportsService {
     if (filters.branchId) query.andWhere('sale.branch_id = :branchId', { branchId: filters.branchId });
     this.applyDateRange(query, 'sale.sales_date', filters);
 
-    const sales = await query.getMany();
+    const [sales, wholesaleCollectedSales, wholesaleReceivables] = await Promise.all([
+      query.getMany(),
+      this.wholesaleSalesService.getWholesaleCollectedSalesSummary({
+        dateFrom: filters.dateFrom,
+        dateTo: filters.dateTo,
+        branchId: filters.branchId,
+      }),
+      this.wholesaleSalesService.getWholesaleReceivablesSummary({ branchId: filters.branchId }),
+    ]);
     const branchLabel = filters.branchId ? sales[0]?.branch?.name ?? '' : 'كل الفروع';
     const dailyRows = new Map<string, ReportRow>();
 
@@ -222,6 +232,8 @@ export class ReportsService {
         website: 0,
         tips: 0,
         returns: 0,
+        regularNet: 0,
+        wholesaleCollected: 0,
         net: 0,
         notes: '',
       };
@@ -231,9 +243,30 @@ export class ReportsService {
       row.website = this.round(Number(row.website ?? 0) + Number(sale.websiteSalesAmount ?? 0));
       row.tips = this.round(Number(row.tips ?? 0) + Number(sale.tipsAmount ?? 0));
       row.returns = this.round(Number(row.returns ?? 0) + Number(sale.salesReturnAmount ?? 0));
-      row.net = this.round(Number(row.net ?? 0) + Number(sale.netSalesAmount ?? 0));
+      row.regularNet = this.round(Number(row.regularNet ?? 0) + Number(sale.netSalesAmount ?? 0));
+      row.net = this.round(Number(row.regularNet ?? 0) + Number(row.wholesaleCollected ?? 0));
       row.notes = [row.notes, sale.notes].filter(Boolean).join(' / ');
       dailyRows.set(sale.salesDate, row);
+    }
+
+    for (const wholesaleRow of wholesaleCollectedSales.rows) {
+      const row = dailyRows.get(wholesaleRow.date) ?? {
+        date: wholesaleRow.date,
+        branch: branchLabel,
+        cash: 0,
+        bank: 0,
+        delivery: 0,
+        website: 0,
+        tips: 0,
+        returns: 0,
+        regularNet: 0,
+        wholesaleCollected: 0,
+        net: 0,
+        notes: '',
+      };
+      row.wholesaleCollected = this.round(Number(row.wholesaleCollected ?? 0) + Number(wholesaleRow.amount ?? 0));
+      row.net = this.round(Number(row.regularNet ?? 0) + Number(row.wholesaleCollected ?? 0));
+      dailyRows.set(wholesaleRow.date, row);
     }
 
     const rows = [...dailyRows.values()].sort((first, second) => String(first.date).localeCompare(String(second.date)));
@@ -252,7 +285,9 @@ export class ReportsService {
         { key: 'website', label: 'مبيعات الموقع', type: 'money' },
         { key: 'tips', label: 'إكراميات', type: 'money' },
         { key: 'returns', label: 'مرتجعات', type: 'money' },
-        { key: 'net', label: 'صافي المبيعات', type: 'money' },
+        { key: 'regularNet', label: 'صافي المبيعات اليومية', type: 'money' },
+        { key: 'wholesaleCollected', label: 'مبيعات الجملة المحصلة', type: 'money' },
+        { key: 'net', label: 'إجمالي المبيعات', type: 'money' },
         { key: 'notes', label: 'ملاحظات' },
       ],
       rows,
@@ -260,7 +295,10 @@ export class ReportsService {
         this.numberSummary('count', 'عدد الأيام', rows.length),
         this.moneySummary('cash', 'إجمالي النقدي', this.sum(rows, 'cash')),
         this.moneySummary('bank', 'إجمالي البنكي', this.sum(rows, 'bank')),
-        this.moneySummary('net', 'صافي المبيعات', this.sum(rows, 'net')),
+        this.moneySummary('regularNet', 'إجمالي المبيعات اليومية', this.sum(rows, 'regularNet')),
+        this.moneySummary('wholesaleCollected', 'إجمالي مبيعات الجملة المحصلة', this.sum(rows, 'wholesaleCollected')),
+        this.moneySummary('net', 'إجمالي المبيعات', this.sum(rows, 'net')),
+        this.moneySummary('wholesaleReceivables', 'ذمم عملاء الجملة', wholesaleReceivables.total),
       ],
     );
     report.filterSummary = await this.buildFilterSummary(filters);

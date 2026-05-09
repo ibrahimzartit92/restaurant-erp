@@ -12,6 +12,7 @@ import { ReportsModule } from '../reports/reports.module';
 import { SettingsModule } from '../settings/settings.module';
 import { VaultTransactionEntity } from '../vaults/entities/vault-transaction.entity';
 import { VaultEntity } from '../vaults/entities/vault.entity';
+import { WholesaleSalesModule } from '../wholesale-sales/wholesale-sales.module';
 import { DashboardController } from './dashboard.controller';
 import { DashboardService } from './dashboard.service';
 
@@ -19,6 +20,7 @@ import { DashboardService } from './dashboard.service';
   imports: [
     SettingsModule,
     ReportsModule,
+    WholesaleSalesModule,
     TypeOrmModule.forFeature([
       BankAccountEntity,
       BankAccountTransactionEntity,

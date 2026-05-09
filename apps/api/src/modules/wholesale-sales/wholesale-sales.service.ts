@@ -20,7 +20,7 @@ import { DrawerEntity } from '../drawers/entities/drawer.entity';
 import { ItemEntity } from '../items/entities/item.entity';
 import { StockMovementType } from '../stock-movements/entities/stock-movement.entity';
 import { StockMovementsService } from '../stock-movements/stock-movements.service';
-import { VaultTransactionDirection, VaultTransactionType } from '../vaults/entities/vault-transaction.entity';
+import { VaultTransactionDirection, VaultTransactionEntity, VaultTransactionType } from '../vaults/entities/vault-transaction.entity';
 import { VaultsService } from '../vaults/vaults.service';
 import { WarehouseEntity } from '../warehouses/entities/warehouse.entity';
 import { CreateWholesaleSalesInvoiceDto } from './dto/create-wholesale-sales-invoice.dto';
@@ -45,6 +45,25 @@ type WholesaleSalesFilters = {
   invoiceDateFrom?: string;
   invoiceDateTo?: string;
   search?: string;
+};
+
+export type WholesaleAggregationFilters = {
+  branchId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+};
+
+export type WholesaleCollectedSalesSummary = {
+  total: number;
+  rows: Array<{
+    date: string;
+    branchId: string;
+    amount: number;
+  }>;
+};
+
+export type WholesaleReceivablesSummary = {
+  total: number;
 };
 
 @Injectable()
@@ -224,13 +243,60 @@ export class WholesaleSalesService {
   }
 
   async cancel(id: string) {
-    const invoice = await this.invoiceRepository.findOne({ where: { id } });
+    const invoice = await this.invoiceRepository.findOne({
+      where: { id },
+      relations: { payments: { drawer: true, vault: true, bankAccount: true }, customer: true },
+    });
     if (!invoice) throw new NotFoundException('فاتورة بيع الجملة غير موجودة.');
-    invoice.documentStatus = WholesaleSalesDocumentStatus.Cancelled;
     return this.dataSource.transaction(async (manager) => {
       await this.stockMovementsService.replaceSourceMovements('wholesale_sales_invoice', invoice.id, [], manager);
+      for (const payment of invoice.payments ?? []) {
+        await this.reversePaymentFinancialMovement(payment, invoice, manager);
+      }
+      invoice.documentStatus = WholesaleSalesDocumentStatus.Cancelled;
       return manager.getRepository(WholesaleSalesInvoiceEntity).save(invoice);
     });
+  }
+
+  async getWholesaleCollectedSalesSummary(filters: WholesaleAggregationFilters = {}): Promise<WholesaleCollectedSalesSummary> {
+    const query = this.paymentRepository
+      .createQueryBuilder('payment')
+      .innerJoin('payment.invoice', 'invoice')
+      .select('payment.payment_date', 'date')
+      .addSelect('payment.branch_id', 'branchId')
+      .addSelect('COALESCE(SUM(payment.amount), 0)', 'amount')
+      .where('invoice.document_status = :approved', { approved: WholesaleSalesDocumentStatus.Approved })
+      .groupBy('payment.payment_date')
+      .addGroupBy('payment.branch_id')
+      .orderBy('payment.payment_date', 'ASC');
+
+    if (filters.branchId) query.andWhere('payment.branch_id = :branchId', { branchId: filters.branchId });
+    if (filters.dateFrom) query.andWhere('payment.payment_date >= :dateFrom', { dateFrom: filters.dateFrom });
+    if (filters.dateTo) query.andWhere('payment.payment_date <= :dateTo', { dateTo: filters.dateTo });
+
+    const rows = (await query.getRawMany<{ date: string; branchId: string; amount: string }>()).map((row) => ({
+      date: row.date,
+      branchId: row.branchId,
+      amount: this.roundMoney(Number(row.amount ?? 0)),
+    }));
+
+    return {
+      rows,
+      total: this.roundMoney(rows.reduce((sum, row) => sum + row.amount, 0)),
+    };
+  }
+
+  async getWholesaleReceivablesSummary(filters: Pick<WholesaleAggregationFilters, 'branchId'> = {}): Promise<WholesaleReceivablesSummary> {
+    const query = this.invoiceRepository
+      .createQueryBuilder('invoice')
+      .select('COALESCE(SUM(invoice.remaining_amount), 0)', 'total')
+      .where('invoice.document_status = :approved', { approved: WholesaleSalesDocumentStatus.Approved })
+      .andWhere('invoice.remaining_amount > 0');
+
+    if (filters.branchId) query.andWhere('invoice.branch_id = :branchId', { branchId: filters.branchId });
+
+    const row = await query.getRawOne<{ total: string }>();
+    return { total: this.roundMoney(Number(row?.total ?? 0)) };
   }
 
   async remove(id: string) {
@@ -417,6 +483,74 @@ export class WholesaleSalesService {
           sourceId: payment.id,
           referenceNumber: payment.referenceNumber ?? payment.paymentNumber,
           description: `تحصيل وارد إلى الخزنة - ${movementLabel}`,
+          notes: payment.notes,
+        },
+        manager,
+      );
+    }
+  }
+
+  private async reversePaymentFinancialMovement(
+    payment: WholesaleSalesPaymentEntity,
+    invoice: WholesaleSalesInvoiceEntity,
+    manager: EntityManager,
+  ) {
+    const sourceType = 'wholesale_sales_payment_cancel';
+    const existingReversal = await Promise.all([
+      manager.getRepository(DrawerTransactionEntity).findOne({ where: { sourceType, sourceId: payment.id } }),
+      manager.getRepository(BankAccountTransactionEntity).findOne({ where: { sourceType, sourceId: payment.id } }),
+      manager.getRepository(VaultTransactionEntity).findOne({ where: { sourceType, sourceId: payment.id } }),
+    ]);
+    if (existingReversal.some(Boolean)) return;
+
+    const reversalDate = new Date().toISOString().slice(0, 10);
+    const customerLabel = invoice.customer?.name ? ` - العميل: ${invoice.customer.name}` : '';
+    const description = `عكس تحصيل فاتورة بيع جملة ${invoice.invoiceNumber}${customerLabel}`;
+
+    if (payment.paymentMethod === WholesaleSalesPaymentMethod.Cash && payment.drawerId) {
+      await manager.getRepository(DrawerTransactionEntity).save({
+        drawerId: payment.drawerId,
+        branchId: payment.branchId,
+        transactionDate: reversalDate,
+        transactionType: DrawerTransactionType.Withdrawal,
+        direction: DrawerTransactionDirection.Out,
+        amount: Number(payment.amount),
+        sourceType,
+        sourceId: payment.id,
+        description,
+        notes: payment.notes,
+      });
+    }
+
+    if (payment.paymentMethod === WholesaleSalesPaymentMethod.Bank && payment.bankAccountId) {
+      await manager.getRepository(BankAccountTransactionEntity).save({
+        bankAccountId: payment.bankAccountId,
+        transactionDate: reversalDate,
+        transactionType: BankAccountTransactionType.RefundBank,
+        direction: BankAccountTransactionDirection.Outgoing,
+        amount: Number(payment.amount),
+        branchId: payment.branchId,
+        sourceType,
+        sourceId: payment.id,
+        referenceNumber: payment.referenceNumber ?? payment.paymentNumber,
+        description,
+        notes: payment.notes,
+      });
+    }
+
+    if (payment.paymentMethod === WholesaleSalesPaymentMethod.Vault && payment.vaultId) {
+      await this.vaultsService.recordTransaction(
+        {
+          vaultId: payment.vaultId,
+          transactionDate: reversalDate,
+          transactionType: VaultTransactionType.ManualWithdrawal,
+          direction: VaultTransactionDirection.Out,
+          amount: Number(payment.amount),
+          branchId: payment.branchId,
+          sourceType,
+          sourceId: payment.id,
+          referenceNumber: payment.referenceNumber ?? payment.paymentNumber,
+          description,
           notes: payment.notes,
         },
         manager,

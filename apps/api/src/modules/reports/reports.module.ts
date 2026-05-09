@@ -14,6 +14,7 @@ import { StockCountEntity } from '../stock-counts/entities/stock-count.entity';
 import { SettingsModule } from '../settings/settings.module';
 import { SupplierPaymentEntity } from '../supplier-payments/entities/supplier-payment.entity';
 import { TransferEntity } from '../transfers/entities/transfer.entity';
+import { WholesaleSalesModule } from '../wholesale-sales/wholesale-sales.module';
 import { ReportExportService } from './report-export.service';
 import { ReportsController } from './reports.controller';
 import { ReportsService } from './reports.service';
@@ -21,6 +22,7 @@ import { ReportsService } from './reports.service';
 @Module({
   imports: [
     SettingsModule,
+    WholesaleSalesModule,
     TypeOrmModule.forFeature([
       BankAccountTransactionEntity,
       BranchEntity,

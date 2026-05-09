@@ -12,6 +12,8 @@ type DashboardMetric = {
 type DashboardPoint = {
   date: string;
   sales: number;
+  regularSales: number;
+  wholesaleCollectedSales: number;
   purchases: number;
   paidSupplierAmounts: number;
   outstandingSupplierAmounts: number;
@@ -62,8 +64,11 @@ const periodOptions = [
 const kpiOrder = [
   { key: 'paid_supplier_amounts', label: 'المدفوع للموردين' },
   { key: 'supplier_due', label: 'مستحقات الموردين' },
+  { key: 'wholesale_customer_receivables', label: 'ذمم عملاء الجملة' },
   { key: 'outstanding_payroll', label: 'مستحقات الرواتب' },
   { key: 'total_sales', label: 'إجمالي المبيعات' },
+  { key: 'regular_sales', label: 'المبيعات اليومية' },
+  { key: 'wholesale_collected_sales', label: 'مبيعات الجملة المحصلة' },
   { key: 'total_purchases', label: 'إجمالي المشتريات' },
   { key: 'total_operating_expenses', label: 'المصاريف التشغيلية' },
   { key: 'total_miscellaneous_expenses', label: 'المصاريف الإضافية' },
@@ -289,6 +294,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
               <tr>
                 <th>التاريخ</th>
                 <th>المبيعات</th>
+                <th>اليومية</th>
+                <th>الجملة المحصلة</th>
                 <th>المشتريات</th>
                 <th>المصاريف</th>
                 {hasMetric(dashboard.metrics, 'total_payroll') ? <th>الرواتب</th> : null}
@@ -301,6 +308,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                 <tr key={point.date}>
                   <td>{formatDate(point.date)}</td>
                   <td>{formatMoney(point.sales)}</td>
+                  <td>{formatMoney(point.regularSales ?? 0)}</td>
+                  <td>{formatMoney(point.wholesaleCollectedSales ?? 0)}</td>
                   <td>{formatMoney(point.purchases)}</td>
                   <td>{formatMoney(point.operatingExpenses + point.miscellaneousExpenses)}</td>
                   {hasMetric(dashboard.metrics, 'total_payroll') ? <td>{formatMoney(point.payroll)}</td> : null}

@@ -20,6 +20,7 @@ import {
   VaultTransactionEntity,
 } from '../vaults/entities/vault-transaction.entity';
 import { VaultEntity } from '../vaults/entities/vault.entity';
+import { WholesaleCollectedSalesSummary, WholesaleSalesService } from '../wholesale-sales/wholesale-sales.service';
 import {
   DashboardBranchComparison,
   DashboardFilters,
@@ -33,6 +34,8 @@ import {
 type Range = { dateFrom: string; dateTo: string };
 type Totals = {
   sales: number;
+  regularSales: number;
+  wholesaleCollectedSales: number;
   cashSales: number;
   bankSales: number;
   deliverySales: number;
@@ -72,19 +75,21 @@ export class DashboardService {
     private readonly vaultTransactionsRepository: Repository<VaultTransactionEntity>,
     private readonly settingsService: SettingsService,
     private readonly reportExportService: ReportExportService,
+    private readonly wholesaleSalesService: WholesaleSalesService,
   ) {}
 
   async getDashboard(filters: DashboardFilters): Promise<DashboardResult> {
     const range = this.resolveRange(filters);
     const previousPeriod = this.previousEquivalentRange(range);
     const includePayroll = !this.isSingleDayRange(range);
-    const [branches, currentData, previousData, bankBalance, vaultBalance, openInvoices] = await Promise.all([
+    const [branches, currentData, previousData, bankBalance, vaultBalance, openInvoices, wholesaleReceivables] = await Promise.all([
       this.branchesRepository.find({ order: { name: 'ASC' } }),
       this.loadPeriodData(range, filters.branchId, includePayroll),
       this.loadPeriodData(previousPeriod, filters.branchId, includePayroll),
       this.getBankBalance(filters.branchId),
       this.getVaultBalance(filters.branchId),
       this.getOpenInvoices(filters.branchId),
+      this.wholesaleSalesService.getWholesaleReceivablesSummary({ branchId: filters.branchId }),
     ]);
 
     const totals = this.calculateTotals(
@@ -93,6 +98,7 @@ export class DashboardService {
       currentData.invoices,
       currentData.payrolls,
       currentData.employeeAdvances,
+      currentData.wholesaleCollectedSales,
     );
     const previousTotals = this.calculateTotals(
       previousData.dailySales,
@@ -100,6 +106,7 @@ export class DashboardService {
       previousData.invoices,
       previousData.payrolls,
       previousData.employeeAdvances,
+      previousData.wholesaleCollectedSales,
     );
     const operatingNet =
       totals.sales - totals.operatingExpenses - totals.miscellaneousExpenses - totals.employeeAdvances - totals.payroll;
@@ -128,6 +135,13 @@ export class DashboardService {
       previousPeriod,
       metrics: [
         this.metric('total_sales', 'إجمالي المبيعات', totals.sales, previousTotals.sales),
+        this.metric('regular_sales', 'المبيعات اليومية', totals.regularSales, previousTotals.regularSales),
+        this.metric(
+          'wholesale_collected_sales',
+          'مبيعات الجملة المحصلة',
+          totals.wholesaleCollectedSales,
+          previousTotals.wholesaleCollectedSales,
+        ),
         this.metric('total_purchases', 'إجمالي المشتريات', totals.purchases, previousTotals.purchases),
         this.metric('paid_supplier_amounts', 'المدفوع للموردين', totals.paidSupplierAmounts, previousTotals.paidSupplierAmounts),
         this.metric(
@@ -154,6 +168,12 @@ export class DashboardService {
         this.metric('bank_balance', 'الرصيد البنكي الحالي', bankBalance, bankBalance),
         this.metric('vault_balance', 'رصيد الخزنة الحالي', vaultBalance, vaultBalance),
         this.metric('supplier_due', 'مستحقات الموردين', supplierDue, previousSupplierDue),
+        this.metric(
+          'wholesale_customer_receivables',
+          'ذمم عملاء الجملة',
+          wholesaleReceivables.total,
+          wholesaleReceivables.total,
+        ),
       ],
       charts: {
         timeSeries: this.buildTimeSeries(
@@ -163,6 +183,7 @@ export class DashboardService {
           currentData.invoices,
           currentData.payrolls,
           currentData.employeeAdvances,
+          currentData.wholesaleCollectedSales,
         ),
         salesDistribution: [
           { label: 'نقدي', value: this.round(totals.cashSales) },
@@ -186,6 +207,7 @@ export class DashboardService {
               currentData.invoices,
               currentData.payrolls,
               currentData.employeeAdvances,
+              currentData.wholesaleCollectedSales,
             ),
       },
       openInvoices: openInvoices.slice(0, 8),
@@ -207,6 +229,8 @@ export class DashboardService {
     const rows = dashboard.charts.timeSeries.map((point) => ({
       date: point.date,
       sales: point.sales,
+      regularSales: point.regularSales,
+      wholesaleCollectedSales: point.wholesaleCollectedSales,
       purchases: point.purchases,
       paidSupplierAmounts: point.paidSupplierAmounts,
       outstandingSupplierAmounts: point.outstandingSupplierAmounts,
@@ -223,6 +247,8 @@ export class DashboardService {
       { key: 'outstandingSupplierAmounts', label: 'مستحقات الموردين', type: 'money' as const },
       { key: 'date', label: 'التاريخ', type: 'date' as const },
       { key: 'sales', label: 'إجمالي المبيعات', type: 'money' as const },
+      { key: 'regularSales', label: 'المبيعات اليومية', type: 'money' as const },
+      { key: 'wholesaleCollectedSales', label: 'مبيعات الجملة المحصلة', type: 'money' as const },
       { key: 'purchases', label: 'إجمالي المشتريات', type: 'money' as const },
       { key: 'operatingExpenses', label: 'مصروفات تشغيلية', type: 'money' as const },
       { key: 'miscellaneousExpenses', label: 'مصروفات متفرقة', type: 'money' as const },
@@ -252,6 +278,16 @@ export class DashboardService {
       rows,
       summaries: [
         this.reportMoneySummary('sales', 'إجمالي المبيعات', rows.reduce((sum, row) => sum + Number(row.sales ?? 0), 0)),
+        this.reportMoneySummary(
+          'regularSales',
+          'إجمالي المبيعات اليومية',
+          rows.reduce((sum, row) => sum + Number(row.regularSales ?? 0), 0),
+        ),
+        this.reportMoneySummary(
+          'wholesaleCollectedSales',
+          'إجمالي مبيعات الجملة المحصلة',
+          rows.reduce((sum, row) => sum + Number(row.wholesaleCollectedSales ?? 0), 0),
+        ),
         this.reportMoneySummary('purchases', 'إجمالي المشتريات', rows.reduce((sum, row) => sum + Number(row.purchases ?? 0), 0)),
         this.reportMoneySummary(
           'expenses',
@@ -272,7 +308,7 @@ export class DashboardService {
   }
 
   private async loadPeriodData(range: Range, branchId?: string, includePayroll = true) {
-    const [dailySales, expenses, invoices, payrolls, employeeAdvances] = await Promise.all([
+    const [dailySales, expenses, invoices, payrolls, employeeAdvances, wholesaleCollectedSales] = await Promise.all([
       this.dailySalesRepository
         .createQueryBuilder('sale')
         .leftJoinAndSelect('sale.branch', 'branch')
@@ -307,9 +343,10 @@ export class DashboardService {
         .where('advance.advance_date BETWEEN :dateFrom AND :dateTo', range)
         .andWhere(branchId ? 'employee.default_branch_id = :branchId' : '1=1', { branchId })
         .getMany(),
+      this.wholesaleSalesService.getWholesaleCollectedSalesSummary({ dateFrom: range.dateFrom, dateTo: range.dateTo, branchId }),
     ]);
 
-    return { dailySales, expenses, invoices, payrolls, employeeAdvances };
+    return { dailySales, expenses, invoices, payrolls, employeeAdvances, wholesaleCollectedSales };
   }
 
   private async getOpenInvoices(branchId?: string): Promise<DashboardOpenInvoice[]> {
@@ -388,6 +425,7 @@ export class DashboardService {
     invoices: PurchaseInvoiceEntity[],
     payrolls: PayrollRecordEntity[],
     employeeAdvances: EmployeeAdvanceEntity[],
+    wholesaleCollectedSales: WholesaleCollectedSalesSummary,
   ): Totals {
     const cashSales = dailySales.reduce((sum, sale) => sum + Number(sale.cashSalesAmount ?? 0), 0);
     const bankSales = dailySales.reduce((sum, sale) => sum + Number(sale.bankSalesAmount ?? 0), 0);
@@ -400,8 +438,13 @@ export class DashboardService {
       .filter((expense) => !(expense.isFixed || expense.expenseCategory?.isFixed))
       .reduce((sum, expense) => sum + Number(expense.amount ?? 0), 0);
 
+    const regularSales = dailySales.reduce((sum, sale) => sum + Number(sale.netSalesAmount ?? 0), 0);
+    const wholesaleCollectedSalesTotal = wholesaleCollectedSales.total;
+
     return {
-      sales: dailySales.reduce((sum, sale) => sum + Number(sale.netSalesAmount ?? 0), 0),
+      sales: regularSales + wholesaleCollectedSalesTotal,
+      regularSales,
+      wholesaleCollectedSales: wholesaleCollectedSalesTotal,
       cashSales,
       bankSales,
       deliverySales,
@@ -424,6 +467,7 @@ export class DashboardService {
     invoices: PurchaseInvoiceEntity[],
     payrolls: PayrollRecordEntity[],
     employeeAdvances: EmployeeAdvanceEntity[],
+    wholesaleCollectedSales: WholesaleCollectedSalesSummary,
   ) {
     const buckets = new Map<string, DashboardPoint>();
     const ensure = (date: string) => {
@@ -431,6 +475,8 @@ export class DashboardService {
         buckets.set(date, {
           date,
           sales: 0,
+          regularSales: 0,
+          wholesaleCollectedSales: 0,
           purchases: 0,
           paidSupplierAmounts: 0,
           outstandingSupplierAmounts: 0,
@@ -448,7 +494,15 @@ export class DashboardService {
 
     for (const date of this.eachDate(range)) ensure(date);
     dailySales.forEach((sale) => {
-      ensure(sale.salesDate).sales += Number(sale.netSalesAmount ?? 0);
+      const bucket = ensure(sale.salesDate);
+      const amount = Number(sale.netSalesAmount ?? 0);
+      bucket.regularSales += amount;
+      bucket.sales += amount;
+    });
+    wholesaleCollectedSales.rows.forEach((row) => {
+      const bucket = ensure(row.date);
+      bucket.wholesaleCollectedSales += Number(row.amount ?? 0);
+      bucket.sales += Number(row.amount ?? 0);
     });
     invoices.forEach((invoice) => {
       const bucket = ensure(invoice.invoiceDate);
@@ -475,6 +529,8 @@ export class DashboardService {
       .map((point) => ({
         ...point,
         sales: this.round(point.sales),
+        regularSales: this.round(point.regularSales),
+        wholesaleCollectedSales: this.round(point.wholesaleCollectedSales),
         purchases: this.round(point.purchases),
         paidSupplierAmounts: this.round(point.paidSupplierAmounts),
         outstandingSupplierAmounts: this.round(point.outstandingSupplierAmounts),
@@ -501,6 +557,7 @@ export class DashboardService {
     invoices: PurchaseInvoiceEntity[],
     payrolls: PayrollRecordEntity[],
     employeeAdvances: EmployeeAdvanceEntity[],
+    wholesaleCollectedSales: WholesaleCollectedSalesSummary,
   ): DashboardBranchComparison[] {
     return branches
       .map((branch) => {
@@ -509,12 +566,26 @@ export class DashboardService {
         const branchInvoices = invoices.filter((invoice) => invoice.branchId === branch.id);
         const branchPayrolls = payrolls.filter((payroll) => payroll.employee?.defaultBranchId === branch.id);
         const branchAdvances = employeeAdvances.filter((advance) => advance.employee?.defaultBranchId === branch.id);
-        const totals = this.calculateTotals(branchSales, branchExpenses, branchInvoices, branchPayrolls, branchAdvances);
+        const branchWholesaleRows = wholesaleCollectedSales.rows.filter((row) => row.branchId === branch.id);
+        const branchWholesaleCollectedSales = {
+          rows: branchWholesaleRows,
+          total: this.round(branchWholesaleRows.reduce((sum, row) => sum + row.amount, 0)),
+        };
+        const totals = this.calculateTotals(
+          branchSales,
+          branchExpenses,
+          branchInvoices,
+          branchPayrolls,
+          branchAdvances,
+          branchWholesaleCollectedSales,
+        );
 
         return {
           branchId: branch.id,
           branchName: branch.name,
           sales: this.round(totals.sales),
+          regularSales: this.round(totals.regularSales),
+          wholesaleCollectedSales: this.round(totals.wholesaleCollectedSales),
           netAfterPurchases: this.round(
             totals.sales -
               totals.purchases -
