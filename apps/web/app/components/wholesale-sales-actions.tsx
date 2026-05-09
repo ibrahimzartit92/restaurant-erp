@@ -13,6 +13,8 @@ import {
   type CollectionRow,
 } from './collection-destination-rows';
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 export function WholesaleInvoiceStatusActions({ invoiceId, canApprove }: Readonly<{ invoiceId: string; canApprove: boolean }>) {
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
@@ -176,6 +178,11 @@ export function WholesalePaymentBatchForm({
       setMessage('يجب حفظ الفاتورة أولًا قبل تسجيل التحصيلات.');
       return;
     }
+    if (!UUID_PATTERN.test(branchId)) {
+      console.warn('Wholesale collection submit blocked: invalid invoice branch id.', { branchId });
+      setMessage('فرع الفاتورة غير صالح، لا يمكن تسجيل التحصيل.');
+      return;
+    }
     const activeRows = activeCollectionRows(rows);
     const validation = validateCollectionRows(activeRows);
     if (validation) {
@@ -185,16 +192,21 @@ export function WholesalePaymentBatchForm({
     setIsSaving(true);
     setMessage(null);
     try {
+      const payload = {
+        invoiceId,
+        branchId,
+        paymentDate: activeRows[0]?.collectionDate ?? new Date().toISOString().slice(0, 10),
+        payments: activeRows.map((row) => ({
+          ...toBackendCollection(row),
+          branchId,
+        })),
+      };
       console.log('Wholesale collection submitJson request.', {
         path: `/wholesale-sales-invoices/${invoiceId}/payments/batch`,
         rowCount: activeRows.length,
       });
-      await submitJson(`/wholesale-sales-invoices/${invoiceId}/payments/batch`, 'POST', {
-        invoiceId,
-        branchId,
-        paymentDate: activeRows[0]?.collectionDate ?? new Date().toISOString().slice(0, 10),
-        payments: activeRows.map(toBackendCollection),
-      });
+      console.log(JSON.stringify(payload, null, 2));
+      await submitJson(`/wholesale-sales-invoices/${invoiceId}/payments/batch`, 'POST', payload);
       setRows([createCollectionRow()]);
       setMessage('تم تسجيل التحصيلات.');
       router.refresh();
