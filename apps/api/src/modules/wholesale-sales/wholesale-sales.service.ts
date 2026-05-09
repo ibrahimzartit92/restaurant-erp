@@ -132,7 +132,7 @@ export class WholesaleSalesService {
     const discountAmount = this.roundMoney(dto.discountAmount ?? 0);
     const totalAmount = this.roundMoney(Math.max(subtotalAmount - discountAmount, 0));
 
-    return this.dataSource.transaction(async (manager) => {
+    const createdInvoiceId = await this.dataSource.transaction(async (manager) => {
       const invoiceRepository = manager.getRepository(WholesaleSalesInvoiceEntity);
       const itemRepository = manager.getRepository(WholesaleSalesInvoiceItemEntity);
       const invoice = await invoiceRepository.save(
@@ -172,8 +172,10 @@ export class WholesaleSalesService {
         await this.replaceInventoryMovements(invoice, lines, manager);
       }
 
-      return this.findDetails(invoice.id);
+      return invoice.id;
     });
+
+    return this.findDetails(createdInvoiceId);
   }
 
   async update(id: string, dto: UpdateWholesaleSalesInvoiceDto) {
