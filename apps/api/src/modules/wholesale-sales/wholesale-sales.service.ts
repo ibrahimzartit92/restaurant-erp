@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import ExcelJS = require('exceljs');
 import puppeteer from 'puppeteer';
@@ -49,6 +49,8 @@ type WholesaleSalesFilters = {
 
 @Injectable()
 export class WholesaleSalesService {
+  private readonly logger = new Logger(WholesaleSalesService.name);
+
   constructor(
     @InjectDataSource()
     private readonly dataSource: DataSource,
@@ -301,7 +303,11 @@ export class WholesaleSalesService {
 
   async exportInvoice(id: string, format: 'excel' | 'pdf') {
     const invoice = await this.findDetails(id);
-    return format === 'pdf' ? this.exportInvoicePdf(invoice) : this.exportInvoiceExcel(invoice);
+    if (format === 'pdf') {
+      this.logger.log(`Reached wholesale single invoice PDF export branch. invoiceId=${id}`);
+      return this.exportInvoicePdf(invoice);
+    }
+    return this.exportInvoiceExcel(invoice);
   }
 
   async exportList(filters: WholesaleSalesFilters, format: 'excel' | 'pdf') {
@@ -327,9 +333,8 @@ export class WholesaleSalesService {
       await this.validatePaymentSource(payment);
     }
 
-    return this.dataSource.transaction(async (manager) => {
+    await this.dataSource.transaction(async (manager) => {
       const paymentRepository = manager.getRepository(WholesaleSalesPaymentEntity);
-      const savedPayments: WholesaleSalesPaymentEntity[] = [];
       for (const row of dto.payments) {
         const saved = await paymentRepository.save(
           paymentRepository.create({
@@ -347,11 +352,10 @@ export class WholesaleSalesService {
           }),
         );
         await this.recreatePaymentMovement(saved, manager, invoice);
-        savedPayments.push(saved);
       }
       await this.recalculatePaymentState(dto.invoiceId, manager);
-      return paymentRepository.find({ where: savedPayments.map((payment) => ({ id: payment.id })) });
     });
+    return this.findDetails(dto.invoiceId);
   }
 
   private async recreatePaymentMovement(
@@ -464,21 +468,21 @@ export class WholesaleSalesService {
   private async recalculatePaymentState(invoiceId: string, manager = this.dataSource.manager) {
     const invoice = await manager.getRepository(WholesaleSalesInvoiceEntity).findOneOrFail({ where: { id: invoiceId } });
     const payments = await manager.getRepository(WholesaleSalesPaymentEntity).find({ where: { invoiceId } });
-    invoice.paidAmount = this.roundMoney(payments.reduce((sum, payment) => sum + payment.amount, 0));
+    invoice.paidAmount = this.roundMoney(payments.reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0));
     await this.ensureNotOverpaid(invoice);
     this.applyPaymentStatus(invoice);
     await manager.getRepository(WholesaleSalesInvoiceEntity).save(invoice);
   }
 
   private applyPaymentStatus(invoice: WholesaleSalesInvoiceEntity) {
-    invoice.remainingAmount = this.roundMoney(invoice.totalAmount - invoice.paidAmount);
+    invoice.remainingAmount = Math.max(this.roundMoney(Number(invoice.totalAmount ?? 0) - Number(invoice.paidAmount ?? 0)), 0);
     if (invoice.paidAmount <= 0) invoice.paymentStatus = WholesaleSalesPaymentStatus.Unpaid;
-    else if (invoice.paidAmount >= invoice.totalAmount) invoice.paymentStatus = WholesaleSalesPaymentStatus.Paid;
+    else if (invoice.remainingAmount <= 0) invoice.paymentStatus = WholesaleSalesPaymentStatus.Paid;
     else invoice.paymentStatus = WholesaleSalesPaymentStatus.PartiallyPaid;
   }
 
   private async ensureNotOverpaid(invoice: WholesaleSalesInvoiceEntity) {
-    if (invoice.paidAmount > invoice.totalAmount) {
+    if (Number(invoice.paidAmount ?? 0) > Number(invoice.totalAmount ?? 0)) {
       throw new BadRequestException('المحصل لا يمكن أن يتجاوز إجمالي الفاتورة.');
     }
   }
@@ -524,7 +528,7 @@ export class WholesaleSalesService {
   }
   private async cashCollectedAmount(invoiceId: string) {
     const payments = await this.paymentRepository.find({ where: { invoiceId, paymentMethod: WholesaleSalesPaymentMethod.Cash } });
-    return this.roundMoney(payments.reduce((sum, payment) => sum + payment.amount, 0));
+    return this.roundMoney(payments.reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0));
   }
 
   private async ensureInvoiceNumberAvailable(invoiceNumber?: string, currentId?: string) {
@@ -653,8 +657,8 @@ export class WholesaleSalesService {
           <td>${this.escapeHtml(invoice.warehouse?.name ?? '')}</td>
           <td>${this.documentStatusLabel(invoice.documentStatus)}</td>
           <td>${this.paymentStatusLabel(invoice.paymentStatus)}</td>
-          <td>${invoice.totalAmount.toFixed(2)}</td>
-          <td>${invoice.remainingAmount.toFixed(2)}</td>
+          <td>${this.formatPdfMoney(invoice.totalAmount)}</td>
+          <td>${this.formatPdfMoney(invoice.remainingAmount)}</td>
         </tr>`,
       )
       .join('');
@@ -685,14 +689,15 @@ export class WholesaleSalesService {
   }
 
   private async exportInvoicePdf(invoice: WholesaleSalesInvoiceEntity & { stockWarnings?: unknown[] }) {
+    this.logger.log(`Preparing wholesale single invoice PDF. invoiceId=${invoice.id}`);
     const rows = (invoice.items ?? [])
       .map(
         (line) => `
           <tr>
             <td>${this.escapeHtml(line.item?.name ?? line.itemId)}</td>
-            <td>${line.quantity}</td>
-            <td>${line.unitPrice.toFixed(2)}</td>
-            <td>${line.lineTotal.toFixed(2)}</td>
+            <td>${this.formatPdfMoney(line.quantity)}</td>
+            <td>${this.formatPdfMoney(line.unitPrice)}</td>
+            <td>${this.formatPdfMoney(line.lineTotal)}</td>
           </tr>`,
       )
       .join('');
@@ -728,19 +733,33 @@ export class WholesaleSalesService {
               <thead><tr><th>المادة</th><th>الكمية</th><th>سعر الوحدة</th><th>الإجمالي</th></tr></thead>
               <tbody>${rows}</tbody>
             </table>
-            <div class="total">إجمالي الفاتورة: ${invoice.totalAmount.toFixed(2)}</div>
+            <div class="total">إجمالي الفاتورة: ${this.formatPdfMoney(invoice.totalAmount)}</div>
             ${this.invoicePaymentsHtml(invoice)}
           </main>
         </body>
       </html>`;
-    const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+    let browser: Awaited<ReturnType<typeof puppeteer.launch>> | null = null;
     try {
+      this.logger.log(`Before puppeteer launch for wholesale invoice PDF. invoiceId=${invoice.id}`);
+      browser = await puppeteer.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      });
+      this.logger.log(`After browser launch for wholesale invoice PDF. invoiceId=${invoice.id}`);
       const page = await browser.newPage();
+      this.logger.log(`Before page.setContent for wholesale invoice PDF. invoiceId=${invoice.id}`);
       await page.setContent(html, { waitUntil: 'networkidle0' });
+      this.logger.log(`Before page.pdf for wholesale invoice PDF. invoiceId=${invoice.id}`);
       const body = Buffer.from(await page.pdf({ format: 'A4', landscape: false, printBackground: true }));
       return { body, contentType: 'application/pdf', filename: `${invoice.invoiceNumber}.pdf` };
+    } catch (error) {
+      this.logger.error(
+        `Wholesale invoice PDF export failed. invoiceId=${invoice.id}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+      throw new InternalServerErrorException('تعذر إنشاء ملف PDF لفاتورة بيع الجملة. تحقق من توفر متصفح Puppeteer داخل بيئة التشغيل.');
     } finally {
-      await browser.close();
+      if (browser) await browser.close();
     }
   }
 
@@ -762,7 +781,7 @@ export class WholesaleSalesService {
           <td>${this.escapeHtml(payment.paymentNumber)}</td>
           <td>${this.escapeHtml(payment.paymentDate)}</td>
           <td>${this.escapeHtml(this.collectionDestinationLabel(payment))}</td>
-          <td>${payment.amount.toFixed(2)}</td>
+          <td>${this.formatPdfMoney(payment.amount)}</td>
           <td>${this.escapeHtml(payment.referenceNumber ?? '')}</td>
         </tr>`,
       )
@@ -783,13 +802,17 @@ export class WholesaleSalesService {
     return value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[char] ?? char);
   }
 
+  private formatPdfMoney(value: number | string | null | undefined) {
+    return Number(value ?? 0).toFixed(2);
+  }
+
   private optionalText(value?: string | null) {
     const normalized = value?.trim();
     return normalized ? normalized : null;
   }
 
   private roundMoney(value: number) {
-    return Math.round((value + Number.EPSILON) * 100) / 100;
+    return Math.round((Number(value ?? 0) + Number.EPSILON) * 100) / 100;
   }
 }
 
