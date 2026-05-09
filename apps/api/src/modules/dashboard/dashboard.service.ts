@@ -470,10 +470,11 @@ export class DashboardService {
     wholesaleCollectedSales: WholesaleCollectedSalesSummary,
   ) {
     const buckets = new Map<string, DashboardPoint>();
-    const ensure = (date: string) => {
-      if (!buckets.has(date)) {
-        buckets.set(date, {
-          date,
+    const ensure = (value: string | Date | null | undefined) => {
+      const dateKey = this.normalizeDateKey(value);
+      if (!buckets.has(dateKey)) {
+        buckets.set(dateKey, {
+          date: dateKey,
           sales: 0,
           regularSales: 0,
           wholesaleCollectedSales: 0,
@@ -489,7 +490,7 @@ export class DashboardService {
         });
       }
 
-      return buckets.get(date)!;
+      return buckets.get(dateKey)!;
     };
 
     for (const date of this.eachDate(range)) ensure(date);
@@ -525,7 +526,7 @@ export class DashboardService {
     });
 
     return [...buckets.values()]
-      .sort((first, second) => first.date.localeCompare(second.date))
+      .sort((first, second) => this.normalizeDateKey(first.date).localeCompare(this.normalizeDateKey(second.date)))
       .map((point) => ({
         ...point,
         sales: this.round(point.sales),
@@ -639,34 +640,34 @@ export class DashboardService {
     const end = new Date(today);
 
     if (period === 'today') {
-      return { dateFrom: this.toDateKey(today), dateTo: this.toDateKey(today) };
+      return { dateFrom: this.toDayKey(today), dateTo: this.toDayKey(today) };
     }
 
     if (period === 'this_week') {
       const day = today.getDay() || 7;
       start.setDate(today.getDate() - day + 1);
-      return { dateFrom: this.toDateKey(start), dateTo: this.toDateKey(end) };
+      return { dateFrom: this.toDayKey(start), dateTo: this.toDayKey(end) };
     }
 
     if (period === 'this_year') {
       start.setMonth(0, 1);
-      return { dateFrom: this.toDateKey(start), dateTo: this.toDateKey(end) };
+      return { dateFrom: this.toDayKey(start), dateTo: this.toDayKey(end) };
     }
 
     start.setDate(1);
-    return { dateFrom: this.toDateKey(start), dateTo: this.toDateKey(end) };
+    return { dateFrom: this.toDayKey(start), dateTo: this.toDayKey(end) };
   }
 
   private previousEquivalentRange(range: Range): Range {
-    const start = new Date(`${range.dateFrom}T00:00:00.000Z`);
-    const end = new Date(`${range.dateTo}T00:00:00.000Z`);
+    const start = new Date(`${this.normalizeDateKey(range.dateFrom)}T00:00:00.000Z`);
+    const end = new Date(`${this.normalizeDateKey(range.dateTo)}T00:00:00.000Z`);
     const days = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86400000) + 1);
     const previousEnd = new Date(start);
     previousEnd.setUTCDate(start.getUTCDate() - 1);
     const previousStart = new Date(previousEnd);
     previousStart.setUTCDate(previousEnd.getUTCDate() - days + 1);
 
-    return { dateFrom: this.toDateKey(previousStart), dateTo: this.toDateKey(previousEnd) };
+    return { dateFrom: this.normalizeDateKey(previousStart), dateTo: this.normalizeDateKey(previousEnd) };
   }
 
   private isSingleDayRange(range: Range) {
@@ -675,19 +676,38 @@ export class DashboardService {
 
   private eachDate(range: Range) {
     const dates: string[] = [];
-    const cursor = new Date(`${range.dateFrom}T00:00:00.000Z`);
-    const end = new Date(`${range.dateTo}T00:00:00.000Z`);
+    const cursor = new Date(`${this.normalizeDateKey(range.dateFrom)}T00:00:00.000Z`);
+    const end = new Date(`${this.normalizeDateKey(range.dateTo)}T00:00:00.000Z`);
 
     while (cursor <= end) {
-      dates.push(this.toDateKey(cursor));
+      dates.push(this.normalizeDateKey(cursor));
       cursor.setUTCDate(cursor.getUTCDate() + 1);
     }
 
     return dates;
   }
 
-  private toDateKey(date: Date) {
+  private normalizeDateKey(value: string | Date | null | undefined) {
+    if (value instanceof Date) return this.toDayKey(value);
+
+    const text = String(value ?? '').trim();
+    if (!text) return this.toDayKey(new Date());
+
+    const dateOnlyMatch = /^(\d{4}-\d{2}-\d{2})/.exec(text);
+    if (dateOnlyMatch) return dateOnlyMatch[1];
+
+    const parsed = new Date(text);
+    if (!Number.isNaN(parsed.getTime())) return this.toDayKey(parsed);
+
+    return text.slice(0, 10);
+  }
+
+  private toDayKey(date: Date) {
     return date.toISOString().slice(0, 10);
+  }
+
+  private toDateKey(date: Date) {
+    return this.toDayKey(date);
   }
 
   private async getCurrencySettings() {
