@@ -4,24 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { fetchClientJson, submitJson } from '../lib/client-api';
 import { formatMoneyWithCurrency } from '../lib/money';
-import type {
-  BankAccountOption,
-  BranchOption,
-  CustomerOption,
-  DrawerOption,
-  ItemOption,
-  VaultOption,
-  WarehouseOption,
-} from '../lib/types';
-import {
-  CollectionDestinationRows,
-  activeCollectionRows,
-  collectionRowsTotal,
-  createCollectionRow,
-  toBackendCollection,
-  validateCollectionRows,
-  type CollectionRow,
-} from './collection-destination-rows';
+import type { BranchOption, CustomerOption, ItemOption, WarehouseOption } from '../lib/types';
 
 type SalesLineDraft = {
   itemId: string;
@@ -37,6 +20,12 @@ type StockRow = {
   quantity: string | number;
 };
 
+type CreatedWholesaleInvoice = {
+  id?: string | null;
+  branchId?: string | null;
+  invoiceDate?: string | null;
+};
+
 function emptyLine(): SalesLineDraft {
   return { itemId: '', itemLabel: '', unitName: '', quantity: '1', unitPrice: '0', notes: '' };
 }
@@ -50,14 +39,15 @@ function asNumber(value: string) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function isPersistedId(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0 && value !== 'new';
+}
+
 export function WholesaleSalesInvoiceForm({
   branches,
   warehouses,
   customers,
   items,
-  drawers,
-  vaults,
-  bankAccounts,
   currencySymbol = '',
   decimalPlaces = 2,
 }: Readonly<{
@@ -65,9 +55,6 @@ export function WholesaleSalesInvoiceForm({
   warehouses: WarehouseOption[];
   customers: CustomerOption[];
   items: ItemOption[];
-  drawers: DrawerOption[];
-  vaults: VaultOption[];
-  bankAccounts: BankAccountOption[];
   currencySymbol?: string;
   decimalPlaces?: number;
 }>) {
@@ -75,14 +62,12 @@ export function WholesaleSalesInvoiceForm({
   const [message, setMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [lines, setLines] = useState<SalesLineDraft[]>([emptyLine()]);
-  const [collections, setCollections] = useState<CollectionRow[]>([createCollectionRow()]);
   const [warehouseId, setWarehouseId] = useState('');
   const [stockByItem, setStockByItem] = useState<Record<string, number>>({});
   const [discountAmount, setDiscountAmount] = useState('0');
   const itemOptions = useMemo(() => items.map((item) => ({ ...item, label: itemLabel(item) })), [items]);
   const subtotal = lines.reduce((sum, line) => sum + asNumber(line.quantity) * asNumber(line.unitPrice), 0);
   const totalAmount = Math.max(subtotal - asNumber(discountAmount), 0);
-  const collectionTotal = collectionRowsTotal(collections);
 
   async function loadWarehouseStock(nextWarehouseId: string) {
     setWarehouseId(nextWarehouseId);
@@ -125,8 +110,6 @@ export function WholesaleSalesInvoiceForm({
     setMessage(null);
     const formData = new FormData(event.currentTarget);
     const parsedDiscountAmount = asNumber(String(formData.get('discountAmount') ?? '0'));
-    const nextTotalAmount = Math.max(subtotal - parsedDiscountAmount, 0);
-    const activeCollections = activeCollectionRows(collections);
     const invalidLine = lines.find((line) => !line.itemId || asNumber(line.quantity) <= 0 || asNumber(line.unitPrice) < 0);
 
     if (invalidLine) {
@@ -135,21 +118,8 @@ export function WholesaleSalesInvoiceForm({
       return;
     }
 
-    if (collectionTotal > nextTotalAmount) {
-      setMessage('مجموع التحصيلات لا يمكن أن يتجاوز إجمالي الفاتورة.');
-      setIsSaving(false);
-      return;
-    }
-
-    const collectionValidation = activeCollections.length ? validateCollectionRows(activeCollections) : null;
-    if (collectionValidation) {
-      setMessage(collectionValidation);
-      setIsSaving(false);
-      return;
-    }
-
     try {
-      const saved = (await submitJson('/wholesale-sales-invoices', 'POST', {
+      const saved = await submitJson<CreatedWholesaleInvoice>('/wholesale-sales-invoices', 'POST', {
         invoiceNumber: String(formData.get('invoiceNumber') ?? '').trim() || null,
         customerId: String(formData.get('customerId') ?? ''),
         branchId: String(formData.get('branchId') ?? ''),
@@ -165,19 +135,14 @@ export function WholesaleSalesInvoiceForm({
           unitPrice: asNumber(line.unitPrice),
           notes: line.notes.trim() || null,
         })),
-      })) as { id?: string; branchId?: string; invoiceDate?: string };
+      });
 
-      if (saved.id && activeCollections.length > 0) {
-        await submitJson(`/wholesale-sales-invoices/${saved.id}/payments/batch`, 'POST', {
-          invoiceId: saved.id,
-          branchId: saved.branchId ?? String(formData.get('branchId') ?? ''),
-          paymentDate: saved.invoiceDate ?? String(formData.get('invoiceDate') ?? ''),
-          payments: activeCollections.map(toBackendCollection),
-        });
+      if (!isPersistedId(saved?.id)) {
+        setMessage('تم حفظ الفاتورة، لكن لم يصل رقمها الداخلي من الخادم. افتح قائمة فواتير بيع الجملة للتأكد.');
+        return;
       }
 
-      router.push(saved.id ? `/wholesale-sales-invoices/${saved.id}` : '/wholesale-sales-invoices');
-      router.refresh();
+      router.replace(`/wholesale-sales-invoices/${saved.id}`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'تعذر حفظ فاتورة بيع الجملة.');
     } finally {
@@ -322,24 +287,11 @@ export function WholesaleSalesInvoiceForm({
         </article>
       </div>
 
-      <CollectionDestinationRows
-        rows={collections}
-        onChange={setCollections}
-        drawers={drawers}
-        vaults={vaults}
-        bankAccounts={bankAccounts}
-        title="تحصيلات فاتورة البيع"
-        description="يمكن التحصيل إلى الدرج أو الخزنة أو الحساب البنكي. كل صف يحدد جهة مستلمة واحدة فقط."
-        totalAmount={totalAmount}
-        currencySymbol={currencySymbol}
-        decimalPlaces={decimalPlaces}
-        showRemaining
-        allowSettleRemaining
-      />
+      <p className="notice">بعد حفظ الفاتورة سيتم فتح صفحة التفاصيل لتسجيل التحصيلات على الفاتورة المحفوظة.</p>
 
       <div className="form-actions">
         <button disabled={isSaving} type="submit">
-          {isSaving ? 'جار الحفظ...' : 'حفظ فاتورة بيع الجملة'}
+          {isSaving ? 'جار الحفظ...' : 'حفظ وفتح تفاصيل الفاتورة'}
         </button>
       </div>
     </form>

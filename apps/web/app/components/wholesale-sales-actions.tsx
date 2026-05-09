@@ -157,9 +157,14 @@ export function WholesalePaymentBatchForm({
   const [rows, setRows] = useState<CollectionRow[]>([createCollectionRow(undefined, remainingAmount > 0 ? String(remainingAmount) : '')]);
   const [message, setMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const hasPersistedInvoiceId = invoiceId.trim().length > 0 && invoiceId !== 'new';
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!hasPersistedInvoiceId) {
+      setMessage('يجب حفظ الفاتورة أولًا قبل تسجيل التحصيلات.');
+      return;
+    }
     const activeRows = activeCollectionRows(rows);
     const validation = validateCollectionRows(activeRows);
     if (validation) {
@@ -187,6 +192,10 @@ export function WholesalePaymentBatchForm({
 
   if (remainingAmount <= 0) {
     return <p className="notice success">تم تحصيل الفاتورة بالكامل.</p>;
+  }
+
+  if (!hasPersistedInvoiceId) {
+    return <p className="notice warning">يجب حفظ الفاتورة أولًا قبل تسجيل التحصيلات.</p>;
   }
 
   return (
