@@ -119,7 +119,7 @@ export function WholesaleSalesInvoiceForm({
     }
 
     try {
-      const saved = await submitJson<CreatedWholesaleInvoice>('/wholesale-sales-invoices', 'POST', {
+      const saved = await submitJson<CreatedWholesaleInvoice>('/api/wholesale-sales-invoices', 'POST', {
         invoiceNumber: String(formData.get('invoiceNumber') ?? '').trim() || null,
         customerId: String(formData.get('customerId') ?? ''),
         branchId: String(formData.get('branchId') ?? ''),
