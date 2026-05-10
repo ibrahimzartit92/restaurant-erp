@@ -1,8 +1,8 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
-import { submitJson } from '../lib/client-api';
+import { useEffect, useMemo, useState } from 'react';
+import { fetchClientJson, submitJson } from '../lib/client-api';
 import { currentPayrollPeriod } from '../lib/payroll';
 import type { BankAccountOption, DrawerOption, EmployeeSummary, PayrollSummary, VaultOption } from '../lib/types';
 import { MonthSelect, YearSelect } from './month-year-selects';
@@ -77,6 +77,12 @@ export function PayrollForm({
   const defaultPeriod = useMemo(() => currentPayrollPeriod(), []);
   const [message, setMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [obligationsSummary, setObligationsSummary] = useState({
+    outstandingAdvances: 0,
+    outstandingDebts: 0,
+    outstandingFinancialPenalties: 0,
+    totalOutstanding: 0,
+  });
   const initialEmployee = employees.find((employee) => employee.id === (initialPayroll?.employeeId ?? initialEmployeeId));
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(initialPayroll?.employeeId ?? initialEmployeeId ?? '');
   const [salaryValues, setSalaryValues] = useState({
@@ -119,7 +125,49 @@ export function PayrollForm({
       otherDeductionAmount: asNumber(salaryValues.otherDeductionAmount),
     }).toFixed(2),
   );
+  const grossSalary = Number((baseSalary + extraHoursAmount + asNumber(salaryValues.allowancesAmount)).toFixed(2));
+  const totalDeductions = Number(
+    (
+      asNumber(salaryValues.advancesDeductionAmount) +
+      asNumber(salaryValues.debtDeductionAmount) +
+      asNumber(salaryValues.penaltiesDeductionAmount) +
+      asNumber(salaryValues.otherDeductionAmount)
+    ).toFixed(2),
+  );
   const paidTotal = paymentRowsTotal(paymentRows);
+
+  useEffect(() => {
+    let ignore = false;
+
+    if (!selectedEmployeeId) {
+      setObligationsSummary({
+        outstandingAdvances: 0,
+        outstandingDebts: 0,
+        outstandingFinancialPenalties: 0,
+        totalOutstanding: 0,
+      });
+      return;
+    }
+
+    fetchClientJson<typeof obligationsSummary>(`/employee-financial-obligations/summary/${selectedEmployeeId}`)
+      .then((summary) => {
+        if (!ignore) setObligationsSummary(summary);
+      })
+      .catch(() => {
+        if (!ignore) {
+          setObligationsSummary({
+            outstandingAdvances: 0,
+            outstandingDebts: 0,
+            outstandingFinancialPenalties: 0,
+            totalOutstanding: 0,
+          });
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [selectedEmployeeId]);
 
   function updateSalaryField(field: keyof typeof salaryValues, value: string) {
     setSalaryValues((current) => ({ ...current, [field]: value }) as typeof current);
@@ -197,7 +245,7 @@ export function PayrollForm({
   }
 
   return (
-    <form className="form-panel stacked-sections" onSubmit={handleSubmit}>
+    <form className="form-panel stacked-sections payroll-form-compact" onSubmit={handleSubmit}>
       {proposalMode ? (
         <p className="notice">هذا راتب مقترح للشهر المحدد. راجع القيم والخصومات ثم احفظه لاعتماد سجل الراتب.</p>
       ) : null}
@@ -265,6 +313,10 @@ export function PayrollForm({
           <input readOnly value={salaryValues.advancesDeductionAmount} min="0" step="0.01" type="number" />
         </label>
         <label>
+          رصيد ديون الموظف الحالي
+          <input readOnly value={obligationsSummary.outstandingDebts.toFixed(2)} />
+        </label>
+        <label>
           خصم الديون المطلوب
           <input value={salaryValues.debtDeductionAmount} onChange={(event) => updateSalaryField('debtDeductionAmount', event.target.value)} min="0" step="0.01" type="number" />
         </label>
@@ -280,6 +332,21 @@ export function PayrollForm({
           صافي الراتب
           <input disabled value={netSalary.toFixed(2)} />
         </label>
+        <label>
+          إجمالي الراتب
+          <input readOnly value={grossSalary.toFixed(2)} />
+        </label>
+        <label>
+          إجمالي الخصومات
+          <input readOnly value={totalDeductions.toFixed(2)} />
+        </label>
+      </div>
+
+      <div className="payroll-obligations-strip">
+        <span className="payroll-status warning">سلف قائمة: {obligationsSummary.outstandingAdvances.toFixed(2)}</span>
+        <span className="payroll-status danger">ديون قائمة: {obligationsSummary.outstandingDebts.toFixed(2)}</span>
+        <span className="payroll-status danger">غرامات مالية: {obligationsSummary.outstandingFinancialPenalties.toFixed(2)}</span>
+        <span className="payroll-status muted">الإجمالي: {obligationsSummary.totalOutstanding.toFixed(2)}</span>
       </div>
 
       <p className="field-hint">
