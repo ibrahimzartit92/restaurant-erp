@@ -4,28 +4,44 @@ import { ListFilters } from '../../components/list-filters';
 import { PageHeader } from '../../components/page-header';
 import { buildQuery, fetchList, formatDate, formatMoney } from '../../lib/api';
 
-type DailySaleRow = {
+type DailySaleClosingRow = {
   id: string;
   branch?: { name: string } | null;
-  salesDate: string;
-  cashSalesAmount: number;
-  bankSalesAmount: number;
-  deliverySalesAmount: number;
-  websiteSalesAmount: number;
-  salesReturnAmount: number;
-  netSalesAmount: number;
+  closingDate: string;
+  status: 'draft' | 'finalized' | 'cancelled';
+  handedCashAmount?: number;
+  cashDifferenceAmount?: number;
+  summaryValues?: {
+    deliverySalesAmount?: number;
+    websiteCashSales?: number;
+    websiteBankSalesAmount?: number;
+    wholesaleCashCollections?: number;
+    vaultTransferAmount?: number;
+  } | null;
 };
 
-const columns: DataColumn<DailySaleRow>[] = [
-  { key: 'salesDate', label: 'التاريخ', render: (row) => formatDate(row.salesDate) },
+const columns: DataColumn<DailySaleClosingRow>[] = [
+  { key: 'closingDate', label: 'التاريخ', render: (row) => formatDate(row.closingDate) },
   { key: 'branch', label: 'الفرع', render: (row) => row.branch?.name ?? 'غير محدد' },
-  { key: 'cash', label: 'نقدية', render: (row) => formatMoney(row.cashSalesAmount) },
-  { key: 'bank', label: 'بنكية', render: (row) => formatMoney(row.bankSalesAmount) },
-  { key: 'delivery', label: 'توصيل', render: (row) => formatMoney(row.deliverySalesAmount) },
-  { key: 'website', label: 'موقع', render: (row) => formatMoney(row.websiteSalesAmount) },
-  { key: 'returns', label: 'مرتجعات', render: (row) => formatMoney(row.salesReturnAmount) },
-  { key: 'net', label: 'الصافي', render: (row) => formatMoney(row.netSalesAmount) },
-  { key: 'actions', label: 'إجراء', render: (row) => <Link className="text-link" href={`/daily-sales/${row.id}/edit`}>تعديل</Link> },
+  {
+    key: 'status',
+    label: 'الحالة',
+    render: (row) => (
+      <span className={`payroll-status ${row.status === 'finalized' ? 'success' : row.status === 'cancelled' ? 'danger' : 'warning'}`}>
+        {row.status === 'finalized' ? 'منتهي' : row.status === 'cancelled' ? 'ملغى' : 'مسودة'}
+      </span>
+    ),
+  },
+  { key: 'delivery', label: 'توصيل', render: (row) => formatMoney(row.summaryValues?.deliverySalesAmount ?? 0) },
+  {
+    key: 'website',
+    label: 'موقع',
+    render: (row) => formatMoney(Number(row.summaryValues?.websiteCashSales ?? 0) + Number(row.summaryValues?.websiteBankSalesAmount ?? 0)),
+  },
+  { key: 'wholesale', label: 'جملة نقدي', render: (row) => formatMoney(row.summaryValues?.wholesaleCashCollections ?? 0) },
+  { key: 'cash', label: 'النقد المسلم', render: (row) => formatMoney(row.handedCashAmount ?? 0) },
+  { key: 'difference', label: 'الفرق', render: (row) => formatMoney(row.cashDifferenceAmount ?? 0) },
+  { key: 'actions', label: 'إجراء', render: (row) => <Link className="text-link" href={`/daily-sales/${row.id}/edit`}>فتح المعالج</Link> },
 ];
 
 export default async function DailySalesPage({
@@ -34,39 +50,30 @@ export default async function DailySalesPage({
   searchParams?: Promise<Record<string, string | undefined>>;
 }) {
   const params = (await searchParams) ?? {};
-  const result = await fetchList<DailySaleRow>(
+  const result = await fetchList<DailySaleClosingRow>(
     `/daily-sales${buildQuery({
       branch_id: params.branch_id,
       date_from: params.date_from,
       date_to: params.date_to,
+      status: params.status,
     })}`,
   );
-  const exportQuery = buildQuery({
-    branch_id: params.branch_id,
-    date_from: params.date_from,
-    date_to: params.date_to,
-  });
-  const exportBase = `/api/reports/daily-sales/export${exportQuery}`;
-  const excelHref = `${exportBase}${exportQuery ? '&' : '?'}format=excel`;
-  const pdfHref = `${exportBase}${exportQuery ? '&' : '?'}format=pdf`;
 
   return (
     <>
-      <PageHeader title="المبيعات اليومية" description="تسجيل مبيعات الفروع اليومية وحساب صافي المبيعات." />
+      <PageHeader title="إقفالات المبيعات اليومية" description="مسودات وإقفالات الفروع اليومية مع التسوية النقدية والتحويلات." />
       <div className="page-toolbar">
         <ListFilters showBranch showDateRange />
         <div className="inline-actions">
-          <a className="secondary-button" href={excelHref}>Excel</a>
-          <a className="secondary-button" href={pdfHref}>PDF</a>
-          <Link className="primary-button" href="/daily-sales/new">مبيعات يومية جديدة</Link>
+          <Link className="primary-button" href="/daily-sales/new">إقفال يومي جديد</Link>
         </div>
       </div>
       {result.error ? <p className="notice">{result.error}</p> : null}
       <DataTable
         columns={columns}
         rows={result.data}
-        emptyTitle="لا توجد مبيعات يومية"
-        emptyText="أضف سجل مبيعات يومية لكل فرع وتاريخ."
+        emptyTitle="لا توجد إقفالات يومية"
+        emptyText="ابدأ مسودة إقفال يومية لكل فرع وتاريخ، ثم أنهها عند مراجعة القيم."
       />
     </>
   );

@@ -352,6 +352,43 @@ export type EmployeeAdvanceSummary = {
   notes?: string | null;
 };
 
+export type DailySalesClosingSummaryValues = {
+  expensesAmount: number;
+  cashRetailSales: number;
+  wholesaleCashCollections: number;
+  websiteCashSales: number;
+  cashExpensesFromDrawer: number;
+  cashPurchasesFromDrawer: number;
+  employeeCashOutflowsFromDrawer: number;
+  otherDrawerCashEffects: number;
+  expectedSystemCash: number;
+  handedCashAmount: number;
+  cashDifference: number;
+  deliverySalesAmount: number;
+  websiteBankSalesAmount: number;
+  vaultTransferAmount: number;
+};
+
+export type DailySalesClosingSummary = {
+  id: string;
+  branchId: string;
+  branch?: BranchOption | null;
+  closingDate: string;
+  status: 'draft' | 'finalized' | 'cancelled';
+  drawerId?: string | null;
+  drawer?: DrawerOption | null;
+  bankAccountId?: string | null;
+  bankAccount?: BankAccountOption | null;
+  currentStep: number;
+  draftData?: Record<string, unknown> | null;
+  summaryValues?: DailySalesClosingSummaryValues | null;
+  handedCashAmount?: number;
+  expectedCashAmount?: number;
+  cashDifferenceAmount?: number;
+  generatedDailySaleId?: string | null;
+  notes?: string | null;
+};
+
 export type EmployeePenaltySummary = {
   id: string;
   employeeId: string;

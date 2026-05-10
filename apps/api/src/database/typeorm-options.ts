@@ -3,6 +3,7 @@ import { BankAccountEntity } from '../modules/bank-accounts/entities/bank-accoun
 import { BankAccountTransactionEntity } from '../modules/bank-account-transactions/entities/bank-account-transaction.entity';
 import { BranchEntity } from '../modules/branches/entities/branch.entity';
 import { DailySaleEntity } from '../modules/daily-sales/entities/daily-sale.entity';
+import { DailySalesClosingEntity } from '../modules/daily-sales/entities/daily-sales-closing.entity';
 import { CustomerEntity } from '../modules/customers/entities/customer.entity';
 import { DrawerDailySessionEntity } from '../modules/drawer-daily-sessions/entities/drawer-daily-session.entity';
 import { DrawerTransactionEntity } from '../modules/drawer-transactions/entities/drawer-transaction.entity';
@@ -52,6 +53,7 @@ export const databaseEntities = [
   BranchEntity,
   CustomerEntity,
   DailySaleEntity,
+  DailySalesClosingEntity,
   DrawerDailySessionEntity,
   DrawerTransactionEntity,
   DrawerEntity,

@@ -3107,6 +3107,123 @@ tr:last-child td {
   padding: 8px;
 }
 
+.closing-wizard-shell {
+  align-items: start;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1fr) 290px;
+}
+
+.closing-wizard-main {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.wizard-progress {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.wizard-progress button {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--muted-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.wizard-progress button span {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--neutral-soft);
+}
+
+.wizard-progress button.active {
+  border-color: rgba(20, 116, 111, 0.3);
+  background: var(--primary-soft);
+  color: var(--primary-strong);
+}
+
+.wizard-progress button.done {
+  border-color: rgba(21, 128, 61, 0.24);
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.closing-step-panel h3 {
+  margin: 0;
+}
+
+.closing-sticky-summary {
+  position: sticky;
+  top: 96px;
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  padding: 12px;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.045);
+}
+
+.closing-sticky-summary > span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.closing-sticky-summary dl {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.closing-sticky-summary dl div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid #eef2f6;
+  padding-bottom: 6px;
+}
+
+.closing-sticky-summary dt,
+.closing-sticky-summary dd {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.closing-sticky-summary dt {
+  color: var(--muted);
+}
+
+.success-text {
+  color: var(--success);
+}
+
+.success-input {
+  border-color: rgba(21, 128, 61, 0.35) !important;
+  background: var(--success-soft) !important;
+}
+
+.danger-input {
+  border-color: rgba(185, 28, 28, 0.35) !important;
+  background: var(--danger-soft) !important;
+}
+
 .field-hint,
 .notice,
 .empty-state p {
@@ -3134,6 +3251,18 @@ td {
   .payroll-form-compact .form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .closing-wizard-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .closing-sticky-summary {
+    position: static;
+  }
+
+  .wizard-progress {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 560px) {
@@ -3148,6 +3277,10 @@ td {
 
   .page-content {
     padding: 14px;
+  }
+
+  .wizard-progress {
+    grid-template-columns: 1fr;
   }
 }
 
