@@ -72,6 +72,7 @@ const navigationSections: NavigationSection[] = [
     title: 'الموارد البشرية',
     items: [
       { href: '/employees', label: 'الموظفون', mark: 'ظ' },
+      { href: '/employee-financial-obligations', label: 'التزامات الموظفين', mark: 'ل' },
       { href: '/employee-advances', label: 'السلف', mark: 'س' },
       { href: '/employee-penalties', label: 'العقوبات', mark: 'ع' },
       { href: '/payrolls', label: 'الرواتب', mark: 'ر' },

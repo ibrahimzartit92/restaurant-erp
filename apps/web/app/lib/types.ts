@@ -346,6 +346,9 @@ export type EmployeeAdvanceSummary = {
   payrollMonth?: number | null;
   payrollYear?: number | null;
   payrollRecordId?: string | null;
+  recoveredAmount?: number;
+  remainingAmount?: number;
+  status?: 'active' | 'partially_recovered' | 'settled' | 'cancelled';
   notes?: string | null;
 };
 
@@ -359,6 +362,25 @@ export type EmployeePenaltySummary = {
   payrollMonth?: number | null;
   payrollYear?: number | null;
   payrollRecordId?: string | null;
+  penaltyType?: 'financial' | 'non_financial';
+  recoveredAmount?: number;
+  remainingAmount?: number;
+  status?: 'active' | 'partially_recovered' | 'settled' | 'cancelled';
+  notes?: string | null;
+};
+
+export type EmployeeFinancialObligationSummary = {
+  id: string;
+  obligationType: 'advance' | 'debt' | 'financial_penalty';
+  employeeId: string;
+  employee: EmployeeSummary;
+  branchId?: string | null;
+  date: string;
+  originalAmount: number;
+  recoveredAmount: number;
+  remainingAmount: number;
+  status: 'active' | 'partially_recovered' | 'settled' | 'cancelled';
+  debtRepaymentMode?: 'installment' | 'manual' | null;
   notes?: string | null;
 };
 
@@ -377,6 +399,7 @@ export type PayrollSummary = {
   extraHoursAmount?: number;
   allowancesAmount: number;
   advancesDeductionAmount: number;
+  debtDeductionAmount?: number;
   penaltiesDeductionAmount: number;
   otherDeductionAmount: number;
   netSalary: number;

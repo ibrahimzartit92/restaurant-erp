@@ -16,6 +16,7 @@ import {
 import type {
   BranchOption,
   EmployeeAdvanceSummary,
+  EmployeeFinancialObligationSummary,
   EmployeePenaltySummary,
   EmployeeSummary,
   PayrollSummary,
@@ -155,14 +156,37 @@ export default async function EmployeesPage({
   const selectedMonth = params.payroll_month ?? String(currentPeriod.month);
   const selectedYear = params.payroll_year ?? String(currentPeriod.year);
 
-  const [employeesResult, branchesResult, payrollsResult, advancesResult, penaltiesResult] = await Promise.all([
+  const [employeesResult, branchesResult, payrollsResult, advancesResult, penaltiesResult, obligationsResult] = await Promise.all([
     fetchList<EmployeeSummary>(`/employees${buildQuery({ search: params.search, branch_id: params.branch_id })}`),
     fetchList<BranchOption>('/branches'),
     fetchList<PayrollSummary>(`/payrolls${buildQuery({ payroll_month: selectedMonth, payroll_year: selectedYear })}`),
     fetchList<EmployeeAdvanceSummary>(`/employee-advances${buildQuery({ payroll_month: selectedMonth, payroll_year: selectedYear })}`),
     fetchList<EmployeePenaltySummary>(`/employee-penalties${buildQuery({ payroll_month: selectedMonth, payroll_year: selectedYear })}`),
+    fetchList<EmployeeFinancialObligationSummary>('/employee-financial-obligations'),
   ]);
   const payrollByEmployee = new Map(payrollsResult.data.map((payroll) => [payroll.employeeId, payroll]));
+  const obligationsByEmployee = obligationsResult.data.reduce((map, obligation) => {
+    map.set(obligation.employeeId, (map.get(obligation.employeeId) ?? 0) + Number(obligation.remainingAmount ?? 0));
+    return map;
+  }, new Map<string, number>());
+  const employeeColumns: DataColumn<EmployeeSummary>[] = [
+    ...columns.slice(0, -1),
+    {
+      key: 'obligations',
+      label: 'الالتزامات',
+      render: (row) => {
+        const total = obligationsByEmployee.get(row.id) ?? 0;
+        return total > 0 ? (
+          <Link className="payroll-status danger" href={`/employee-financial-obligations?employee_id=${row.id}`}>
+            {formatMoney(total)}
+          </Link>
+        ) : (
+          <span className="payroll-status success">لا يوجد</span>
+        );
+      },
+    },
+    columns[columns.length - 1],
+  ];
 
   return (
     <>
@@ -202,7 +226,7 @@ export default async function EmployeesPage({
         <p className="notice">{payrollsResult.error ?? advancesResult.error ?? penaltiesResult.error}</p>
       ) : null}
       <DataTable
-        columns={columns}
+        columns={employeeColumns}
         rows={employeesResult.data}
         emptyTitle="لا يوجد موظفون"
         emptyText="أضف موظفًا جديدًا وسيظهر هنا."

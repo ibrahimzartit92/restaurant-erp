@@ -29,12 +29,18 @@ export default async function EmployeeDetailsPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [employeeResult, advancesResult, penaltiesResult, payrollResult, attendanceResult, formatMoney] = await Promise.all([
+  const [employeeResult, advancesResult, penaltiesResult, payrollResult, attendanceResult, obligationsSummaryResult, formatMoney] = await Promise.all([
     fetchOne<EmployeeSummary>(`/employees/${id}`),
     fetchList<EmployeeAdvanceSummary>(`/employee-advances?employee_id=${id}`),
     fetchList<EmployeePenaltySummary>(`/employee-penalties?employee_id=${id}`),
     fetchList<PayrollSummary>(`/payrolls?employee_id=${id}`),
     fetchList<AttendanceFileSummary>(`/attendance-files?employee_id=${id}`),
+    fetchOne<{
+      outstandingAdvances: number;
+      outstandingDebts: number;
+      outstandingFinancialPenalties: number;
+      totalOutstanding: number;
+    }>(`/employee-financial-obligations/summary/${id}`),
     getMoneyFormatter(),
   ]);
 
@@ -52,6 +58,12 @@ export default async function EmployeeDetailsPage({
   const totalAdvances = advances.reduce((sum, advance) => sum + Number(advance.amount ?? 0), 0);
   const totalPenalties = penalties.reduce((sum, penalty) => sum + Number(penalty.amount ?? 0), 0);
   const unpaidPayroll = payrolls.reduce((sum, payroll) => sum + Number(payroll.remainingAmount ?? 0), 0);
+  const obligationsSummary = obligationsSummaryResult.data ?? {
+    outstandingAdvances: 0,
+    outstandingDebts: 0,
+    outstandingFinancialPenalties: 0,
+    totalOutstanding: 0,
+  };
   const employeeQuery = `employee_id=${encodeURIComponent(employee.id)}`;
 
   const advancesColumns: DataColumn<EmployeeAdvanceSummary>[] = [
@@ -122,6 +134,24 @@ export default async function EmployeeDetailsPage({
           <p>رواتب غير مدفوعة</p>
           <strong>{formatMoney(unpaidPayroll)}</strong>
           <span>المتبقي من سجلات الرواتب</span>
+        </div>
+      </section>
+
+      <section className="payroll-card">
+        <div className="payroll-card-header">
+          <div>
+            <span>Employee Financial Obligations</span>
+            <h3>ملخص الالتزامات المالية</h3>
+          </div>
+          <Link className="text-link" href={`/employee-financial-obligations?employee_id=${employee.id}`}>
+            عرض التفاصيل
+          </Link>
+        </div>
+        <div className="payroll-amount-grid">
+          <span className="payroll-amount warning"><small>السلف القائمة</small><strong>{formatMoney(obligationsSummary.outstandingAdvances)}</strong></span>
+          <span className="payroll-amount danger"><small>الديون القائمة</small><strong>{formatMoney(obligationsSummary.outstandingDebts)}</strong></span>
+          <span className="payroll-amount danger"><small>الغرامات المالية</small><strong>{formatMoney(obligationsSummary.outstandingFinancialPenalties)}</strong></span>
+          <span className="payroll-amount"><small>إجمالي الالتزامات</small><strong>{formatMoney(obligationsSummary.totalOutstanding)}</strong></span>
         </div>
       </section>
 

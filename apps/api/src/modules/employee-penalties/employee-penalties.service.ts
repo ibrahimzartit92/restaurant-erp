@@ -9,7 +9,7 @@ import { UndoActionEntity } from '../undo-actions/entities/undo-action.entity';
 import { UndoActionsService } from '../undo-actions/undo-actions.service';
 import { CreateEmployeePenaltyDto } from './dto/create-employee-penalty.dto';
 import { UpdateEmployeePenaltyDto } from './dto/update-employee-penalty.dto';
-import { EmployeePenaltyEntity } from './entities/employee-penalty.entity';
+import { EmployeePenaltyEntity, EmployeePenaltyStatus, EmployeePenaltyType } from './entities/employee-penalty.entity';
 
 @Injectable()
 export class EmployeePenaltiesService {
@@ -73,6 +73,10 @@ export class EmployeePenaltiesService {
       employeeId: employee.id,
       penaltyDate: createDto.penaltyDate,
       amount: Number(createDto.amount),
+      penaltyType: (createDto.penaltyType ?? EmployeePenaltyType.Financial) as EmployeePenaltyType,
+      recoveredAmount: 0,
+      remainingAmount: createDto.penaltyType === EmployeePenaltyType.NonFinancial ? 0 : Number(createDto.amount),
+      status: EmployeePenaltyStatus.Active,
       reason: this.normalizeOptionalText(createDto.reason),
       payrollMonth: createDto.payrollMonth ?? null,
       payrollYear: createDto.payrollYear ?? null,
@@ -81,7 +85,6 @@ export class EmployeePenaltiesService {
 
     return this.dataSource.transaction(async (manager) => {
       const savedPenalty = await manager.getRepository(EmployeePenaltyEntity).save(penalty);
-      await this.syncExistingPayroll(savedPenalty, manager);
       return savedPenalty;
     });
   }
@@ -134,6 +137,11 @@ export class EmployeePenaltiesService {
       employeeId: updateDto.employeeId ?? penalty.employeeId,
       penaltyDate: updateDto.penaltyDate ?? penalty.penaltyDate,
       amount: updateDto.amount !== undefined ? Number(updateDto.amount) : penalty.amount,
+      penaltyType: (updateDto.penaltyType ?? penalty.penaltyType) as EmployeePenaltyType,
+      remainingAmount:
+        updateDto.amount !== undefined
+          ? Math.max(this.roundMoney(Number(updateDto.amount) - Number(penalty.recoveredAmount ?? 0)), 0)
+          : penalty.remainingAmount,
       reason: updateDto.reason !== undefined ? this.normalizeOptionalText(updateDto.reason) : penalty.reason,
       payrollMonth: updateDto.payrollMonth !== undefined ? updateDto.payrollMonth : penalty.payrollMonth,
       payrollYear: updateDto.payrollYear !== undefined ? updateDto.payrollYear : penalty.payrollYear,
@@ -154,6 +162,10 @@ export class EmployeePenaltiesService {
       employeeId: penalty.employeeId,
       penaltyDate: penalty.penaltyDate,
       amount: penalty.amount,
+      penaltyType: penalty.penaltyType,
+      recoveredAmount: penalty.recoveredAmount,
+      remainingAmount: penalty.remainingAmount,
+      status: penalty.status,
       reason: penalty.reason,
       payrollMonth: penalty.payrollMonth,
       payrollYear: penalty.payrollYear,

@@ -15,6 +15,7 @@ import { DrawerDailySessionsModule } from './modules/drawer-daily-sessions/drawe
 import { DrawerTransactionsModule } from './modules/drawer-transactions/drawer-transactions.module';
 import { DrawersModule } from './modules/drawers/drawers.module';
 import { EmployeeAdvancesModule } from './modules/employee-advances/employee-advances.module';
+import { EmployeeFinancialObligationsModule } from './modules/employee-financial-obligations/employee-financial-obligations.module';
 import { EmployeePenaltiesModule } from './modules/employee-penalties/employee-penalties.module';
 import { EmployeesModule } from './modules/employees/employees.module';
 import { ExpenseCategoriesModule } from './modules/expense-categories/expense-categories.module';
@@ -61,6 +62,7 @@ import { WholesaleSalesModule } from './modules/wholesale-sales/wholesale-sales.
     DrawerTransactionsModule,
     DrawersModule,
     EmployeeAdvancesModule,
+    EmployeeFinancialObligationsModule,
     EmployeePenaltiesModule,
     EmployeesModule,
     ExpenseCategoriesModule,

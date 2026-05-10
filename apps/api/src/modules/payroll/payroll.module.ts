@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { EmployeeAdvanceEntity } from '../employee-advances/entities/employee-advance.entity';
+import { EmployeeFinancialObligationsModule } from '../employee-financial-obligations/employee-financial-obligations.module';
 import { EmployeePenaltyEntity } from '../employee-penalties/entities/employee-penalty.entity';
 import { EmployeesModule } from '../employees/employees.module';
 import { BankAccountEntity } from '../bank-accounts/entities/bank-account.entity';
@@ -25,6 +26,7 @@ import { PayrollRecordEntity } from './entities/payroll-record.entity';
       PayrollRecordEntity,
     ]),
     EmployeesModule,
+    EmployeeFinancialObligationsModule,
     UndoActionsModule,
     VaultsModule,
   ],

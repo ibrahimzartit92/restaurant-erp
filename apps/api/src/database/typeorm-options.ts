@@ -8,6 +8,8 @@ import { DrawerDailySessionEntity } from '../modules/drawer-daily-sessions/entit
 import { DrawerTransactionEntity } from '../modules/drawer-transactions/entities/drawer-transaction.entity';
 import { DrawerEntity } from '../modules/drawers/entities/drawer.entity';
 import { EmployeeAdvanceEntity } from '../modules/employee-advances/entities/employee-advance.entity';
+import { EmployeeDebtEntity } from '../modules/employee-financial-obligations/entities/employee-debt.entity';
+import { EmployeeObligationRepaymentEntity } from '../modules/employee-financial-obligations/entities/employee-obligation-repayment.entity';
 import { EmployeePenaltyEntity } from '../modules/employee-penalties/entities/employee-penalty.entity';
 import { EmployeeEntity } from '../modules/employees/entities/employee.entity';
 import { ExpenseCategoryEntity } from '../modules/expense-categories/entities/expense-category.entity';
@@ -55,6 +57,8 @@ export const databaseEntities = [
   DrawerEntity,
   EmployeeEntity,
   EmployeeAdvanceEntity,
+  EmployeeDebtEntity,
+  EmployeeObligationRepaymentEntity,
   EmployeePenaltyEntity,
   ExpenseCategoryEntity,
   ExpenseTypeEntity,

@@ -10,6 +10,18 @@ import {
 import { EmployeeEntity } from '../../employees/entities/employee.entity';
 import { PayrollRecordEntity } from '../../payroll/entities/payroll-record.entity';
 
+export enum EmployeePenaltyType {
+  Financial = 'financial',
+  NonFinancial = 'non_financial',
+}
+
+export enum EmployeePenaltyStatus {
+  Active = 'active',
+  PartiallyRecovered = 'partially_recovered',
+  Settled = 'settled',
+  Cancelled = 'cancelled',
+}
+
 const numericTransformer = {
   to: (value?: number | null) => value ?? 0,
   from: (value: string | null) => (value === null ? 0 : Number(value)),
@@ -37,6 +49,32 @@ export class EmployeePenaltyEntity {
     transformer: numericTransformer,
   })
   amount!: number;
+
+  @Column({ name: 'penalty_type', type: 'varchar', length: 40, default: EmployeePenaltyType.Financial })
+  penaltyType!: EmployeePenaltyType;
+
+  @Column({
+    name: 'recovered_amount',
+    type: 'numeric',
+    precision: 12,
+    scale: 2,
+    default: 0,
+    transformer: numericTransformer,
+  })
+  recoveredAmount!: number;
+
+  @Column({
+    name: 'remaining_amount',
+    type: 'numeric',
+    precision: 12,
+    scale: 2,
+    default: 0,
+    transformer: numericTransformer,
+  })
+  remainingAmount!: number;
+
+  @Column({ type: 'varchar', length: 40, default: EmployeePenaltyStatus.Active })
+  status!: EmployeePenaltyStatus;
 
   @Column({ type: 'varchar', length: 500, nullable: true })
   reason!: string | null;

@@ -7,26 +7,26 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { EmployeeEntity } from '../../employees/entities/employee.entity';
-import { DrawerEntity } from '../../drawers/entities/drawer.entity';
 import { BankAccountEntity } from '../../bank-accounts/entities/bank-account.entity';
-import { PayrollRecordEntity } from '../../payroll/entities/payroll-record.entity';
+import { DrawerEntity } from '../../drawers/entities/drawer.entity';
+import { EmployeeEntity } from '../../employees/entities/employee.entity';
+import { numericTransformer } from '../../expenses/expense-shared';
 import { VaultEntity } from '../../vaults/entities/vault.entity';
 
-export enum EmployeeObligationStatus {
+export enum EmployeeDebtRepaymentMode {
+  Installment = 'installment',
+  Manual = 'manual',
+}
+
+export enum EmployeeDebtStatus {
   Active = 'active',
   PartiallyRecovered = 'partially_recovered',
   Settled = 'settled',
   Cancelled = 'cancelled',
 }
 
-const numericTransformer = {
-  to: (value?: number | null) => value ?? 0,
-  from: (value: string | null) => (value === null ? 0 : Number(value)),
-};
-
-@Entity('employee_advances')
-export class EmployeeAdvanceEntity {
+@Entity('employee_debts')
+export class EmployeeDebtEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
@@ -37,39 +37,32 @@ export class EmployeeAdvanceEntity {
   @JoinColumn({ name: 'employee_id' })
   employee!: EmployeeEntity;
 
-  @Column({ name: 'advance_date', type: 'date' })
-  advanceDate!: string;
+  @Column({ name: 'debt_date', type: 'date' })
+  debtDate!: string;
 
-  @Column({
-    type: 'numeric',
-    precision: 12,
-    scale: 2,
-    transformer: numericTransformer,
-  })
+  @Column({ type: 'numeric', precision: 12, scale: 2, transformer: numericTransformer })
   amount!: number;
 
-  @Column({
-    name: 'recovered_amount',
-    type: 'numeric',
-    precision: 12,
-    scale: 2,
-    default: 0,
-    transformer: numericTransformer,
-  })
+  @Column({ name: 'recovered_amount', type: 'numeric', precision: 12, scale: 2, default: 0, transformer: numericTransformer })
   recoveredAmount!: number;
 
-  @Column({
-    name: 'remaining_amount',
-    type: 'numeric',
-    precision: 12,
-    scale: 2,
-    default: 0,
-    transformer: numericTransformer,
-  })
+  @Column({ name: 'remaining_amount', type: 'numeric', precision: 12, scale: 2, default: 0, transformer: numericTransformer })
   remainingAmount!: number;
 
-  @Column({ type: 'varchar', length: 40, default: EmployeeObligationStatus.Active })
-  status!: EmployeeObligationStatus;
+  @Column({ name: 'repayment_mode', type: 'varchar', length: 40, default: EmployeeDebtRepaymentMode.Manual })
+  repaymentMode!: EmployeeDebtRepaymentMode;
+
+  @Column({ name: 'installment_amount', type: 'numeric', precision: 12, scale: 2, default: 0, transformer: numericTransformer })
+  installmentAmount!: number;
+
+  @Column({ name: 'installment_start_month', type: 'int', nullable: true })
+  installmentStartMonth!: number | null;
+
+  @Column({ name: 'installment_start_year', type: 'int', nullable: true })
+  installmentStartYear!: number | null;
+
+  @Column({ type: 'varchar', length: 40, default: EmployeeDebtStatus.Active })
+  status!: EmployeeDebtStatus;
 
   @Column({ name: 'drawer_id', type: 'uuid', nullable: true })
   drawerId!: string | null;
@@ -91,19 +84,6 @@ export class EmployeeAdvanceEntity {
   @ManyToOne(() => VaultEntity, { eager: true, nullable: true })
   @JoinColumn({ name: 'vault_id' })
   vault!: VaultEntity | null;
-
-  @Column({ name: 'payroll_month', type: 'int', nullable: true })
-  payrollMonth!: number | null;
-
-  @Column({ name: 'payroll_year', type: 'int', nullable: true })
-  payrollYear!: number | null;
-
-  @Column({ name: 'payroll_record_id', type: 'uuid', nullable: true })
-  payrollRecordId!: string | null;
-
-  @ManyToOne(() => PayrollRecordEntity, { nullable: true })
-  @JoinColumn({ name: 'payroll_record_id' })
-  payrollRecord!: PayrollRecordEntity | null;
 
   @Column({ type: 'text', nullable: true })
   notes!: string | null;

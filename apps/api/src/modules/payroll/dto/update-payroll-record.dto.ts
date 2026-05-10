@@ -78,6 +78,11 @@ export class UpdatePayrollRecordDto {
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
+  debtDeductionAmount?: number;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
   otherDeductionAmount?: number;
 
   @IsOptional()

@@ -30,6 +30,7 @@ import { WholesaleSales1730000026000 } from './migrations/1730000026000-wholesal
 import { WholesaleSalesCollections1730000027000 } from './migrations/1730000027000-wholesale-sales-collections';
 import { WholesaleSalesStockMovementEnum1730000028000 } from './migrations/1730000028000-wholesale-sales-stock-movement-enum';
 import { ExpenseTypeHierarchy1730000029000 } from './migrations/1730000029000-expense-type-hierarchy';
+import { EmployeeFinancialObligations1730000030000 } from './migrations/1730000030000-employee-financial-obligations';
 import { databaseEntities } from './typeorm-options';
 
 export const AppDataSource = new DataSource({
@@ -67,6 +68,7 @@ export const AppDataSource = new DataSource({
     WholesaleSalesCollections1730000027000,
     WholesaleSalesStockMovementEnum1730000028000,
     ExpenseTypeHierarchy1730000029000,
+    EmployeeFinancialObligations1730000030000,
   ],
   synchronize: false,
 });

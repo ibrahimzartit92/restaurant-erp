@@ -1,6 +1,7 @@
 import {
   IsDateString,
   IsInt,
+  IsIn,
   IsNumber,
   IsOptional,
   IsString,
@@ -20,6 +21,10 @@ export class CreateEmployeePenaltyDto {
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0.01)
   amount!: number;
+
+  @IsOptional()
+  @IsIn(['financial', 'non_financial'])
+  penaltyType?: 'financial' | 'non_financial';
 
   @IsOptional()
   @IsString()

@@ -11,14 +11,14 @@ import {
   Min,
 } from 'class-validator';
 
-export class UpdateEmployeePenaltyDto {
+export class UpdateEmployeeDebtDto {
   @IsOptional()
   @IsUUID()
   employeeId?: string;
 
   @IsOptional()
   @IsDateString()
-  penaltyDate?: string;
+  debtDate?: string;
 
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
@@ -26,25 +26,37 @@ export class UpdateEmployeePenaltyDto {
   amount?: number;
 
   @IsOptional()
-  @IsIn(['financial', 'non_financial'])
-  penaltyType?: 'financial' | 'non_financial';
+  @IsIn(['installment', 'manual'])
+  repaymentMode?: 'installment' | 'manual';
 
   @IsOptional()
-  @IsString()
-  @MaxLength(500)
-  reason?: string | null;
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  installmentAmount?: number;
 
   @IsOptional()
   @IsInt()
   @Min(1)
   @Max(12)
-  payrollMonth?: number | null;
+  installmentStartMonth?: number | null;
 
   @IsOptional()
   @IsInt()
   @Min(2000)
   @Max(2100)
-  payrollYear?: number | null;
+  installmentStartYear?: number | null;
+
+  @IsOptional()
+  @IsUUID()
+  drawerId?: string | null;
+
+  @IsOptional()
+  @IsUUID()
+  bankAccountId?: string | null;
+
+  @IsOptional()
+  @IsUUID()
+  vaultId?: string | null;
 
   @IsOptional()
   @IsString()

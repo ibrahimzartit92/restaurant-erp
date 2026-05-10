@@ -82,6 +82,9 @@ export class PayrollRecordEntity {
   @Column({ name: 'penalties_deduction_amount', type: 'numeric', precision: 12, scale: 2, default: 0, transformer: numericTransformer })
   penaltiesDeductionAmount!: number;
 
+  @Column({ name: 'debt_deduction_amount', type: 'numeric', precision: 12, scale: 2, default: 0, transformer: numericTransformer })
+  debtDeductionAmount!: number;
+
   @Column({ name: 'other_deduction_amount', type: 'numeric', precision: 12, scale: 2, default: 0, transformer: numericTransformer })
   otherDeductionAmount!: number;
 

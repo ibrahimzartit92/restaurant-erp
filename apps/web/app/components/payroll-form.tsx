@@ -21,6 +21,7 @@ function computeNetSalary(values: {
   extraHoursAmount: number;
   allowancesAmount: number;
   advancesDeductionAmount: number;
+  debtDeductionAmount: number;
   penaltiesDeductionAmount: number;
   otherDeductionAmount: number;
 }) {
@@ -29,6 +30,7 @@ function computeNetSalary(values: {
     values.extraHoursAmount +
     values.allowancesAmount -
     values.advancesDeductionAmount -
+    values.debtDeductionAmount -
     values.penaltiesDeductionAmount -
     values.otherDeductionAmount
   );
@@ -86,6 +88,7 @@ export function PayrollForm({
     extraHourRate: String(initialPayroll?.extraHourRate ?? initialEmployee?.hourlyRate ?? 0),
     allowancesAmount: String(initialPayroll?.allowancesAmount ?? 0),
     advancesDeductionAmount: String(initialPayroll?.advancesDeductionAmount ?? 0),
+    debtDeductionAmount: String(initialPayroll?.debtDeductionAmount ?? 0),
     penaltiesDeductionAmount: String(initialPayroll?.penaltiesDeductionAmount ?? 0),
     otherDeductionAmount: String(initialPayroll?.otherDeductionAmount ?? 0),
   });
@@ -111,6 +114,7 @@ export function PayrollForm({
       extraHoursAmount,
       allowancesAmount: asNumber(salaryValues.allowancesAmount),
       advancesDeductionAmount: asNumber(salaryValues.advancesDeductionAmount),
+      debtDeductionAmount: asNumber(salaryValues.debtDeductionAmount),
       penaltiesDeductionAmount: asNumber(salaryValues.penaltiesDeductionAmount),
       otherDeductionAmount: asNumber(salaryValues.otherDeductionAmount),
     }).toFixed(2),
@@ -134,6 +138,7 @@ export function PayrollForm({
         extraHours: '0',
         extraHourRate: String(employee.hourlyRate ?? 0),
         advancesDeductionAmount: '0',
+        debtDeductionAmount: '0',
         penaltiesDeductionAmount: '0',
       }));
     }
@@ -171,6 +176,7 @@ export function PayrollForm({
       extraHourRate: asNumber(salaryValues.extraHourRate),
       allowancesAmount: asNumber(salaryValues.allowancesAmount),
       advancesDeductionAmount: asNumber(salaryValues.advancesDeductionAmount),
+      debtDeductionAmount: asNumber(salaryValues.debtDeductionAmount),
       penaltiesDeductionAmount: asNumber(salaryValues.penaltiesDeductionAmount),
       otherDeductionAmount: asNumber(salaryValues.otherDeductionAmount),
       netSalary,
@@ -259,8 +265,12 @@ export function PayrollForm({
           <input readOnly value={salaryValues.advancesDeductionAmount} min="0" step="0.01" type="number" />
         </label>
         <label>
-          خصم العقوبات (تلقائي)
-          <input readOnly value={salaryValues.penaltiesDeductionAmount} min="0" step="0.01" type="number" />
+          خصم الديون المطلوب
+          <input value={salaryValues.debtDeductionAmount} onChange={(event) => updateSalaryField('debtDeductionAmount', event.target.value)} min="0" step="0.01" type="number" />
+        </label>
+        <label>
+          خصم الغرامات المالية المطلوب
+          <input value={salaryValues.penaltiesDeductionAmount} onChange={(event) => updateSalaryField('penaltiesDeductionAmount', event.target.value)} min="0" step="0.01" type="number" />
         </label>
         <label>
           خصومات أخرى
@@ -273,7 +283,7 @@ export function PayrollForm({
       </div>
 
       <p className="field-hint">
-        صافي الراتب يتم احتسابه تلقائيًا عند الحفظ. السلف والعقوبات المرتبطة بنفس الشهر والسنة تُخصم مرة واحدة فقط.
+        يبدأ الراتب من كامل الاستحقاق. السلف النشطة لنفس الشهر تخصم تلقائيًا أولًا، ثم يخصم النظام الديون والغرامات المالية حسب المبالغ المختارة وبقدر ما يسمح به الراتب.
       </p>
 
       <PaymentSourceRows

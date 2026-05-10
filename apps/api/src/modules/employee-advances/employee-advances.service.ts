@@ -21,7 +21,7 @@ import { VaultTransactionDirection, VaultTransactionType } from '../vaults/entit
 import { VaultsService } from '../vaults/vaults.service';
 import { CreateEmployeeAdvanceDto } from './dto/create-employee-advance.dto';
 import { UpdateEmployeeAdvanceDto } from './dto/update-employee-advance.dto';
-import { EmployeeAdvanceEntity } from './entities/employee-advance.entity';
+import { EmployeeAdvanceEntity, EmployeeObligationStatus } from './entities/employee-advance.entity';
 
 @Injectable()
 export class EmployeeAdvancesService {
@@ -91,6 +91,9 @@ export class EmployeeAdvancesService {
       employeeId: employee.id,
       advanceDate: createDto.advanceDate,
       amount: Number(createDto.amount),
+      recoveredAmount: 0,
+      remainingAmount: Number(createDto.amount),
+      status: EmployeeObligationStatus.Active,
       drawerId: source.drawerId,
       bankAccountId: source.bankAccountId,
       vaultId: source.vaultId,
@@ -102,7 +105,6 @@ export class EmployeeAdvancesService {
     return this.dataSource.transaction(async (manager) => {
       const savedAdvance = await manager.getRepository(EmployeeAdvanceEntity).save(advance);
       await this.recreateFinancialMovement(savedAdvance, manager);
-      await this.syncExistingPayroll(savedAdvance, manager);
       return savedAdvance;
     });
   }
@@ -127,6 +129,10 @@ export class EmployeeAdvancesService {
       employeeId: updateDto.employeeId ?? advance.employeeId,
       advanceDate: updateDto.advanceDate ?? advance.advanceDate,
       amount: updateDto.amount !== undefined ? Number(updateDto.amount) : advance.amount,
+      remainingAmount:
+        updateDto.amount !== undefined
+          ? Math.max(this.roundMoney(Number(updateDto.amount) - Number(advance.recoveredAmount ?? 0)), 0)
+          : advance.remainingAmount,
       drawerId: source.drawerId,
       bankAccountId: source.bankAccountId,
       vaultId: source.vaultId,
@@ -142,7 +148,6 @@ export class EmployeeAdvancesService {
         await this.recalculatePayrollById(previousPayrollRecordId, manager);
       }
       await this.recreateFinancialMovement(savedAdvance, manager);
-      await this.syncExistingPayroll(savedAdvance, manager);
       return savedAdvance;
     });
   }
@@ -197,7 +202,6 @@ export class EmployeeAdvancesService {
       await this.vaultsService.deleteFinancialMovement('employee_advance_vault_reversal', restoredAdvance.id, manager);
       const saved = await manager.getRepository(EmployeeAdvanceEntity).save(restoredAdvance);
       await this.recreateFinancialMovement(saved, manager);
-      await this.syncExistingPayroll(saved, manager);
       return saved;
     });
   }
@@ -368,6 +372,9 @@ export class EmployeeAdvancesService {
       employeeId: advance.employeeId,
       advanceDate: advance.advanceDate,
       amount: advance.amount,
+      recoveredAmount: advance.recoveredAmount,
+      remainingAmount: advance.remainingAmount,
+      status: advance.status,
       drawerId: advance.drawerId,
       bankAccountId: advance.bankAccountId,
       vaultId: advance.vaultId,

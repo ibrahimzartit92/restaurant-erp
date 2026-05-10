@@ -14,6 +14,7 @@ import {
 } from '../drawer-transactions/entities/drawer-transaction.entity';
 import { DrawerEntity } from '../drawers/entities/drawer.entity';
 import { EmployeeAdvanceEntity } from '../employee-advances/entities/employee-advance.entity';
+import { EmployeeFinancialObligationsService } from '../employee-financial-obligations/employee-financial-obligations.service';
 import { EmployeePenaltyEntity } from '../employee-penalties/entities/employee-penalty.entity';
 import { EmployeesService } from '../employees/employees.service';
 import { FinancialPaymentMethod, PaymentAllocationDto } from '../shared/payment-allocation.dto';
@@ -41,6 +42,7 @@ export class PayrollService {
     @InjectRepository(EmployeePenaltyEntity)
     private readonly employeePenaltyRepository: Repository<EmployeePenaltyEntity>,
     private readonly employeesService: EmployeesService,
+    private readonly obligationsService: EmployeeFinancialObligationsService,
     private readonly vaultsService: VaultsService,
     private readonly undoActionsService: UndoActionsService,
   ) {}
@@ -103,24 +105,24 @@ export class PayrollService {
     const employee = await this.employeesService.findByIdOrFail(createDto.employeeId);
     await this.ensureUniquePayroll(createDto.employeeId, createDto.payrollMonth, createDto.payrollYear);
     const salaryComponents = this.resolveSalaryComponents(createDto, employee);
-    const automaticDeductions = await this.calculateAutomaticDeductions(
-      createDto.employeeId,
-      createDto.payrollMonth,
-      createDto.payrollYear,
-    );
-    const advancesDeductionAmount = this.roundMoney(automaticDeductions.advances);
-    const penaltiesDeductionAmount = this.roundMoney(automaticDeductions.penalties);
+    const advancesDeductionAmount = 0;
+    const debtDeductionAmount = 0;
+    const penaltiesDeductionAmount = 0;
     const otherDeductionAmount = Number(createDto.otherDeductionAmount ?? 0);
+    const grossSalary = this.roundMoney(
+      salaryComponents.baseSalary + salaryComponents.extraHoursAmount + Number(createDto.allowancesAmount ?? 0),
+    );
 
     const netSalary = this.calculateNetSalary({
       baseSalary: salaryComponents.baseSalary,
       extraHoursAmount: salaryComponents.extraHoursAmount,
       allowancesAmount: Number(createDto.allowancesAmount ?? 0),
       advancesDeductionAmount,
+      debtDeductionAmount,
       penaltiesDeductionAmount,
       otherDeductionAmount,
     });
-    const paymentAllocations = await this.resolvePaymentAllocations(createDto.payments, netSalary);
+    const paymentAllocations = await this.resolvePaymentAllocations(createDto.payments, grossSalary);
     const paidAmount = this.roundMoney(paymentAllocations.reduce((sum, payment) => sum + payment.amount, 0));
     const payroll = this.payrollRepository.create({
       employeeId: createDto.employeeId,
@@ -135,6 +137,7 @@ export class PayrollService {
       extraHoursAmount: salaryComponents.extraHoursAmount,
       allowancesAmount: Number(createDto.allowancesAmount ?? 0),
       advancesDeductionAmount,
+      debtDeductionAmount,
       penaltiesDeductionAmount,
       otherDeductionAmount,
       netSalary,
@@ -147,7 +150,33 @@ export class PayrollService {
 
     return this.dataSource.transaction(async (manager) => {
       const saved = await manager.getRepository(PayrollRecordEntity).save(payroll);
-      await this.syncDeductionLinks(saved, manager);
+      const deductions = await this.obligationsService.applyPayrollDeductions(
+        saved,
+        {
+          grossSalary,
+          requestedDebtDeductionAmount: Number(createDto.debtDeductionAmount ?? 0),
+          requestedPenaltyDeductionAmount: Number(createDto.penaltiesDeductionAmount ?? 0),
+        },
+        manager,
+      );
+      saved.advancesDeductionAmount = deductions.advances;
+      saved.debtDeductionAmount = deductions.debts;
+      saved.penaltiesDeductionAmount = deductions.penalties;
+      saved.netSalary = this.calculateNetSalary({
+        baseSalary: saved.baseSalary,
+        extraHoursAmount: saved.extraHoursAmount,
+        allowancesAmount: saved.allowancesAmount,
+        advancesDeductionAmount: saved.advancesDeductionAmount,
+        debtDeductionAmount: saved.debtDeductionAmount,
+        penaltiesDeductionAmount: saved.penaltiesDeductionAmount,
+        otherDeductionAmount: saved.otherDeductionAmount,
+      });
+      if (saved.paidAmount > saved.netSalary) {
+        throw new ConflictException('Payroll payments cannot exceed the net salary after obligations deductions.');
+      }
+      saved.remainingAmount = this.roundMoney(saved.netSalary - saved.paidAmount);
+      saved.paymentStatus = this.resolvePaymentStatus(saved.netSalary, saved.paidAmount);
+      await manager.getRepository(PayrollRecordEntity).save(saved);
       await this.recreateFinancialMovement(saved, manager);
       return saved;
     });
@@ -162,7 +191,6 @@ export class PayrollService {
     const employee = await this.employeesService.findByIdOrFail(employeeId);
 
     await this.ensureUniquePayroll(employeeId, payrollMonth, payrollYear, id);
-    const automaticDeductions = await this.calculateAutomaticDeductions(employeeId, payrollMonth, payrollYear, id);
     const salaryComponents = this.resolveSalaryComponents(
       {
         ...updateDto,
@@ -178,8 +206,9 @@ export class PayrollService {
     const baseSalary = salaryComponents.baseSalary;
     const allowancesAmount =
       updateDto.allowancesAmount !== undefined ? Number(updateDto.allowancesAmount) : payroll.allowancesAmount;
-    const advancesDeductionAmount = this.roundMoney(automaticDeductions.advances);
-    const penaltiesDeductionAmount = this.roundMoney(automaticDeductions.penalties);
+    const advancesDeductionAmount = 0;
+    const debtDeductionAmount = 0;
+    const penaltiesDeductionAmount = 0;
     const otherDeductionAmount =
       updateDto.otherDeductionAmount !== undefined ? Number(updateDto.otherDeductionAmount) : payroll.otherDeductionAmount;
 
@@ -188,6 +217,7 @@ export class PayrollService {
       extraHoursAmount: salaryComponents.extraHoursAmount,
       allowancesAmount,
       advancesDeductionAmount,
+      debtDeductionAmount,
       penaltiesDeductionAmount,
       otherDeductionAmount,
     });
@@ -210,6 +240,7 @@ export class PayrollService {
       extraHoursAmount: salaryComponents.extraHoursAmount,
       allowancesAmount,
       advancesDeductionAmount,
+      debtDeductionAmount,
       penaltiesDeductionAmount,
       otherDeductionAmount,
       netSalary,
@@ -222,7 +253,34 @@ export class PayrollService {
 
     return this.dataSource.transaction(async (manager) => {
       const saved = await manager.getRepository(PayrollRecordEntity).save(payroll);
-      await this.syncDeductionLinks(saved, manager);
+      const grossSalary = this.roundMoney(saved.baseSalary + saved.extraHoursAmount + saved.allowancesAmount);
+      const deductions = await this.obligationsService.applyPayrollDeductions(
+        saved,
+        {
+          grossSalary,
+          requestedDebtDeductionAmount: Number(updateDto.debtDeductionAmount ?? payroll.debtDeductionAmount ?? 0),
+          requestedPenaltyDeductionAmount: Number(updateDto.penaltiesDeductionAmount ?? payroll.penaltiesDeductionAmount ?? 0),
+        },
+        manager,
+      );
+      saved.advancesDeductionAmount = deductions.advances;
+      saved.debtDeductionAmount = deductions.debts;
+      saved.penaltiesDeductionAmount = deductions.penalties;
+      saved.netSalary = this.calculateNetSalary({
+        baseSalary: saved.baseSalary,
+        extraHoursAmount: saved.extraHoursAmount,
+        allowancesAmount: saved.allowancesAmount,
+        advancesDeductionAmount: saved.advancesDeductionAmount,
+        debtDeductionAmount: saved.debtDeductionAmount,
+        penaltiesDeductionAmount: saved.penaltiesDeductionAmount,
+        otherDeductionAmount: saved.otherDeductionAmount,
+      });
+      if (saved.paidAmount > saved.netSalary) {
+        throw new ConflictException('Payroll payments cannot exceed the net salary after obligations deductions.');
+      }
+      saved.remainingAmount = this.roundMoney(saved.netSalary - saved.paidAmount);
+      saved.paymentStatus = this.resolvePaymentStatus(saved.netSalary, saved.paidAmount);
+      await manager.getRepository(PayrollRecordEntity).save(saved);
       await this.recreateFinancialMovement(saved, manager);
       return saved;
     });
@@ -468,6 +526,7 @@ export class PayrollService {
     extraHoursAmount: number;
     allowancesAmount: number;
     advancesDeductionAmount: number;
+    debtDeductionAmount: number;
     penaltiesDeductionAmount: number;
     otherDeductionAmount: number;
   }) {
@@ -476,6 +535,7 @@ export class PayrollService {
         values.extraHoursAmount +
         values.allowancesAmount -
         values.advancesDeductionAmount -
+        values.debtDeductionAmount -
         values.penaltiesDeductionAmount -
         values.otherDeductionAmount,
     );
@@ -500,6 +560,7 @@ export class PayrollService {
       extraHoursAmount: payroll.extraHoursAmount,
       allowancesAmount: payroll.allowancesAmount,
       advancesDeductionAmount: payroll.advancesDeductionAmount,
+      debtDeductionAmount: payroll.debtDeductionAmount,
       penaltiesDeductionAmount: payroll.penaltiesDeductionAmount,
       otherDeductionAmount: payroll.otherDeductionAmount,
       netSalary: payroll.netSalary,
