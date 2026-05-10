@@ -79,7 +79,13 @@ export class ExpenseTypeHierarchy1730000029000 implements MigrationInterface {
       UPDATE expenses
       SET paid_amount = COALESCE(
         (
-          SELECT SUM(COALESCE((payment ->> 'amount')::numeric, 0))
+          SELECT SUM(
+            CASE
+              WHEN COALESCE(payment ->> 'amount', '') ~ '^[0-9]+(\\.[0-9]+)?$'
+              THEN (payment ->> 'amount')::numeric
+              ELSE 0
+            END
+          )
           FROM jsonb_array_elements(COALESCE(payment_allocations, '[]'::jsonb)) payment
         ),
         CASE WHEN payment_allocations IS NULL AND payment_method IN ('cash', 'bank', 'vault') THEN amount ELSE 0 END
