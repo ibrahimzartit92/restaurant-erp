@@ -1910,9 +1910,104 @@ tr:last-child td {
   color: var(--primary-strong);
 }
 
+.status-badge.warning {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+.status-badge.danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.status-badge.info {
+  background: #e8f0f7;
+  color: var(--blue);
+}
+
 .status-badge.muted {
   background: #eceff3;
   color: var(--muted);
+}
+
+.compact-table table.compact-readable-table,
+.compact-readable-table {
+  min-width: 0;
+}
+
+.compact-readable-table th,
+.compact-readable-table td {
+  padding: 10px 12px;
+  white-space: normal;
+}
+
+.compact-readable-table th {
+  width: 34%;
+}
+
+.compact-readable-table td {
+  font-weight: 800;
+}
+
+.app-modal {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+  padding: 0;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.22);
+}
+
+.app-modal::backdrop {
+  background: rgba(15, 23, 42, 0.28);
+}
+
+.app-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  padding: 12px 14px;
+}
+
+.app-modal-body {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.compact-actions-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.compact-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.compact-panel {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  padding: 10px 12px;
+}
+
+.compact-table-rows table {
+  min-width: 0;
+}
+
+.compact-table-rows th,
+.compact-table-rows td {
+  padding: 9px 10px;
+}
+
+.inline-form-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
 }
 
 .empty-state {

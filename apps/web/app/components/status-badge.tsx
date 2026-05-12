@@ -2,11 +2,11 @@ const labels: Record<string, string> = {
   completed: 'مكتمل',
   draft: 'مسودة',
   open: 'مفتوحة',
-  partially_paid: 'مدفوعة جزئياً',
+  partially_paid: 'مدفوعة جزئيًا',
   paid: 'مدفوعة',
   cancelled: 'ملغاة',
   closed: 'مغلقة',
-  cash: 'نقداً',
+  cash: 'نقدًا',
   bank: 'بنكي',
   other: 'أخرى',
   all_branches: 'جميع الفروع',
@@ -27,12 +27,18 @@ const labels: Record<string, string> = {
   outgoing: 'خارج',
 };
 
-export function StatusBadge({ value }: Readonly<{ value?: string | boolean | null }>) {
+export function StatusBadge({
+  value,
+  className = '',
+}: Readonly<{
+  value?: string | boolean | null;
+  className?: string;
+}>) {
   if (typeof value === 'boolean') {
-    return <span className={`status-badge ${value ? 'success' : 'muted'}`}>{value ? 'نشط' : 'متوقف'}</span>;
+    return <span className={`status-badge ${value ? 'success' : 'muted'} ${className}`.trim()}>{value ? 'نشط' : 'متوقف'}</span>;
   }
 
   const normalized = value ?? 'غير محدد';
 
-  return <span className="status-badge">{labels[normalized] ?? normalized}</span>;
+  return <span className={`status-badge ${className}`.trim()}>{labels[normalized] ?? normalized}</span>;
 }

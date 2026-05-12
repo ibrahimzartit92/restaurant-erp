@@ -341,26 +341,24 @@ export function DailySalesClosingWizard({
           {step === 6 ? (
             <>
               <h3>الملخص النهائي</h3>
-              <div className="form-grid">
-                <div className="table-wrap compact-table">
-                  <table>
-                    <tbody>
-                      <tr><th>الفرع</th><td>{selectedBranch?.name ?? '-'}</td></tr>
-                      <tr><th>تاريخ الإقفال</th><td>{closingDate}</td></tr>
-                      <tr><th>مصروفات الدرج</th><td>{money(summary?.drawerPaidExpensesAmount)}</td></tr>
-                      <tr><th>مصروفات البنك</th><td>{money(summary?.bankPaidExpensesAmount)}</td></tr>
-                      <tr><th>مشتريات الدرج</th><td>{money(summary?.cashPurchasesFromDrawer)}</td></tr>
-                      <tr><th>مبيعات داخل الفرع البنكية</th><td>{money(summary?.inStoreCardSalesAmount)}</td></tr>
-                      <tr><th>مبيعات التوصيل</th><td>{money(summary?.deliverySalesAmount)}</td></tr>
-                      <tr><th>مبيعات الموقع نقدًا</th><td>{money(summary?.websiteCashSales)}</td></tr>
-                      <tr><th>مبيعات الموقع بنكيًا</th><td>{money(summary?.websiteBankSalesAmount)}</td></tr>
-                      <tr><th>تحصيلات الجملة النقدية</th><td>{money(summary?.wholesaleCashCollections)}</td></tr>
-                      <tr><th>المبلغ المستلم من المحاسب</th><td>{money(summary?.handedCashAmount)}</td></tr>
-                      <tr><th>إجمالي المبيعات اليومية</th><td>{money(summary?.reconciledTotalDailySales)}</td></tr>
-                      <tr><th>تحويل الخزنة</th><td>{money(summary?.vaultTransferAmount)}</td></tr>
-                    </tbody>
-                  </table>
-                </div>
+              <div className="table-wrap compact-table">
+                <table className="compact-readable-table">
+                  <tbody>
+                    <tr><th>الفرع</th><td>{selectedBranch?.name ?? '-'}</td></tr>
+                    <tr><th>تاريخ الإقفال</th><td>{closingDate}</td></tr>
+                    <tr><th>مصروفات الدرج</th><td>{money(summary?.drawerPaidExpensesAmount)}</td></tr>
+                    <tr><th>مصروفات البنك</th><td>{money(summary?.bankPaidExpensesAmount)}</td></tr>
+                    <tr><th>مشتريات الدرج</th><td>{money(summary?.cashPurchasesFromDrawer)}</td></tr>
+                    <tr><th>مبيعات داخل الفرع البنكية</th><td>{money(summary?.inStoreCardSalesAmount)}</td></tr>
+                    <tr><th>مبيعات التوصيل</th><td>{money(summary?.deliverySalesAmount)}</td></tr>
+                    <tr><th>مبيعات الموقع نقدًا</th><td>{money(summary?.websiteCashSales)}</td></tr>
+                    <tr><th>مبيعات الموقع بنكيًا</th><td>{money(summary?.websiteBankSalesAmount)}</td></tr>
+                    <tr><th>تحصيلات الجملة النقدية</th><td>{money(summary?.wholesaleCashCollections)}</td></tr>
+                    <tr><th>المبلغ المستلم من المحاسب</th><td>{money(summary?.handedCashAmount)}</td></tr>
+                    <tr><th>إجمالي المبيعات اليومية</th><td>{money(summary?.reconciledTotalDailySales)}</td></tr>
+                    <tr><th>تحويل الخزنة</th><td>{money(summary?.vaultTransferAmount)}</td></tr>
+                  </tbody>
+                </table>
               </div>
               {!readOnly ? <button disabled={isSaving || !closing?.id} onClick={finish} type="button">{isSaving ? 'جار الإنهاء...' : 'إنهاء الإقفال'}</button> : null}
               {closing?.status === 'finalized' ? <button className="danger-button" onClick={cancelWithReversal} type="button">إلغاء مع عكس الأثر المالي</button> : null}

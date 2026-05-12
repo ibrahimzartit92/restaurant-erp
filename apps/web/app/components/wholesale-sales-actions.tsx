@@ -56,11 +56,13 @@ export function TransferWholesaleCashForm({
   drawers,
   vaults,
   availableAmount,
+  onSuccess,
 }: Readonly<{
   invoiceId: string;
   drawers: DrawerOption[];
   vaults: VaultOption[];
   availableAmount: number;
+  onSuccess?: () => Promise<void> | void;
 }>) {
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
@@ -72,7 +74,6 @@ export function TransferWholesaleCashForm({
     event.stopPropagation();
     if (isSaving) return;
     if (!hasPersistedInvoiceId) {
-      console.warn('Wholesale cash transfer submit blocked: missing persisted invoice id.');
       setMessage('يجب حفظ الفاتورة أولًا قبل تحويل التحصيل النقدي.');
       return;
     }
@@ -87,6 +88,7 @@ export function TransferWholesaleCashForm({
         transferDate: String(formData.get('transferDate') ?? ''),
         notes: String(formData.get('notes') ?? '').trim() || null,
       });
+      await onSuccess?.();
       setMessage('تم تحويل التحصيل النقدي إلى الخزنة.');
       router.refresh();
     } catch (error) {
@@ -155,6 +157,7 @@ export function WholesalePaymentBatchForm({
   drawers,
   vaults,
   bankAccounts,
+  onSuccess,
 }: Readonly<{
   invoiceId: string;
   branchId: string;
@@ -162,6 +165,7 @@ export function WholesalePaymentBatchForm({
   drawers: DrawerOption[];
   vaults: VaultOption[];
   bankAccounts: BankAccountOption[];
+  onSuccess?: () => Promise<void> | void;
 }>) {
   const router = useRouter();
   const [rows, setRows] = useState<CollectionRow[]>([createCollectionRow(undefined, remainingAmount > 0 ? String(remainingAmount) : '')]);
@@ -171,15 +175,12 @@ export function WholesalePaymentBatchForm({
   const formId = `wholesale-collections-form-${invoiceId || 'missing'}`;
 
   async function submitCollections() {
-    console.log('Wholesale collection submit handler started.', { invoiceId });
     if (isSaving) return;
     if (!hasPersistedInvoiceId) {
-      console.warn('Wholesale collection submit blocked: missing persisted invoice id.');
       setMessage('يجب حفظ الفاتورة أولًا قبل تسجيل التحصيلات.');
       return;
     }
     if (!UUID_PATTERN.test(branchId)) {
-      console.warn('Wholesale collection submit blocked: invalid invoice branch id.', { branchId });
       setMessage('فرع الفاتورة غير صالح، لا يمكن تسجيل التحصيل.');
       return;
     }
@@ -189,10 +190,11 @@ export function WholesalePaymentBatchForm({
       setMessage(validation);
       return;
     }
+
     setIsSaving(true);
     setMessage(null);
     try {
-      const payload = {
+      await submitJson(`/wholesale-sales-invoices/${invoiceId}/payments/batch`, 'POST', {
         invoiceId,
         branchId,
         paymentDate: activeRows[0]?.collectionDate ?? new Date().toISOString().slice(0, 10),
@@ -200,15 +202,10 @@ export function WholesalePaymentBatchForm({
           ...toBackendCollection(row),
           branchId,
         })),
-      };
-      console.log('Wholesale collection submitJson request.', {
-        path: `/wholesale-sales-invoices/${invoiceId}/payments/batch`,
-        rowCount: activeRows.length,
       });
-      console.log(JSON.stringify(payload, null, 2));
-      await submitJson(`/wholesale-sales-invoices/${invoiceId}/payments/batch`, 'POST', payload);
+      await onSuccess?.();
       setRows([createCollectionRow()]);
-      setMessage('تم تسجيل التحصيلات.');
+      setMessage('تم تسجيل التحصيلات بنجاح.');
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'تعذر تسجيل التحصيلات.');
@@ -218,12 +215,6 @@ export function WholesalePaymentBatchForm({
   }
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    event.stopPropagation();
-    void submitCollections();
-  }
-
-  function handleSaveClick(event: React.MouseEvent<HTMLButtonElement>) {
     event.preventDefault();
     event.stopPropagation();
     void submitCollections();
@@ -241,19 +232,19 @@ export function WholesalePaymentBatchForm({
     <form className="stacked-sections" id={formId} method="post" onSubmit={handleSubmit}>
       {message ? <p className={message.startsWith('تم') ? 'notice success' : 'notice danger'}>{message}</p> : null}
       <CollectionDestinationRows
-        rows={rows}
-        onChange={setRows}
-        drawers={drawers}
-        vaults={vaults}
-        bankAccounts={bankAccounts}
-        title="إضافة تحصيلات"
-        description="سجل تحصيلًا واردًا إلى الدرج أو الخزنة أو الحساب البنكي."
-        totalAmount={remainingAmount}
-        showRemaining
         allowSettleRemaining
+        bankAccounts={bankAccounts}
+        description="سجل التحصيل إلى الدرج أو الخزنة أو الحساب البنكي، وسيتم تحديث الفاتورة فورًا بعد الحفظ."
+        drawers={drawers}
+        onChange={setRows}
+        rows={rows}
+        showRemaining
+        title="إضافة تحصيلات"
+        totalAmount={remainingAmount}
+        vaults={vaults}
       />
       <div className="form-actions">
-        <button disabled={isSaving} form={formId} onClick={handleSaveClick} type="button">
+        <button disabled={isSaving} form={formId} type="submit">
           {isSaving ? 'جار التسجيل...' : 'تسجيل التحصيلات'}
         </button>
       </div>

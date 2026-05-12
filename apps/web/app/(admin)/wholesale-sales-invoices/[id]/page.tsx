@@ -1,10 +1,6 @@
-import Link from 'next/link';
 import { PageHeader } from '../../../components/page-header';
-import {
-  TransferWholesaleCashForm,
-  WholesaleInvoiceStatusActions,
-  WholesalePaymentBatchForm,
-} from '../../../components/wholesale-sales-actions';
+import { WholesaleInvoiceStatusActions } from '../../../components/wholesale-sales-actions';
+import { WholesaleInvoiceCollectionsPanel } from '../../../components/wholesale-invoice-collections-panel';
 import { fetchList, fetchOne, formatDate, formatMoney } from '../../../lib/api';
 import type { BankAccountOption, DrawerOption, VaultOption, WholesaleSalesInvoiceSummary } from '../../../lib/types';
 
@@ -20,12 +16,6 @@ const collectionLabels: Record<WholesaleSalesInvoiceSummary['paymentStatus'], st
   paid: 'محصلة بالكامل',
 };
 
-function collectionDestination(payment: NonNullable<WholesaleSalesInvoiceSummary['payments']>[number]) {
-  if (payment.paymentMethod === 'cash') return payment.drawer?.name ? `درج: ${payment.drawer.name}` : 'درج';
-  if (payment.paymentMethod === 'vault') return payment.vault?.name ? `خزنة: ${payment.vault.name}` : 'خزنة';
-  return payment.bankAccount?.name ? `حساب بنكي: ${payment.bankAccount.name}` : 'حساب بنكي';
-}
-
 export default async function WholesaleSalesInvoiceDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const [invoiceResult, drawersResult, vaultsResult, bankAccountsResult] = await Promise.all([
@@ -35,14 +25,10 @@ export default async function WholesaleSalesInvoiceDetailsPage({ params }: { par
     fetchList<BankAccountOption>('/bank-accounts'),
   ]);
   const invoice = invoiceResult.data;
-  const cashCollected = (invoice?.payments ?? [])
-    .filter((payment) => payment.paymentMethod === 'cash')
-    .reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0);
-  const transferableCash = Math.max(cashCollected - Number(invoice?.cashTransferredAmount ?? 0), 0);
 
   return (
     <>
-      <PageHeader title="تفاصيل فاتورة بيع الجملة" description="عرض الفاتورة، التحصيلات، تحذيرات المخزون، وخيارات التصدير والتحويل اليدوي للخزنة." />
+      <PageHeader title="تفاصيل فاتورة بيع الجملة" description="عرض الفاتورة، التحصيلات، وتحويل النقد إلى الخزنة مع تحديث فوري للبيانات." />
       {invoiceResult.error ? <p className="notice danger">{invoiceResult.error}</p> : null}
       {invoice ? (
         <>
@@ -72,7 +58,7 @@ export default async function WholesaleSalesInvoiceDetailsPage({ params }: { par
               <span className="payroll-amount"><small>المحصل</small><strong>{formatMoney(invoice.paidAmount)}</strong></span>
               <span className="payroll-amount"><small>المتبقي للتحصيل</small><strong>{formatMoney(invoice.remainingAmount)}</strong></span>
             </div>
-            <WholesaleInvoiceStatusActions invoiceId={invoice.id} canApprove={invoice.documentStatus === 'draft'} />
+            <WholesaleInvoiceStatusActions canApprove={invoice.documentStatus === 'draft'} invoiceId={invoice.id} />
           </section>
 
           {invoice.stockWarnings?.length ? (
@@ -86,7 +72,7 @@ export default async function WholesaleSalesInvoiceDetailsPage({ params }: { par
             </section>
           ) : null}
 
-          <section className="table-wrap">
+          <section className="table-wrap compact-table-rows">
             <table>
               <thead>
                 <tr>
@@ -109,69 +95,12 @@ export default async function WholesaleSalesInvoiceDetailsPage({ params }: { par
             </table>
           </section>
 
-          <section className="payroll-card">
-            <div className="payroll-card-header">
-              <div>
-                <span>تحصيلات الفاتورة</span>
-                <h3>تسجيل تحصيل جديد</h3>
-                <p>يدعم التحصيل الجزئي أو الكامل إلى الدرج أو الخزنة أو الحساب البنكي.</p>
-              </div>
-            </div>
-            <WholesalePaymentBatchForm
-              invoiceId={invoice.id}
-              branchId={invoice.branchId}
-              remainingAmount={Number(invoice.remainingAmount ?? 0)}
-              drawers={drawersResult.data}
-              vaults={vaultsResult.data}
-              bankAccounts={bankAccountsResult.data}
-            />
-          </section>
-
-          <section className="payroll-card">
-            <div className="payroll-card-header">
-              <div>
-                <span>التحصيل النقدي في الدرج</span>
-                <h3>{formatMoney(transferableCash)}</h3>
-                <p>النقد المحصل في الدرج يبقى كتجميع نقدي حتى يتم تحويله يدويًا لخزنة مختارة.</p>
-              </div>
-              <Link className="text-link" href="/vaults">
-                الخزن
-              </Link>
-            </div>
-            <TransferWholesaleCashForm
-              invoiceId={invoice.id}
-              drawers={drawersResult.data}
-              vaults={vaultsResult.data}
-              availableAmount={transferableCash}
-            />
-          </section>
-
-          {invoice.payments?.length ? (
-            <section className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>رقم التحصيل</th>
-                    <th>التاريخ</th>
-                    <th>الجهة المستلمة</th>
-                    <th>المرجع</th>
-                    <th>المبلغ</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {invoice.payments.map((payment) => (
-                    <tr key={payment.id}>
-                      <td>{payment.paymentNumber}</td>
-                      <td>{formatDate(payment.paymentDate)}</td>
-                      <td>{collectionDestination(payment)}</td>
-                      <td>{payment.referenceNumber ?? '-'}</td>
-                      <td>{formatMoney(payment.amount)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </section>
-          ) : null}
+          <WholesaleInvoiceCollectionsPanel
+            bankAccounts={bankAccountsResult.data}
+            drawers={drawersResult.data}
+            initialInvoice={invoice}
+            vaults={vaultsResult.data}
+          />
         </>
       ) : null}
     </>
