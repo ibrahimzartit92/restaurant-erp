@@ -16,7 +16,6 @@ import {
   DrawerTransactionType,
 } from '../drawer-transactions/entities/drawer-transaction.entity';
 import { DrawerEntity } from '../drawers/entities/drawer.entity';
-import { ExpenseEntity } from '../expenses/entities/expense.entity';
 import { VaultTransactionDirection, VaultTransactionEntity, VaultTransactionType } from '../vaults/entities/vault-transaction.entity';
 import { DailySaleEntity } from './entities/daily-sale.entity';
 import {
@@ -40,8 +39,6 @@ export class DailySalesClosingService {
     private readonly drawerRepository: Repository<DrawerEntity>,
     @InjectRepository(BankAccountEntity)
     private readonly bankAccountRepository: Repository<BankAccountEntity>,
-    @InjectRepository(ExpenseEntity)
-    private readonly expenseRepository: Repository<ExpenseEntity>,
   ) {}
 
   findAll(filters: { branchId?: string; dateFrom?: string; dateTo?: string; status?: string }) {
@@ -132,11 +129,24 @@ export class DailySalesClosingService {
   async cancel(id: string, reverseFinancialEffect = false) {
     const closing = await this.closingRepository.findOne({ where: { id } });
     if (!closing) throw new NotFoundException('إقفال المبيعات اليومية غير موجود.');
+    if (closing.status === DailySalesClosingStatus.Draft) {
+      throw new BadRequestException('احذف المسودة بدلا من إلغاء إقفال غير نهائي.');
+    }
     return this.dataSource.transaction(async (manager) => {
       if (reverseFinancialEffect) await this.deleteFinalMovements(closing.id, closing.generatedDailySaleId, manager);
       closing.status = DailySalesClosingStatus.Cancelled;
       return manager.getRepository(DailySalesClosingEntity).save(closing);
     });
+  }
+
+  async deleteDraft(id: string) {
+    const closing = await this.closingRepository.findOne({ where: { id } });
+    if (!closing) throw new NotFoundException('إقفال المبيعات اليومية غير موجود.');
+    if (closing.status !== DailySalesClosingStatus.Draft) {
+      throw new BadRequestException('يمكن حذف المسودات فقط. الإقفالات النهائية تلغى مع عكس الأثر المالي.');
+    }
+    await this.closingRepository.delete({ id });
+    return { deleted: true };
   }
 
   async exportOne(id: string, format: 'excel' | 'pdf') {
@@ -150,7 +160,9 @@ export class DailySalesClosingService {
       ['مبيعات التوصيل', String(summary.deliverySalesAmount)],
       ['مبيعات الموقع نقدا', String(summary.websiteCashSales)],
       ['مبيعات الموقع بنكيا', String(summary.websiteBankSalesAmount)],
+      ['In-store card sales', String(summary.inStoreCardSalesAmount)],
       ['تحصيلات الجملة النقدية', String(summary.wholesaleCashCollections)],
+      ['Total daily sales', String(summary.reconciledTotalDailySales)],
       ['النقد المتوقع', String(summary.expectedSystemCash)],
       ['النقد المسلم', String(summary.handedCashAmount)],
       ['الفرق', String(summary.cashDifference)],
@@ -203,13 +215,13 @@ export class DailySalesClosingService {
       salesDate: closing.closingDate,
       cashSalesAmount: summary.cashRetailSales + summary.websiteCashSales,
       drawerId: closing.drawerId,
-      bankSalesAmount: summary.deliverySalesAmount + summary.websiteBankSalesAmount,
+      bankSalesAmount: summary.deliverySalesAmount + summary.websiteBankSalesAmount + summary.inStoreCardSalesAmount,
       bankAccountId: closing.bankAccountId,
       deliverySalesAmount: summary.deliverySalesAmount,
       websiteSalesAmount: summary.websiteCashSales + summary.websiteBankSalesAmount,
       tipsAmount: 0,
       salesReturnAmount: 0,
-      netSalesAmount: summary.deliverySalesAmount + summary.websiteCashSales + summary.websiteBankSalesAmount,
+      netSalesAmount: summary.deliverySalesAmount + summary.websiteCashSales + summary.websiteBankSalesAmount + summary.inStoreCardSalesAmount,
       notes: closing.notes,
     });
     closing.generatedDailySaleId = dailySale.id;
@@ -268,6 +280,24 @@ export class DailySalesClosingService {
       links.push({ type: 'bank_transaction', id: transaction.id });
     }
 
+    const inStoreCardBankAccountId = draft.inStoreCardSales?.bankAccountId ?? closing.bankAccountId;
+    if (summary.inStoreCardSalesAmount > 0 && inStoreCardBankAccountId) {
+      const transaction = await manager.getRepository(BankAccountTransactionEntity).save({
+        bankAccountId: inStoreCardBankAccountId,
+        transactionDate: closing.closingDate,
+        transactionType: BankAccountTransactionType.SalesReceiptBank,
+        direction: BankAccountTransactionDirection.Incoming,
+        amount: summary.inStoreCardSalesAmount,
+        branchId: closing.branchId,
+        sourceType: 'daily_sales_closing_in_store_card',
+        sourceId: closing.id,
+        referenceNumber: closing.id,
+        description: `In-store card sales for ${closing.closingDate}`,
+        notes: closing.notes,
+      });
+      links.push({ type: 'bank_transaction', id: transaction.id });
+    }
+
     const vaultTransfer = draft.vaultTransfer;
     if (vaultTransfer?.enabled && Number(vaultTransfer.amount ?? 0) > 0) {
       if (!closing.drawerId || !vaultTransfer.vaultId) throw new BadRequestException('اختر الدرج والخزنة قبل تحويل النقد.');
@@ -311,6 +341,7 @@ export class DailySalesClosingService {
       manager.getRepository(DrawerTransactionEntity).delete({ sourceType: 'daily_sales_closing_vault_transfer', sourceId: closingId }),
       manager.getRepository(BankAccountTransactionEntity).delete({ sourceType: 'daily_sales_closing_delivery', sourceId: closingId }),
       manager.getRepository(BankAccountTransactionEntity).delete({ sourceType: 'daily_sales_closing_website_bank', sourceId: closingId }),
+      manager.getRepository(BankAccountTransactionEntity).delete({ sourceType: 'daily_sales_closing_in_store_card', sourceId: closingId }),
       manager.getRepository(VaultTransactionEntity).delete({ sourceType: 'daily_sales_closing_vault_transfer', sourceId: closingId }),
       dailySaleId ? manager.getRepository(DailySaleEntity).delete({ id: dailySaleId }) : Promise.resolve(),
     ]);
@@ -318,19 +349,20 @@ export class DailySalesClosingService {
 
   private async buildSummary(closing: Pick<DailySalesClosingEntity, 'branchId' | 'closingDate' | 'drawerId' | 'draftData'>): Promise<DailySalesClosingSummary> {
     const draft = closing.draftData ?? {};
-    const [expensesAmount, drawerRows] = await Promise.all([
-      this.expenseRepository
-        .createQueryBuilder('expense')
-        .select('COALESCE(SUM(expense.amount), 0)', 'total')
-        .where('expense.branch_id = :branchId', { branchId: closing.branchId })
-        .andWhere('expense.expense_date = :date', { date: closing.closingDate })
-        .getRawOne<{ total: string }>()
-        .then((row) => this.roundMoney(Number(row?.total ?? 0))),
+    const [drawerRows, bankRows] = await Promise.all([
       closing.drawerId
         ? this.dataSource.manager.getRepository(DrawerTransactionEntity).find({
             where: { drawerId: closing.drawerId, transactionDate: closing.closingDate },
           })
         : Promise.resolve([]),
+      this.dataSource.manager.getRepository(BankAccountTransactionEntity).find({
+        where: {
+          branchId: closing.branchId,
+          transactionDate: closing.closingDate,
+          sourceType: 'expense',
+          direction: BankAccountTransactionDirection.Outgoing,
+        },
+      }),
     ]);
 
     const bySource = (sourceTypes: string[], direction?: DrawerTransactionDirection) =>
@@ -352,9 +384,24 @@ export class DailySalesClosingService {
       cashRetailSales + wholesaleCashCollections + websiteCashSales - cashExpensesFromDrawer - cashPurchasesFromDrawer - employeeCashOutflowsFromDrawer,
     );
     const handedCashAmount = this.roundMoney(Number(draft.cashReconciliation?.handedCashAmount ?? 0));
+    const drawerPaidExpenses = this.summaryLines(
+      drawerRows.filter((row) => ['expense_payment', 'expense'].includes(row.sourceType ?? '') && row.direction === DrawerTransactionDirection.Out),
+    );
+    const drawerPaidPurchases = this.summaryLines(
+      drawerRows.filter((row) => ['supplier_payment', 'purchase_invoice_payment'].includes(row.sourceType ?? '') && row.direction === DrawerTransactionDirection.Out),
+    );
+    const bankPaidExpenses = this.summaryLines(bankRows);
+    const bankPaidExpensesAmount = this.roundMoney(bankRows.reduce((sum, row) => sum + Number(row.amount ?? 0), 0));
+    const closingExpensesAmount = this.roundMoney(cashExpensesFromDrawer + bankPaidExpensesAmount);
+    const reconciledTotalDailySales = this.roundMoney(handedCashAmount + cashExpensesFromDrawer + cashPurchasesFromDrawer + wholesaleCashCollections);
 
     return {
-      expensesAmount,
+      expensesAmount: closingExpensesAmount,
+      drawerPaidExpensesAmount: cashExpensesFromDrawer,
+      bankPaidExpensesAmount,
+      drawerPaidExpenses,
+      bankPaidExpenses,
+      drawerPaidPurchases,
       cashRetailSales,
       wholesaleCashCollections,
       websiteCashSales,
@@ -365,8 +412,10 @@ export class DailySalesClosingService {
       expectedSystemCash,
       handedCashAmount,
       cashDifference: this.roundMoney(handedCashAmount - expectedSystemCash),
+      reconciledTotalDailySales,
       deliverySalesAmount: this.roundMoney(Number(draft.deliverySales?.enabled ? draft.deliverySales.amount ?? 0 : 0)),
       websiteBankSalesAmount: this.roundMoney(Number(draft.websiteSales?.enabled ? draft.websiteSales.bankAmount ?? 0 : 0)),
+      inStoreCardSalesAmount: this.roundMoney(Number(draft.inStoreCardSales?.enabled ? draft.inStoreCardSales.amount ?? 0 : 0)),
       vaultTransferAmount: this.roundMoney(Number(draft.vaultTransfer?.enabled ? draft.vaultTransfer.amount ?? 0 : 0)),
     };
   }
@@ -378,6 +427,7 @@ export class DailySalesClosingService {
       ...next,
       deliverySales: { ...(current?.deliverySales ?? {}), ...(next.deliverySales ?? {}) },
       websiteSales: { ...(current?.websiteSales ?? {}), ...(next.websiteSales ?? {}) },
+      inStoreCardSales: { ...(current?.inStoreCardSales ?? {}), ...(next.inStoreCardSales ?? {}) },
       cashReconciliation: { ...(current?.cashReconciliation ?? {}), ...(next.cashReconciliation ?? {}) },
       vaultTransfer: { ...(current?.vaultTransfer ?? {}), ...(next.vaultTransfer ?? {}) },
     };
@@ -419,5 +469,13 @@ export class DailySalesClosingService {
 
   private roundMoney(value: number) {
     return Math.round((value + Number.EPSILON) * 100) / 100;
+  }
+
+  private summaryLines(rows: { id: string; description: string; amount: number }[]) {
+    return rows.map((row) => ({
+      id: row.id,
+      description: row.description,
+      amount: this.roundMoney(Number(row.amount ?? 0)),
+    }));
   }
 }

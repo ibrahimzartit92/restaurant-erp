@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { DailySalesClosingDeleteButton } from '../../components/daily-sales-closing-delete-button';
 import { DataTable, type DataColumn } from '../../components/data-table';
 import { ListFilters } from '../../components/list-filters';
 import { PageHeader } from '../../components/page-header';
@@ -41,7 +42,16 @@ const columns: DataColumn<DailySaleClosingRow>[] = [
   { key: 'wholesale', label: 'جملة نقدي', render: (row) => formatMoney(row.summaryValues?.wholesaleCashCollections ?? 0) },
   { key: 'cash', label: 'النقد المسلم', render: (row) => formatMoney(row.handedCashAmount ?? 0) },
   { key: 'difference', label: 'الفرق', render: (row) => formatMoney(row.cashDifferenceAmount ?? 0) },
-  { key: 'actions', label: 'إجراء', render: (row) => <Link className="text-link" href={`/daily-sales/${row.id}/edit`}>فتح المعالج</Link> },
+  {
+    key: 'actions',
+    label: 'إجراء',
+    render: (row) => (
+      <span className="inline-actions">
+        <Link className="text-link" href={`/daily-sales/${row.id}/edit`}>فتح المعالج</Link>
+        {row.status === 'draft' ? <DailySalesClosingDeleteButton closingId={row.id} /> : null}
+      </span>
+    ),
+  },
 ];
 
 export default async function DailySalesPage({

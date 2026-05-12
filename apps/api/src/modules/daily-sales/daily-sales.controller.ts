@@ -50,6 +50,11 @@ export class DailySalesController {
     return this.dailySalesClosingService.cancel(id, reverseFinancialEffect === 'true');
   }
 
+  @Delete('closings/:id')
+  deleteClosingDraft(@Param('id') id: string) {
+    return this.dailySalesClosingService.deleteDraft(id);
+  }
+
   @Get('cash-summary')
   cashSummary(@Query('branch_id') branchId: string, @Query('sales_date') salesDate: string) {
     return this.dailySalesService.getCashSummary({ branchId, salesDate });

@@ -37,6 +37,11 @@ export type DailySalesClosingDraftData = {
     drawerId?: string | null;
     bankAccountId?: string | null;
   };
+  inStoreCardSales?: {
+    enabled?: boolean;
+    amount?: number;
+    bankAccountId?: string | null;
+  };
   cashReconciliation?: {
     handedCashAmount?: number;
   };
@@ -50,6 +55,11 @@ export type DailySalesClosingDraftData = {
 
 export type DailySalesClosingSummary = {
   expensesAmount: number;
+  drawerPaidExpensesAmount: number;
+  bankPaidExpensesAmount: number;
+  drawerPaidExpenses: DailySalesClosingSummaryLine[];
+  bankPaidExpenses: DailySalesClosingSummaryLine[];
+  drawerPaidPurchases: DailySalesClosingSummaryLine[];
   cashRetailSales: number;
   wholesaleCashCollections: number;
   websiteCashSales: number;
@@ -60,9 +70,17 @@ export type DailySalesClosingSummary = {
   expectedSystemCash: number;
   handedCashAmount: number;
   cashDifference: number;
+  reconciledTotalDailySales: number;
   deliverySalesAmount: number;
   websiteBankSalesAmount: number;
+  inStoreCardSalesAmount: number;
   vaultTransferAmount: number;
+};
+
+export type DailySalesClosingSummaryLine = {
+  id: string;
+  description: string;
+  amount: number;
 };
 
 @Entity('daily_sales_closings')
