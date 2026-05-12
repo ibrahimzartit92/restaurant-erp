@@ -32,6 +32,7 @@ import { WholesaleSalesStockMovementEnum1730000028000 } from './migrations/17300
 import { ExpenseTypeHierarchy1730000029000 } from './migrations/1730000029000-expense-type-hierarchy';
 import { EmployeeFinancialObligations1730000030000 } from './migrations/1730000030000-employee-financial-obligations';
 import { DailySalesClosings1730000031000 } from './migrations/1730000031000-daily-sales-closings';
+import { WholesaleSalesCollectionEnumRepair1730000032000 } from './migrations/1730000032000-wholesale-sales-collection-enum-repair';
 import { databaseEntities } from './typeorm-options';
 
 export const AppDataSource = new DataSource({
@@ -71,6 +72,7 @@ export const AppDataSource = new DataSource({
     ExpenseTypeHierarchy1730000029000,
     EmployeeFinancialObligations1730000030000,
     DailySalesClosings1730000031000,
+    WholesaleSalesCollectionEnumRepair1730000032000,
   ],
   synchronize: false,
 });
