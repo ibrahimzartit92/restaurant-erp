@@ -121,13 +121,14 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
     <>
       <PageHeader
         title="المصاريف"
-        description="إدارة المصاريف حسب تصنيف ثم نوع، مع تتبع المدفوع والمتبقي وتصدير النتائج حسب الفلاتر."
-        actionLabel="مصروف جديد"
+        description="إدارة المصاريف حسب التصنيف ثم النوع، مع تتبع المدفوع والمتبقي وتصدير النتائج حسب الفلاتر."
         actionHref="/expenses/new"
+        actionLabel="مصروف جديد"
+        actions={<ExpenseHierarchyManager categories={categoriesResult.data} expenseTypes={typesResult.data} />}
       />
 
       <section className="report-toolbar">
-        <AutoApplyFilterForm className="filters report-filters">
+        <AutoApplyFilterForm className="filters compact-filters compact-panel">
           <label>
             الفرع
             <select defaultValue={params.branch_id ?? ''} name="branch_id">
@@ -217,25 +218,23 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
             بحث
             <input defaultValue={params.search ?? ''} name="search" placeholder="رقم أو عنوان المصروف" />
           </label>
-          <Link className="secondary-button" href="/expenses">
+          <Link className="secondary-button compact" href="/expenses">
             مسح
           </Link>
         </AutoApplyFilterForm>
 
         <div className="report-export-actions">
-          <a className="secondary-button" href={`${exportBase}${expensesExportQuery(params, 'excel')}`}>
+          <a className="secondary-button compact" href={`${exportBase}${expensesExportQuery(params, 'excel')}`}>
             Excel
           </a>
-          <a className="secondary-button" href={`${exportBase}${expensesExportQuery(params, 'pdf')}`}>
+          <a className="secondary-button compact" href={`${exportBase}${expensesExportQuery(params, 'pdf')}`}>
             PDF
           </a>
         </div>
       </section>
 
-      {result.error ? <p className="notice">{result.error}</p> : null}
-      <DataTable columns={columns} rows={result.data} emptyTitle="لا توجد مصاريف" emptyText="غير الفلاتر أو سجل مصروفًا جديدًا ليظهر هنا." />
-
-      <ExpenseHierarchyManager categories={categoriesResult.data} expenseTypes={typesResult.data} />
+      {result.error ? <p className="notice danger">{result.error}</p> : null}
+      <DataTable columns={columns} rows={result.data} emptyTitle="لا توجد مصاريف" emptyText="غيّر الفلاتر أو سجل مصروفًا جديدًا ليظهر هنا." />
     </>
   );
 }

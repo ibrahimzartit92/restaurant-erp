@@ -19,27 +19,38 @@ export function ExpenseHierarchyManager({
 }>) {
   const [categories, setCategories] = useState(initialCategories);
   const [expenseTypes, setExpenseTypes] = useState(initialExpenseTypes);
-  const [selectedCategoryId, setSelectedCategoryId] = useState(initialCategories[0]?.id ?? '');
+  const [expandedCategoryIds, setExpandedCategoryIds] = useState<string[]>(initialCategories[0] ? [initialCategories[0].id] : []);
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [editingTypeId, setEditingTypeId] = useState<string | null>(null);
+  const [isBrowserOpen, setIsBrowserOpen] = useState(false);
   const [isCategoryOpen, setIsCategoryOpen] = useState(false);
   const [isTypeOpen, setIsTypeOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [toast, setToast] = useState<{ tone: 'success' | 'danger'; message: string | null }>({ tone: 'success', message: null });
 
-  const selectedCategory = categories.find((category) => category.id === selectedCategoryId) ?? null;
   const editingCategory = categories.find((category) => category.id === editingCategoryId) ?? null;
   const editingType = expenseTypes.find((expenseType) => expenseType.id === editingTypeId) ?? null;
-  const selectedTypes = useMemo(
-    () => expenseTypes.filter((expenseType) => expenseType.categoryId === selectedCategoryId),
-    [expenseTypes, selectedCategoryId],
+  const groupedTypes = useMemo(
+    () =>
+      categories.map((category) => ({
+        category,
+        types: expenseTypes.filter((expenseType) => expenseType.categoryId === category.id),
+      })),
+    [categories, expenseTypes],
   );
+
+  function toggleCategory(categoryId: string) {
+    setExpandedCategoryIds((current) =>
+      current.includes(categoryId) ? current.filter((id) => id !== categoryId) : [...current, categoryId],
+    );
+  }
 
   async function saveCategory(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = event.currentTarget;
     setToast({ tone: 'success', message: null });
     setIsSaving(true);
-    const formData = new FormData(event.currentTarget);
+    const formData = new FormData(form);
     const classification = String(formData.get('classification') ?? 'miscellaneous') as 'operating' | 'miscellaneous';
     const payload = {
       name: String(formData.get('name') ?? '').trim(),
@@ -60,11 +71,11 @@ export function ExpenseHierarchyManager({
         if (existingIndex === -1) return [saved, ...current];
         return current.map((item) => (item.id === saved.id ? { ...item, ...saved } : item));
       });
-      setSelectedCategoryId(saved.id);
+      setExpandedCategoryIds((current) => (current.includes(saved.id) ? current : [saved.id, ...current]));
+      if (form.isConnected) form.reset();
       setEditingCategoryId(null);
       setIsCategoryOpen(false);
-      event.currentTarget.reset();
-      setToast({ tone: 'success', message: editingCategoryId ? 'تم تحديث التصنيف بنجاح.' : 'تم إضافة التصنيف بنجاح.' });
+      setToast({ tone: 'success', message: editingCategoryId ? 'تم تحديث التصنيف بنجاح.' : 'تمت إضافة التصنيف بنجاح.' });
     } catch (error) {
       setToast({ tone: 'danger', message: error instanceof Error ? error.message : 'تعذر حفظ التصنيف.' });
     } finally {
@@ -74,10 +85,11 @@ export function ExpenseHierarchyManager({
 
   async function saveType(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = event.currentTarget;
     setToast({ tone: 'success', message: null });
     setIsSaving(true);
-    const formData = new FormData(event.currentTarget);
-    const categoryId = String(formData.get('categoryId') ?? selectedCategoryId);
+    const formData = new FormData(form);
+    const categoryId = String(formData.get('categoryId') ?? editingType?.categoryId ?? categories[0]?.id ?? '');
     const payload = {
       categoryId,
       name: String(formData.get('name') ?? '').trim(),
@@ -97,11 +109,11 @@ export function ExpenseHierarchyManager({
         if (existingIndex === -1) return [saved, ...current];
         return current.map((item) => (item.id === saved.id ? { ...item, ...saved } : item));
       });
-      setSelectedCategoryId(categoryId);
+      setExpandedCategoryIds((current) => (current.includes(categoryId) ? current : [categoryId, ...current]));
+      if (form.isConnected) form.reset();
       setEditingTypeId(null);
       setIsTypeOpen(false);
-      event.currentTarget.reset();
-      setToast({ tone: 'success', message: editingTypeId ? 'تم تحديث النوع بنجاح.' : 'تم إضافة النوع بنجاح.' });
+      setToast({ tone: 'success', message: editingTypeId ? 'تم تحديث النوع بنجاح.' : 'تمت إضافة النوع بنجاح.' });
     } catch (error) {
       setToast({ tone: 'danger', message: error instanceof Error ? error.message : 'تعذر حفظ النوع.' });
     } finally {
@@ -117,7 +129,7 @@ export function ExpenseHierarchyManager({
       setCategories((current) => current.map((item) => (item.id === category.id ? { ...item, isActive: false } : item)));
       setToast({ tone: 'success', message: 'تم تحديث حالة التصنيف.' });
     } catch (error) {
-      setToast({ tone: 'danger', message: error instanceof Error ? error.message : 'تعذر حذف أو أرشفة التصنيف.' });
+      setToast({ tone: 'danger', message: error instanceof Error ? error.message : 'تعذر أرشفة التصنيف.' });
     }
   }
 
@@ -129,143 +141,186 @@ export function ExpenseHierarchyManager({
       setExpenseTypes((current) => current.map((item) => (item.id === expenseType.id ? { ...item, isActive: false } : item)));
       setToast({ tone: 'success', message: 'تم تحديث حالة النوع.' });
     } catch (error) {
-      setToast({ tone: 'danger', message: error instanceof Error ? error.message : 'تعذر حذف أو أرشفة النوع.' });
+      setToast({ tone: 'danger', message: error instanceof Error ? error.message : 'تعذر أرشفة النوع.' });
     }
   }
 
   return (
-    <section className="compact-stack">
-      <div className="compact-actions-bar compact-panel">
-        <strong>إدارة التصنيفات والأنواع</strong>
-        <button className="secondary-button compact" onClick={() => { setEditingCategoryId(null); setIsCategoryOpen(true); }} type="button">إضافة تصنيف</button>
-        <button className="secondary-button compact" onClick={() => { setEditingTypeId(null); setIsTypeOpen(true); }} type="button">إضافة نوع</button>
-      </div>
-
+    <>
       <ActionToast message={toast.message} tone={toast.tone} />
 
-      <div className="table-wrap compact-table-rows">
-        <table>
-          <thead>
-            <tr>
-              <th>التصنيف</th>
-              <th>الطبيعة</th>
-              <th>الحالة</th>
-              <th>إجراءات</th>
-            </tr>
-          </thead>
-          <tbody>
-            {categories.map((category) => (
-              <tr key={category.id}>
-                <td>
-                  <button className="text-link" onClick={() => setSelectedCategoryId(category.id)} type="button">{category.name}</button>
-                </td>
-                <td>{classificationLabel(category.classification)}</td>
-                <td>{category.isActive === false ? 'مؤرشف' : 'نشط'}</td>
-                <td>
-                  <div className="inline-actions">
-                    <button className="secondary-button compact" onClick={() => { setEditingCategoryId(category.id); setIsCategoryOpen(true); }} type="button">تعديل</button>
-                    <button className="secondary-button compact danger" onClick={() => archiveCategory(category)} type="button">أرشفة</button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="compact-actions-bar">
+        <button
+          className="secondary-button compact"
+          onClick={() => {
+            setEditingCategoryId(null);
+            setIsCategoryOpen(true);
+          }}
+          type="button"
+        >
+          إضافة تصنيف
+        </button>
+        <button
+          className="secondary-button compact"
+          onClick={() => {
+            setEditingTypeId(null);
+            setIsTypeOpen(true);
+          }}
+          type="button"
+        >
+          إضافة نوع
+        </button>
+        <button className="secondary-button compact" onClick={() => setIsBrowserOpen(true)} type="button">
+          عرض التصنيفات
+        </button>
       </div>
 
-      <div className="table-wrap compact-table-rows">
-        <table>
-          <thead>
-            <tr>
-              <th>أنواع {selectedCategory?.name ?? 'المصروف'}</th>
-              <th>الرمز</th>
-              <th>الحالة</th>
-              <th>إجراءات</th>
-            </tr>
-          </thead>
-          <tbody>
-            {selectedTypes.map((expenseType) => (
-              <tr key={expenseType.id}>
-                <td>{expenseType.name}</td>
-                <td>{expenseType.code}</td>
-                <td>{expenseType.isActive === false ? 'مؤرشف' : 'نشط'}</td>
-                <td>
+      <ModalDialog onClose={() => setIsBrowserOpen(false)} open={isBrowserOpen} title="متصفح التصنيفات والأنواع" width="980px">
+        <div className="taxonomy-browser">
+          {groupedTypes.map(({ category, types }) => {
+            const expanded = expandedCategoryIds.includes(category.id);
+            return (
+              <section className="taxonomy-group" key={category.id}>
+                <div className="taxonomy-group-header">
+                  <button className="taxonomy-toggle" onClick={() => toggleCategory(category.id)} type="button">
+                    <span className={`taxonomy-arrow ${expanded ? 'open' : ''}`}>▾</span>
+                    <span className="taxonomy-title">
+                      <strong>{category.name}</strong>
+                      <small>{classificationLabel(category.classification)} - {category.isActive === false ? 'مؤرشف' : 'نشط'}</small>
+                    </span>
+                  </button>
                   <div className="inline-actions">
-                    <button className="secondary-button compact" onClick={() => { setEditingTypeId(expenseType.id); setIsTypeOpen(true); }} type="button">تعديل</button>
-                    <button className="secondary-button compact danger" onClick={() => archiveType(expenseType)} type="button">أرشفة</button>
+                    <button
+                      className="secondary-button compact"
+                      onClick={() => {
+                        setEditingCategoryId(category.id);
+                        setIsCategoryOpen(true);
+                      }}
+                      type="button"
+                    >
+                      تعديل
+                    </button>
+                    <button className="secondary-button compact danger" onClick={() => archiveCategory(category)} type="button">
+                      أرشفة
+                    </button>
                   </div>
-                </td>
-              </tr>
-            ))}
-            {selectedTypes.length === 0 ? (
-              <tr>
-                <td colSpan={4}>لا توجد أنواع داخل هذا التصنيف بعد.</td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
-      </div>
+                </div>
 
-      <ModalDialog onClose={() => !isSaving && setIsCategoryOpen(false)} open={isCategoryOpen} title={editingCategory ? 'تعديل التصنيف' : 'إضافة تصنيف'} width="620px">
-        <form className="compact-stack" onSubmit={saveCategory}>
-          <label>
-            اسم التصنيف
-            <input defaultValue={editingCategory?.name ?? ''} name="name" required />
-          </label>
-          <label>
-            طبيعة التصنيف
-            <select defaultValue={editingCategory?.classification ?? 'miscellaneous'} name="classification">
-              <option value="operating">تشغيلية</option>
-              <option value="miscellaneous">متفرقة</option>
-            </select>
-          </label>
-          <label className="checkbox-field">
+                {expanded ? (
+                  <div className="taxonomy-type-list">
+                    {types.length ? (
+                      types.map((expenseType) => (
+                        <div className="taxonomy-type-row" key={expenseType.id}>
+                          <div className="taxonomy-type-copy">
+                            <strong>{expenseType.name}</strong>
+                            <small>{expenseType.code || 'بدون رمز'} - {expenseType.isActive === false ? 'مؤرشف' : 'نشط'}</small>
+                          </div>
+                          <div className="inline-actions">
+                            <button
+                              className="secondary-button compact"
+                              onClick={() => {
+                                setEditingTypeId(expenseType.id);
+                                setIsTypeOpen(true);
+                              }}
+                              type="button"
+                            >
+                              تعديل
+                            </button>
+                            <button className="secondary-button compact danger" onClick={() => archiveType(expenseType)} type="button">
+                              أرشفة
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="taxonomy-empty">لا توجد أنواع داخل هذا التصنيف بعد.</p>
+                    )}
+                  </div>
+                ) : null}
+              </section>
+            );
+          })}
+        </div>
+      </ModalDialog>
+
+      <ModalDialog onClose={() => !isSaving && setIsCategoryOpen(false)} open={isCategoryOpen} title={editingCategory ? 'تعديل التصنيف' : 'إضافة تصنيف'} width="700px">
+        <form className="modal-form-grid" onSubmit={saveCategory}>
+          <section className="modal-form-section full-span">
+            <div className="modal-form-grid-inner two-columns">
+              <label>
+                اسم التصنيف
+                <input defaultValue={editingCategory?.name ?? ''} name="name" required />
+              </label>
+              <label>
+                طبيعة التصنيف
+                <select defaultValue={editingCategory?.classification ?? 'miscellaneous'} name="classification">
+                  <option value="operating">تشغيلية</option>
+                  <option value="miscellaneous">متفرقة</option>
+                </select>
+              </label>
+            </div>
+          </section>
+          <label className="checkbox-field full-span">
             <input defaultChecked={editingCategory?.isActive ?? true} name="isActive" type="checkbox" />
-            نشط
+            التصنيف نشط
           </label>
-          <label>
+          <label className="full-span">
             ملاحظات
-            <textarea defaultValue={editingCategory?.notes ?? ''} name="notes" rows={2} />
+            <textarea defaultValue={editingCategory?.notes ?? ''} name="notes" rows={3} />
           </label>
-          <div className="compact-actions-bar">
-            <button className="secondary-button compact" onClick={() => setIsCategoryOpen(false)} type="button">إلغاء</button>
-            <button disabled={isSaving} type="submit">{isSaving ? 'جارٍ الحفظ...' : editingCategory ? 'حفظ التعديل' : 'إضافة التصنيف'}</button>
+          <div className="modal-form-actions full-span">
+            <button className="secondary-button compact" onClick={() => setIsCategoryOpen(false)} type="button">
+              إلغاء
+            </button>
+            <button disabled={isSaving} type="submit">
+              {isSaving ? 'جارٍ الحفظ...' : editingCategory ? 'حفظ التعديل' : 'إضافة التصنيف'}
+            </button>
           </div>
         </form>
       </ModalDialog>
 
-      <ModalDialog onClose={() => !isSaving && setIsTypeOpen(false)} open={isTypeOpen} title={editingType ? 'تعديل النوع' : 'إضافة نوع'} width="620px">
-        <form className="compact-stack" onSubmit={saveType}>
-          <label>
-            التصنيف
-            <select defaultValue={editingType?.categoryId ?? selectedCategoryId} name="categoryId" required>
-              {categories.map((category) => (
-                <option key={category.id} value={category.id}>{category.name}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            اسم النوع
-            <input defaultValue={editingType?.name ?? ''} name="name" required />
-          </label>
-          <label>
-            الرمز
-            <input defaultValue={editingType?.code ?? ''} name="code" placeholder="اختياري" />
-          </label>
-          <label className="checkbox-field">
+      <ModalDialog onClose={() => !isSaving && setIsTypeOpen(false)} open={isTypeOpen} title={editingType ? 'تعديل النوع' : 'إضافة نوع'} width="700px">
+        <form className="modal-form-grid" onSubmit={saveType}>
+          <section className="modal-form-section full-span">
+            <div className="modal-form-grid-inner two-columns">
+              <label>
+                التصنيف
+                <select defaultValue={editingType?.categoryId ?? categories[0]?.id ?? ''} name="categoryId" required>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                اسم النوع
+                <input defaultValue={editingType?.name ?? ''} name="name" required />
+              </label>
+              <label>
+                الرمز
+                <input defaultValue={editingType?.code ?? ''} name="code" placeholder="اختياري" />
+              </label>
+            </div>
+          </section>
+          <label className="checkbox-field full-span">
             <input defaultChecked={editingType?.isActive ?? true} name="isActive" type="checkbox" />
-            نشط
+            النوع نشط
           </label>
-          <label>
+          <label className="full-span">
             ملاحظات
-            <textarea defaultValue={editingType?.notes ?? ''} name="notes" rows={2} />
+            <textarea defaultValue={editingType?.notes ?? ''} name="notes" rows={3} />
           </label>
-          <div className="compact-actions-bar">
-            <button className="secondary-button compact" onClick={() => setIsTypeOpen(false)} type="button">إلغاء</button>
-            <button disabled={isSaving} type="submit">{isSaving ? 'جارٍ الحفظ...' : editingType ? 'حفظ التعديل' : 'إضافة النوع'}</button>
+          <div className="modal-form-actions full-span">
+            <button className="secondary-button compact" onClick={() => setIsTypeOpen(false)} type="button">
+              إلغاء
+            </button>
+            <button disabled={isSaving} type="submit">
+              {isSaving ? 'جارٍ الحفظ...' : editingType ? 'حفظ التعديل' : 'إضافة النوع'}
+            </button>
           </div>
         </form>
       </ModalDialog>
-    </section>
+    </>
   );
 }

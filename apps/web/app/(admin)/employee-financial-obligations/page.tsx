@@ -44,37 +44,71 @@ export default async function EmployeeFinancialObligationsPage({
         description="متابعة موحدة للسلف والديون والغرامات المالية وربطها بالتحصيلات بشكل سريع وواضح."
       />
 
-      <form action="/employee-financial-obligations" className="filter-bar auto-apply-filter compact-panel">
-        <select defaultValue={params.employee_id ?? ''} name="employee_id">
-          <option value="">كل الموظفين</option>
-          {employeesResult.data.map((employee) => <option key={employee.id} value={employee.id}>{employee.fullName}</option>)}
-        </select>
-        <select defaultValue={params.branch_id ?? ''} name="branch_id">
-          <option value="">كل الفروع</option>
-          {branchesResult.data.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-        </select>
-        <select defaultValue={params.obligation_type ?? ''} name="obligation_type">
-          <option value="">كل الأنواع</option>
-          <option value="advance">السلف</option>
-          <option value="debt">الديون</option>
-          <option value="financial_penalty">الغرامات المالية</option>
-        </select>
-        <select defaultValue={params.status ?? ''} name="status">
-          <option value="">كل الحالات</option>
-          <option value="active">غير مسدد</option>
-          <option value="partially_recovered">مسدد جزئيًا</option>
-          <option value="settled">مسدد</option>
-          <option value="cancelled">ملغى</option>
-        </select>
-        <input defaultValue={params.date_from ?? ''} name="date_from" type="date" />
-        <input defaultValue={params.date_to ?? ''} name="date_to" type="date" />
-        <button type="submit">تصفية</button>
-        <Link className="secondary-button compact" href="/employee-financial-obligations">إعادة ضبط</Link>
+      <form action="/employee-financial-obligations" className="filters compact-filters compact-panel compact-filter-bar">
+        <label>
+          الموظف
+          <select defaultValue={params.employee_id ?? ''} name="employee_id">
+            <option value="">كل الموظفين</option>
+            {employeesResult.data.map((employee) => (
+              <option key={employee.id} value={employee.id}>
+                {employee.fullName}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          الفرع
+          <select defaultValue={params.branch_id ?? ''} name="branch_id">
+            <option value="">كل الفروع</option>
+            {branchesResult.data.map((branch) => (
+              <option key={branch.id} value={branch.id}>
+                {branch.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          النوع
+          <select defaultValue={params.obligation_type ?? ''} name="obligation_type">
+            <option value="">كل الأنواع</option>
+            <option value="advance">السلف</option>
+            <option value="debt">الديون</option>
+            <option value="financial_penalty">الغرامات المالية</option>
+          </select>
+        </label>
+        <label>
+          الحالة
+          <select defaultValue={params.status ?? ''} name="status">
+            <option value="">كل الحالات</option>
+            <option value="active">غير مسدد</option>
+            <option value="partially_recovered">مسدد جزئيًا</option>
+            <option value="settled">مسدد</option>
+            <option value="cancelled">ملغى</option>
+          </select>
+        </label>
+        <label>
+          من تاريخ
+          <input defaultValue={params.date_from ?? ''} name="date_from" type="date" />
+        </label>
+        <label>
+          إلى تاريخ
+          <input defaultValue={params.date_to ?? ''} name="date_to" type="date" />
+        </label>
+        <button className="primary-button compact" type="submit">
+          تصفية
+        </button>
+        <Link className="secondary-button compact" href="/employee-financial-obligations">
+          إعادة ضبط
+        </Link>
       </form>
 
       <div className="compact-actions-bar">
-        <Link className="secondary-button compact" href={`/api/employee-financial-obligations/export${exportQuery}format=pdf`}>تصدير PDF</Link>
-        <Link className="secondary-button compact" href={`/api/employee-financial-obligations/export${exportQuery}format=excel`}>تصدير Excel</Link>
+        <Link className="secondary-button compact" href={`/api/employee-financial-obligations/export${exportQuery}format=pdf`}>
+          تصدير PDF
+        </Link>
+        <Link className="secondary-button compact" href={`/api/employee-financial-obligations/export${exportQuery}format=excel`}>
+          تصدير Excel
+        </Link>
       </div>
 
       {obligationsResult.error ? <p className="notice danger">{obligationsResult.error}</p> : null}

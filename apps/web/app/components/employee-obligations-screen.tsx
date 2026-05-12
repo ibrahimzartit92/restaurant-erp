@@ -38,6 +38,13 @@ function statusTone(status: string) {
   return 'muted';
 }
 
+function money(value: number | string | null | undefined) {
+  return new Intl.NumberFormat('ar', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(value ?? 0));
+}
+
 export function EmployeeObligationsScreen({
   initialRows,
   query,
@@ -62,13 +69,6 @@ export function EmployeeObligationsScreen({
   const [isRepaymentOpen, setIsRepaymentOpen] = useState(false);
   const [isDebtSaving, setIsDebtSaving] = useState(false);
   const [isRepaymentSaving, setIsRepaymentSaving] = useState(false);
-
-  function formatMoney(value: number | string | null | undefined) {
-    return new Intl.NumberFormat('ar', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(Number(value ?? 0));
-  }
 
   const activeObligations = rows.filter((item) => Number(item.remainingAmount ?? 0) > 0 && item.status !== 'cancelled');
   const totals = useMemo(
@@ -97,9 +97,9 @@ export function EmployeeObligationsScreen({
       label: 'الحالة',
       render: (row) => <StatusBadge value={statusLabels[row.status] ?? row.status} className={statusTone(row.status)} />,
     },
-    { key: 'original', label: 'الأصلي', render: (row) => formatMoney(row.originalAmount) },
-    { key: 'recovered', label: 'المحصل', render: (row) => formatMoney(row.recoveredAmount) },
-    { key: 'remaining', label: 'المتبقي', render: (row) => formatMoney(row.remainingAmount) },
+    { key: 'original', label: 'الأصلي', render: (row) => money(row.originalAmount) },
+    { key: 'recovered', label: 'المحصل', render: (row) => money(row.recoveredAmount) },
+    { key: 'remaining', label: 'المتبقي', render: (row) => money(row.remainingAmount) },
   ];
 
   async function refreshRows() {
@@ -109,9 +109,10 @@ export function EmployeeObligationsScreen({
 
   async function handleDebtSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = event.currentTarget;
     setToast({ tone: 'success', message: null });
     setIsDebtSaving(true);
-    const formData = new FormData(event.currentTarget);
+    const formData = new FormData(form);
     const payload = {
       employeeId: String(formData.get('employeeId') ?? ''),
       debtDate: String(formData.get('debtDate') ?? today()),
@@ -126,10 +127,10 @@ export function EmployeeObligationsScreen({
 
     try {
       await submitJson('/employee-financial-obligations/debts', 'POST', payload);
-      await refreshRows();
-      event.currentTarget.reset();
+      if (form.isConnected) form.reset();
       setIsDebtOpen(false);
-      setToast({ tone: 'success', message: 'تم إضافة الدين وتحديث الجدول بنجاح.' });
+      await refreshRows();
+      setToast({ tone: 'success', message: 'تمت إضافة الدين وتحديث الجدول بنجاح.' });
     } catch (error) {
       setToast({ tone: 'danger', message: error instanceof Error ? error.message : 'تعذر حفظ الدين.' });
     } finally {
@@ -139,9 +140,10 @@ export function EmployeeObligationsScreen({
 
   async function handleRepaymentSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = event.currentTarget;
     setToast({ tone: 'success', message: null });
     setIsRepaymentSaving(true);
-    const formData = new FormData(event.currentTarget);
+    const formData = new FormData(form);
     const selected = activeObligations.find((item) => item.id === String(formData.get('obligationId') ?? ''));
     if (!selected) {
       setToast({ tone: 'danger', message: 'اختر التزامًا قائمًا أولًا.' });
@@ -164,9 +166,9 @@ export function EmployeeObligationsScreen({
 
     try {
       await submitJson('/employee-financial-obligations/repayments', 'POST', payload);
-      await refreshRows();
-      event.currentTarget.reset();
+      if (form.isConnected) form.reset();
       setIsRepaymentOpen(false);
+      await refreshRows();
       setToast({ tone: 'success', message: 'تم تسجيل التحصيل وتحديث الجدول بنجاح.' });
     } catch (error) {
       setToast({ tone: 'danger', message: error instanceof Error ? error.message : 'تعذر تسجيل التحصيل.' });
@@ -180,14 +182,27 @@ export function EmployeeObligationsScreen({
       <ActionToast message={toast.message} tone={toast.tone} />
 
       <div className="payroll-amount-grid">
-        <span className="payroll-amount"><small>إجمالي الالتزامات</small><strong>{formatMoney(totals.original)}</strong></span>
-        <span className="payroll-amount"><small>المحصل</small><strong>{formatMoney(totals.recovered)}</strong></span>
-        <span className="payroll-amount danger"><small>المتبقي</small><strong>{formatMoney(totals.remaining)}</strong></span>
+        <span className="payroll-amount">
+          <small>إجمالي الالتزامات</small>
+          <strong>{money(totals.original)}</strong>
+        </span>
+        <span className="payroll-amount">
+          <small>المحصل</small>
+          <strong>{money(totals.recovered)}</strong>
+        </span>
+        <span className="payroll-amount danger">
+          <small>المتبقي</small>
+          <strong>{money(totals.remaining)}</strong>
+        </span>
       </div>
 
       <div className="compact-actions-bar">
-        <button className="primary-button compact" onClick={() => setIsDebtOpen(true)} type="button">إضافة دين</button>
-        <button className="secondary-button compact" onClick={() => setIsRepaymentOpen(true)} type="button">تسجيل تحصيل</button>
+        <button className="primary-button compact" onClick={() => setIsDebtOpen(true)} type="button">
+          إضافة دين
+        </button>
+        <button className="secondary-button compact" onClick={() => setIsRepaymentOpen(true)} type="button">
+          تسجيل تحصيل
+        </button>
       </div>
 
       <DataTable
@@ -197,85 +212,198 @@ export function EmployeeObligationsScreen({
         emptyText="ستظهر السلف والديون والغرامات المالية هنا حسب الفلاتر المختارة."
       />
 
-      <ModalDialog onClose={() => !isDebtSaving && setIsDebtOpen(false)} open={isDebtOpen} title="إضافة دين موظف" width="860px">
-        <form className="inline-form-grid" onSubmit={handleDebtSubmit}>
-          <label>
-            الموظف
-            <select name="employeeId" required>
-              <option value="">اختر الموظف</option>
-              {employees.map((employee) => (
-                <option key={employee.id} value={employee.id}>{employee.fullName}</option>
-              ))}
-            </select>
-          </label>
-          <label>التاريخ<input defaultValue={today()} name="debtDate" required type="date" /></label>
-          <label>المبلغ<input min="0.01" name="amount" required step="0.01" type="number" /></label>
-          <label>
-            طريقة السداد
-            <select name="repaymentMode" defaultValue="manual">
-              <option value="manual">سداد حر</option>
-              <option value="installment">أقساط ثابتة</option>
-            </select>
-          </label>
-          <label>قيمة القسط<input min="0" name="installmentAmount" step="0.01" type="number" /></label>
-          <label>
-            من درج
-            <select name="drawerId"><option value="">بدون</option>{drawers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
-          </label>
-          <label>
-            من خزنة
-            <select name="vaultId"><option value="">بدون</option>{vaults.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
-          </label>
-          <label>
-            من حساب بنكي
-            <select name="bankAccountId"><option value="">بدون</option>{bankAccounts.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
-          </label>
-          <label style={{ gridColumn: '1 / -1' }}>
+      <ModalDialog onClose={() => !isDebtSaving && setIsDebtOpen(false)} open={isDebtOpen} title="إضافة دين موظف" width="920px">
+        <form className="modal-form-grid" onSubmit={handleDebtSubmit}>
+          <section className="modal-form-section full-span">
+            <div className="modal-form-section-title">
+              <strong>بيانات الدين</strong>
+              <span>أدخل بيانات الالتزام بطريقة مختصرة وواضحة.</span>
+            </div>
+            <div className="modal-form-grid-inner three-columns">
+              <label>
+                الموظف
+                <select name="employeeId" required>
+                  <option value="">اختر الموظف</option>
+                  {employees.map((employee) => (
+                    <option key={employee.id} value={employee.id}>
+                      {employee.fullName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                التاريخ
+                <input defaultValue={today()} name="debtDate" required type="date" />
+              </label>
+              <label>
+                المبلغ
+                <input min="0.01" name="amount" required step="0.01" type="number" />
+              </label>
+              <label>
+                طريقة السداد
+                <select name="repaymentMode" defaultValue="manual">
+                  <option value="manual">سداد حر</option>
+                  <option value="installment">أقساط ثابتة</option>
+                </select>
+              </label>
+              <label>
+                قيمة القسط
+                <input min="0" name="installmentAmount" step="0.01" type="number" />
+              </label>
+            </div>
+          </section>
+
+          <section className="modal-form-section full-span">
+            <div className="modal-form-section-title">
+              <strong>جهة الصرف</strong>
+              <span>يمكن ترك الجهة فارغة عند عدم الحاجة لتسجيل مصدر تمويل مباشر.</span>
+            </div>
+            <div className="modal-form-grid-inner three-columns">
+              <label>
+                من درج
+                <select name="drawerId">
+                  <option value="">بدون</option>
+                  {drawers.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                من خزنة
+                <select name="vaultId">
+                  <option value="">بدون</option>
+                  {vaults.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                من حساب بنكي
+                <select name="bankAccountId">
+                  <option value="">بدون</option>
+                  {bankAccounts.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </section>
+
+          <label className="full-span">
             ملاحظات
-            <textarea name="notes" rows={2} />
+            <textarea name="notes" rows={3} />
           </label>
-          <div className="compact-actions-bar" style={{ gridColumn: '1 / -1' }}>
-            <button className="secondary-button compact" onClick={() => setIsDebtOpen(false)} type="button">إلغاء</button>
-            <button disabled={isDebtSaving} type="submit">{isDebtSaving ? 'جارٍ الحفظ...' : 'حفظ الدين'}</button>
+
+          <div className="modal-form-actions full-span">
+            <button className="secondary-button compact" onClick={() => setIsDebtOpen(false)} type="button">
+              إلغاء
+            </button>
+            <button disabled={isDebtSaving} type="submit">
+              {isDebtSaving ? 'جارٍ الحفظ...' : 'حفظ الدين'}
+            </button>
           </div>
         </form>
       </ModalDialog>
 
-      <ModalDialog onClose={() => !isRepaymentSaving && setIsRepaymentOpen(false)} open={isRepaymentOpen} title="تسجيل تحصيل التزام" width="860px">
-        <form className="inline-form-grid" onSubmit={handleRepaymentSubmit}>
-          <label>
-            الالتزام
-            <select name="obligationId" required>
-              <option value="">اختر الالتزام</option>
-              {activeObligations.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.employee.fullName} - {typeLabels[item.obligationType] ?? item.obligationType} - {formatMoney(item.remainingAmount)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>تاريخ التحصيل<input defaultValue={today()} name="repaymentDate" required type="date" /></label>
-          <label>المبلغ<input min="0.01" name="amount" required step="0.01" type="number" /></label>
-          <label>
-            إلى درج
-            <select name="drawerId"><option value="">بدون</option>{drawers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
-          </label>
-          <label>
-            إلى خزنة
-            <select name="vaultId"><option value="">بدون</option>{vaults.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
-          </label>
-          <label>
-            إلى حساب بنكي
-            <select name="bankAccountId"><option value="">بدون</option>{bankAccounts.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
-          </label>
-          <label>رقم المرجع<input name="referenceNumber" /></label>
-          <label style={{ gridColumn: '1 / -1' }}>
+      <ModalDialog
+        onClose={() => !isRepaymentSaving && setIsRepaymentOpen(false)}
+        open={isRepaymentOpen}
+        title="تسجيل تحصيل التزام"
+        width="920px"
+      >
+        <form className="modal-form-grid" onSubmit={handleRepaymentSubmit}>
+          <section className="modal-form-section full-span">
+            <div className="modal-form-section-title">
+              <strong>بيانات التحصيل</strong>
+              <span>اختر الالتزام ثم سجل المبلغ والوجهة المالية.</span>
+            </div>
+            <div className="modal-form-grid-inner three-columns">
+              <label className="full-span">
+                الالتزام
+                <select name="obligationId" required>
+                  <option value="">اختر الالتزام</option>
+                  {activeObligations.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.employee.fullName} - {typeLabels[item.obligationType] ?? item.obligationType} - {money(item.remainingAmount)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                تاريخ التحصيل
+                <input defaultValue={today()} name="repaymentDate" required type="date" />
+              </label>
+              <label>
+                المبلغ
+                <input min="0.01" name="amount" required step="0.01" type="number" />
+              </label>
+              <label>
+                رقم المرجع
+                <input name="referenceNumber" />
+              </label>
+            </div>
+          </section>
+
+          <section className="modal-form-section full-span">
+            <div className="modal-form-section-title">
+              <strong>جهة الاستلام</strong>
+              <span>اختر الدرج أو الخزنة أو الحساب البنكي الذي استلم قيمة التحصيل.</span>
+            </div>
+            <div className="modal-form-grid-inner three-columns">
+              <label>
+                إلى درج
+                <select name="drawerId">
+                  <option value="">بدون</option>
+                  {drawers.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                إلى خزنة
+                <select name="vaultId">
+                  <option value="">بدون</option>
+                  {vaults.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                إلى حساب بنكي
+                <select name="bankAccountId">
+                  <option value="">بدون</option>
+                  {bankAccounts.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </section>
+
+          <label className="full-span">
             ملاحظات
-            <textarea name="notes" rows={2} />
+            <textarea name="notes" rows={3} />
           </label>
-          <div className="compact-actions-bar" style={{ gridColumn: '1 / -1' }}>
-            <button className="secondary-button compact" onClick={() => setIsRepaymentOpen(false)} type="button">إلغاء</button>
-            <button disabled={isRepaymentSaving} type="submit">{isRepaymentSaving ? 'جارٍ التسجيل...' : 'تسجيل التحصيل'}</button>
+
+          <div className="modal-form-actions full-span">
+            <button className="secondary-button compact" onClick={() => setIsRepaymentOpen(false)} type="button">
+              إلغاء
+            </button>
+            <button disabled={isRepaymentSaving} type="submit">
+              {isRepaymentSaving ? 'جارٍ التسجيل...' : 'تسجيل التحصيل'}
+            </button>
           </div>
         </form>
       </ModalDialog>
