@@ -16,6 +16,12 @@ function money(value?: number | string | null) {
   return new Intl.NumberFormat('ar', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value ?? 0));
 }
 
+function statusLabel(status?: 'draft' | 'finalized' | 'cancelled' | null) {
+  if (status === 'finalized') return 'نهائي';
+  if (status === 'cancelled') return 'ملغى';
+  return 'مسودة';
+}
+
 type DraftData = {
   deliverySales?: {
     enabled?: boolean;
@@ -171,7 +177,7 @@ export function DailySalesClosingWizard({
 
   async function deleteDraft() {
     if (!closing?.id || closing.status !== 'draft') return;
-    if (!confirm('Delete this draft closing and its autosaved wizard data?')) return;
+    if (!confirm('سيتم حذف مسودة الإقفال وكل البيانات المحفوظة تلقائيًا. هل تريد المتابعة؟')) return;
     setIsSaving(true);
     setMessage(null);
     try {
@@ -179,7 +185,7 @@ export function DailySalesClosingWizard({
       router.push('/daily-sales');
       router.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Could not delete draft.');
+      setMessage(error instanceof Error ? error.message : 'تعذر حذف المسودة.');
     } finally {
       setIsSaving(false);
     }
@@ -255,15 +261,15 @@ export function DailySalesClosingWizard({
               <h3>مصروفات اليوم</h3>
               <div className="payroll-amount-grid">
                 <span className="payroll-amount"><small>مصروفات مسجلة لهذا اليوم</small><strong>{money(summary?.expensesAmount)}</strong></span>
-                <span className="payroll-amount"><small>Drawer-paid expenses</small><strong>{money(summary?.drawerPaidExpensesAmount)}</strong></span>
-                <span className="payroll-amount"><small>Bank-paid expenses</small><strong>{money(summary?.bankPaidExpensesAmount)}</strong></span>
-                <span className="payroll-amount"><small>Purchases paid from drawer</small><strong>{money(summary?.cashPurchasesFromDrawer)}</strong></span>
+                <span className="payroll-amount"><small>مصروفات مدفوعة من الدرج</small><strong>{money(summary?.drawerPaidExpensesAmount)}</strong></span>
+                <span className="payroll-amount"><small>مصروفات مدفوعة من البنك</small><strong>{money(summary?.bankPaidExpensesAmount)}</strong></span>
+                <span className="payroll-amount"><small>مشتريات مدفوعة من الدرج</small><strong>{money(summary?.cashPurchasesFromDrawer)}</strong></span>
                 <span className="payroll-amount muted"><small>الفرع</small><strong>{selectedBranch?.name ?? '-'}</strong></span>
               </div>
               <div className="form-grid">
-                {renderSummaryTable('Drawer-paid expenses', summary?.drawerPaidExpenses, summary?.drawerPaidExpensesAmount)}
-                {renderSummaryTable('Bank-paid expenses', summary?.bankPaidExpenses, summary?.bankPaidExpensesAmount)}
-                {renderSummaryTable('Purchases paid from drawer', summary?.drawerPaidPurchases, summary?.cashPurchasesFromDrawer)}
+                {renderSummaryTable('المصروفات المدفوعة من الدرج', summary?.drawerPaidExpenses, summary?.drawerPaidExpensesAmount)}
+                {renderSummaryTable('المصروفات المدفوعة من البنك', summary?.bankPaidExpenses, summary?.bankPaidExpensesAmount)}
+                {renderSummaryTable('المشتريات المدفوعة من الدرج', summary?.drawerPaidPurchases, summary?.cashPurchasesFromDrawer)}
               </div>
               <div className="form-actions">
                 <Link className="primary-button" href={`/expenses/new?branch_id=${branchId}&expense_date=${closingDate}`} target="_blank">إضافة مصروف سريع</Link>
@@ -274,7 +280,11 @@ export function DailySalesClosingWizard({
 
           {step === 3 ? (
             <>
-              <h3>مبيعات البنك</h3>
+              <h3>المبيعات البنكية</h3>
+              <div className="form-grid">
+                <label>مبلغ مبيعات داخل الفرع البنكية<input disabled={readOnly} type="number" min="0" step="0.01" value={inStoreCardSales.amount ?? 0} onChange={(event) => updateDraft('inStoreCardSales', { amount: Number(event.target.value) })} /></label>
+                <label>الحساب البنكي<select disabled={readOnly} value={inStoreCardSales.bankAccountId ?? bankAccountId} onChange={(event) => updateDraft('inStoreCardSales', { bankAccountId: event.target.value })}><option value="">اختر الحساب البنكي</option>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
+              </div>
               <label className="checkbox-field"><input disabled={readOnly} checked={Boolean(deliverySales.enabled)} onChange={(event) => updateDraft('deliverySales', { enabled: event.target.checked })} type="checkbox" />تفعيل مبيعات التوصيل</label>
               {deliverySales.enabled ? (
                 <div className="form-grid">
@@ -295,30 +305,22 @@ export function DailySalesClosingWizard({
                   <label>الحساب البنكي<select disabled={readOnly} value={websiteSales.bankAccountId ?? bankAccountId} onChange={(event) => updateDraft('websiteSales', { bankAccountId: event.target.value })}>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
                 </div>
               ) : null}
-              <label className="checkbox-field"><input disabled={readOnly} checked={Boolean(inStoreCardSales.enabled)} onChange={(event) => updateDraft('inStoreCardSales', { enabled: event.target.checked, bankAccountId: inStoreCardSales.bankAccountId ?? bankAccountId })} type="checkbox" />In-store card sales</label>
-              {inStoreCardSales.enabled ? (
-                <div className="form-grid">
-                  <label>Amount<input disabled={readOnly} type="number" min="0" step="0.01" value={inStoreCardSales.amount ?? 0} onChange={(event) => updateDraft('inStoreCardSales', { amount: Number(event.target.value) })} /></label>
-                  <label>Bank account<select disabled={readOnly} value={inStoreCardSales.bankAccountId ?? bankAccountId} onChange={(event) => updateDraft('inStoreCardSales', { bankAccountId: event.target.value })}>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
-                </div>
-              ) : null}
             </>
           ) : null}
 
           {step === 4 ? (
             <>
               <h3>تسوية النقد</h3>
-              <p className="notice">Record wholesale cash collections first if any wholesale cash was collected into this drawer today.</p>
+              <p className="notice">تأكد من تسجيل تحصيلات الجملة أولًا إذا تم تحصيل نقدية جملة داخل هذا الدرج قبل إنهاء الإقفال.</p>
               <div className="form-grid">
-                <label>المبلغ المسلم للمحاسب<input disabled={readOnly} type="number" min="0" step="0.01" value={cashReconciliation.handedCashAmount ?? 0} onChange={(event) => updateDraft('cashReconciliation', { handedCashAmount: Number(event.target.value) })} /></label>
-                <label>Total daily sales<input readOnly value={money(summary?.reconciledTotalDailySales)} /></label>
-                <label>الفرق<input readOnly className={Number(summary?.cashDifference ?? 0) === 0 ? 'success-input' : 'danger-input'} value={money(summary?.cashDifference)} /></label>
+                <label>المبلغ المستلم من المحاسب<input disabled={readOnly} type="number" min="0" step="0.01" value={cashReconciliation.handedCashAmount ?? 0} onChange={(event) => updateDraft('cashReconciliation', { handedCashAmount: Number(event.target.value) })} /></label>
               </div>
               <div className="payroll-amount-grid">
-                <span className="payroll-amount"><small>Amount handed to accountant</small><strong>{money(summary?.handedCashAmount)}</strong></span>
-                <span className="payroll-amount"><small>Drawer-paid expenses</small><strong>{money(summary?.cashExpensesFromDrawer)}</strong></span>
-                <span className="payroll-amount"><small>Purchases paid from drawer</small><strong>{money(summary?.cashPurchasesFromDrawer)}</strong></span>
-                <span className="payroll-amount"><small>Wholesale cash collected into drawer</small><strong>{money(summary?.wholesaleCashCollections)}</strong></span>
+                <span className="payroll-amount"><small>مبيعات الجملة النقدية</small><strong>{money(summary?.wholesaleCashCollections)}</strong></span>
+                <span className="payroll-amount"><small>المبلغ المستلم من المحاسب</small><strong>{money(summary?.handedCashAmount)}</strong></span>
+                <span className="payroll-amount"><small>مصروفات الدرج</small><strong>{money(summary?.cashExpensesFromDrawer)}</strong></span>
+                <span className="payroll-amount"><small>مشتريات الدرج</small><strong>{money(summary?.cashPurchasesFromDrawer)}</strong></span>
+                <span className="payroll-amount success"><small>إجمالي المبيعات اليومية</small><strong>{money(summary?.reconciledTotalDailySales)}</strong></span>
               </div>
             </>
           ) : null}
@@ -339,18 +341,30 @@ export function DailySalesClosingWizard({
           {step === 6 ? (
             <>
               <h3>الملخص النهائي</h3>
-              <div className="payroll-amount-grid">
-                <span className="payroll-amount"><small>مبيعات التوصيل</small><strong>{money(summary?.deliverySalesAmount)}</strong></span>
-                <span className="payroll-amount"><small>مبيعات الموقع نقدًا</small><strong>{money(summary?.websiteCashSales)}</strong></span>
-                <span className="payroll-amount"><small>مبيعات الموقع بنكيًا</small><strong>{money(summary?.websiteBankSalesAmount)}</strong></span>
-                <span className="payroll-amount"><small>In-store card sales</small><strong>{money(summary?.inStoreCardSalesAmount)}</strong></span>
-                <span className="payroll-amount"><small>تحصيلات الجملة النقدية</small><strong>{money(summary?.wholesaleCashCollections)}</strong></span>
-                <span className="payroll-amount"><small>Total daily sales</small><strong>{money(summary?.reconciledTotalDailySales)}</strong></span>
-                <span className={`payroll-amount ${Number(summary?.cashDifference ?? 0) === 0 ? 'success' : 'danger'}`}><small>الفرق</small><strong>{money(summary?.cashDifference)}</strong></span>
+              <div className="form-grid">
+                <div className="table-wrap compact-table">
+                  <table>
+                    <tbody>
+                      <tr><th>الفرع</th><td>{selectedBranch?.name ?? '-'}</td></tr>
+                      <tr><th>تاريخ الإقفال</th><td>{closingDate}</td></tr>
+                      <tr><th>مصروفات الدرج</th><td>{money(summary?.drawerPaidExpensesAmount)}</td></tr>
+                      <tr><th>مصروفات البنك</th><td>{money(summary?.bankPaidExpensesAmount)}</td></tr>
+                      <tr><th>مشتريات الدرج</th><td>{money(summary?.cashPurchasesFromDrawer)}</td></tr>
+                      <tr><th>مبيعات داخل الفرع البنكية</th><td>{money(summary?.inStoreCardSalesAmount)}</td></tr>
+                      <tr><th>مبيعات التوصيل</th><td>{money(summary?.deliverySalesAmount)}</td></tr>
+                      <tr><th>مبيعات الموقع نقدًا</th><td>{money(summary?.websiteCashSales)}</td></tr>
+                      <tr><th>مبيعات الموقع بنكيًا</th><td>{money(summary?.websiteBankSalesAmount)}</td></tr>
+                      <tr><th>تحصيلات الجملة النقدية</th><td>{money(summary?.wholesaleCashCollections)}</td></tr>
+                      <tr><th>المبلغ المستلم من المحاسب</th><td>{money(summary?.handedCashAmount)}</td></tr>
+                      <tr><th>إجمالي المبيعات اليومية</th><td>{money(summary?.reconciledTotalDailySales)}</td></tr>
+                      <tr><th>تحويل الخزنة</th><td>{money(summary?.vaultTransferAmount)}</td></tr>
+                    </tbody>
+                  </table>
+                </div>
               </div>
               {!readOnly ? <button disabled={isSaving || !closing?.id} onClick={finish} type="button">{isSaving ? 'جار الإنهاء...' : 'إنهاء الإقفال'}</button> : null}
               {closing?.status === 'finalized' ? <button className="danger-button" onClick={cancelWithReversal} type="button">إلغاء مع عكس الأثر المالي</button> : null}
-              {closing?.status === 'draft' ? <button className="danger-button" disabled={isSaving} onClick={deleteDraft} type="button">Delete draft</button> : null}
+              {closing?.status === 'draft' ? <button className="danger-button" disabled={isSaving} onClick={deleteDraft} type="button">حذف المسودة</button> : null}
             </>
           ) : null}
         </section>
@@ -365,16 +379,17 @@ export function DailySalesClosingWizard({
         <strong>ملخص الإقفال</strong>
         <span>{selectedBranch?.name ?? 'اختر الفرع'} - {closingDate}</span>
         <dl>
-          <div><dt>الحالة</dt><dd>{closing?.status ?? 'مسودة'}</dd></div>
-          <div><dt>مصروفات اليوم</dt><dd>{money(summary?.expensesAmount)}</dd></div>
+          <div><dt>الحالة</dt><dd>{statusLabel(closing?.status)}</dd></div>
+          <div><dt>مصروفات الدرج</dt><dd>{money(summary?.drawerPaidExpensesAmount)}</dd></div>
+          <div><dt>مصروفات البنك</dt><dd>{money(summary?.bankPaidExpensesAmount)}</dd></div>
+          <div><dt>مشتريات الدرج</dt><dd>{money(summary?.cashPurchasesFromDrawer)}</dd></div>
           <div><dt>تحصيلات الجملة النقدية</dt><dd>{money(summary?.wholesaleCashCollections)}</dd></div>
-          <div><dt>Total daily sales</dt><dd>{money(summary?.reconciledTotalDailySales)}</dd></div>
-          <div><dt>المسلم</dt><dd>{money(summary?.handedCashAmount)}</dd></div>
-          <div><dt>الفرق</dt><dd className={Number(summary?.cashDifference ?? 0) === 0 ? 'success-text' : 'danger-text'}>{money(summary?.cashDifference)}</dd></div>
+          <div><dt>المبلغ المستلم من المحاسب</dt><dd>{money(summary?.handedCashAmount)}</dd></div>
+          <div><dt>إجمالي المبيعات اليومية</dt><dd>{money(summary?.reconciledTotalDailySales)}</dd></div>
           <div><dt>تحويل الخزنة</dt><dd>{money(summary?.vaultTransferAmount)}</dd></div>
         </dl>
         {closing?.id ? <Link className="secondary-button" href={`/api/daily-sales/closings/${closing.id}/export?format=pdf`}>تصدير PDF</Link> : null}
-        {closing?.status === 'draft' ? <button className="danger-button" disabled={isSaving} onClick={deleteDraft} type="button">Delete draft</button> : null}
+        {closing?.status === 'draft' ? <button className="danger-button" disabled={isSaving} onClick={deleteDraft} type="button">حذف المسودة</button> : null}
       </aside>
     </div>
   );

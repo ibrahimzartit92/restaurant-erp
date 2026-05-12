@@ -155,17 +155,15 @@ export class DailySalesClosingService {
     const lines = [
       ['الفرع', closing.branch?.name ?? ''],
       ['التاريخ', closing.closingDate],
-      ['الحالة', closing.status],
+      ['الحالة', this.statusLabel(closing.status)],
       ['مصروفات اليوم', String(summary.expensesAmount)],
       ['مبيعات التوصيل', String(summary.deliverySalesAmount)],
       ['مبيعات الموقع نقدا', String(summary.websiteCashSales)],
       ['مبيعات الموقع بنكيا', String(summary.websiteBankSalesAmount)],
-      ['In-store card sales', String(summary.inStoreCardSalesAmount)],
+      ['مبيعات داخل الفرع البنكية', String(summary.inStoreCardSalesAmount)],
       ['تحصيلات الجملة النقدية', String(summary.wholesaleCashCollections)],
-      ['Total daily sales', String(summary.reconciledTotalDailySales)],
-      ['النقد المتوقع', String(summary.expectedSystemCash)],
-      ['النقد المسلم', String(summary.handedCashAmount)],
-      ['الفرق', String(summary.cashDifference)],
+      ['إجمالي المبيعات اليومية', String(summary.reconciledTotalDailySales)],
+      ['المبلغ المستلم من المحاسب', String(summary.handedCashAmount)],
       ['تحويل الخزنة', String(summary.vaultTransferAmount)],
     ];
     if (format === 'pdf') {
@@ -256,7 +254,7 @@ export class DailySalesClosingService {
         sourceType: 'daily_sales_closing_delivery',
         sourceId: closing.id,
         referenceNumber: closing.id,
-        description: `Delivery sales from ${draft.deliverySales?.fromDate ?? closing.closingDate} to ${draft.deliverySales?.toDate ?? closing.closingDate}`,
+        description: `مبيعات التوصيل من ${draft.deliverySales?.fromDate ?? closing.closingDate} إلى ${draft.deliverySales?.toDate ?? closing.closingDate}`,
         notes: closing.notes,
       });
       links.push({ type: 'bank_transaction', id: transaction.id });
@@ -274,7 +272,7 @@ export class DailySalesClosingService {
         sourceType: 'daily_sales_closing_website_bank',
         sourceId: closing.id,
         referenceNumber: closing.id,
-        description: `Website bank sales from ${draft.websiteSales?.fromDate ?? closing.closingDate} to ${draft.websiteSales?.toDate ?? closing.closingDate}`,
+        description: `مبيعات الموقع البنكية من ${draft.websiteSales?.fromDate ?? closing.closingDate} إلى ${draft.websiteSales?.toDate ?? closing.closingDate}`,
         notes: closing.notes,
       });
       links.push({ type: 'bank_transaction', id: transaction.id });
@@ -292,7 +290,7 @@ export class DailySalesClosingService {
         sourceType: 'daily_sales_closing_in_store_card',
         sourceId: closing.id,
         referenceNumber: closing.id,
-        description: `In-store card sales for ${closing.closingDate}`,
+        description: `مبيعات داخل الفرع البنكية بتاريخ ${closing.closingDate}`,
         notes: closing.notes,
       });
       links.push({ type: 'bank_transaction', id: transaction.id });
@@ -415,7 +413,7 @@ export class DailySalesClosingService {
       reconciledTotalDailySales,
       deliverySalesAmount: this.roundMoney(Number(draft.deliverySales?.enabled ? draft.deliverySales.amount ?? 0 : 0)),
       websiteBankSalesAmount: this.roundMoney(Number(draft.websiteSales?.enabled ? draft.websiteSales.bankAmount ?? 0 : 0)),
-      inStoreCardSalesAmount: this.roundMoney(Number(draft.inStoreCardSales?.enabled ? draft.inStoreCardSales.amount ?? 0 : 0)),
+      inStoreCardSalesAmount: this.roundMoney(Number(draft.inStoreCardSales?.amount ?? 0)),
       vaultTransferAmount: this.roundMoney(Number(draft.vaultTransfer?.enabled ? draft.vaultTransfer.amount ?? 0 : 0)),
     };
   }
@@ -469,6 +467,12 @@ export class DailySalesClosingService {
 
   private roundMoney(value: number) {
     return Math.round((value + Number.EPSILON) * 100) / 100;
+  }
+
+  private statusLabel(status: DailySalesClosingStatus) {
+    if (status === DailySalesClosingStatus.Finalized) return 'نهائي';
+    if (status === DailySalesClosingStatus.Cancelled) return 'ملغى';
+    return 'مسودة';
   }
 
   private summaryLines(rows: { id: string; description: string; amount: number }[]) {

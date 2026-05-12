@@ -9,7 +9,7 @@ export function DailySalesClosingDeleteButton({ closingId }: Readonly<{ closingI
   const [isSaving, setIsSaving] = useState(false);
 
   async function handleDelete() {
-    if (!confirm('Delete this draft closing and its autosaved wizard data?')) return;
+    if (!confirm('سيتم حذف مسودة الإقفال وكل البيانات المحفوظة تلقائيًا. هل تريد المتابعة؟')) return;
     setIsSaving(true);
     try {
       await submitJson(`/daily-sales/closings/${closingId}`, 'DELETE', {});
@@ -21,7 +21,7 @@ export function DailySalesClosingDeleteButton({ closingId }: Readonly<{ closingI
 
   return (
     <button className="text-link danger-text" disabled={isSaving} onClick={handleDelete} type="button">
-      {isSaving ? 'Deleting...' : 'Delete draft'}
+      {isSaving ? 'جارٍ الحذف...' : 'حذف المسودة'}
     </button>
   );
 }
