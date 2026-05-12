@@ -313,7 +313,10 @@ export class WholesaleSalesService {
   }
 
   async addPayment(invoiceId: string, dto: CreateWholesaleSalesPaymentDto) {
-    return this.createPayments({ invoiceId, branchId: dto.branchId, paymentDate: dto.paymentDate, payments: [dto] });
+    return this.createPayments(
+      { invoiceId, branchId: dto.branchId, paymentDate: dto.paymentDate, payments: [dto] },
+      { includeDetails: false },
+    );
   }
 
   async addPaymentBatch(dto: CreateWholesaleSalesPaymentBatchDto) {
@@ -381,7 +384,10 @@ export class WholesaleSalesService {
     return format === 'pdf' ? this.exportListPdf(invoices) : this.exportListExcel(invoices);
   }
 
-  private async createPayments(dto: { invoiceId: string; branchId: string; paymentDate: string; payments: CreateWholesaleSalesPaymentDto[] }) {
+  private async createPayments(
+    dto: { invoiceId: string; branchId: string; paymentDate: string; payments: CreateWholesaleSalesPaymentDto[] },
+    options: { includeDetails?: boolean } = {},
+  ) {
     const invoice = await this.invoiceRepository.findOne({ where: { id: dto.invoiceId }, relations: { customer: true } });
     if (!invoice) throw new NotFoundException('فاتورة بيع الجملة غير موجودة.');
     if (invoice.documentStatus === WholesaleSalesDocumentStatus.Cancelled) {
@@ -399,8 +405,9 @@ export class WholesaleSalesService {
       await this.validatePaymentSource(payment);
     }
 
-    await this.dataSource.transaction(async (manager) => {
+    const savedPaymentIds = await this.dataSource.transaction(async (manager) => {
       const paymentRepository = manager.getRepository(WholesaleSalesPaymentEntity);
+      const paymentIds: string[] = [];
       for (const row of dto.payments) {
         const saved = await paymentRepository.save(
           paymentRepository.create({
@@ -417,10 +424,33 @@ export class WholesaleSalesService {
             notes: this.optionalText(row.notes),
           }),
         );
+        paymentIds.push(saved.id);
         await this.recreatePaymentMovement(saved, manager, invoice);
       }
       await this.recalculatePaymentState(dto.invoiceId, manager);
+      return paymentIds;
     });
+
+    if (options.includeDetails === false) {
+      const refreshedInvoice = await this.invoiceRepository.findOneOrFail({
+        where: { id: dto.invoiceId },
+        select: {
+          id: true,
+          paidAmount: true,
+          remainingAmount: true,
+          paymentStatus: true,
+        },
+      });
+
+      return {
+        invoiceId: dto.invoiceId,
+        paymentIds: savedPaymentIds,
+        paidAmount: refreshedInvoice.paidAmount,
+        remainingAmount: refreshedInvoice.remainingAmount,
+        paymentStatus: refreshedInvoice.paymentStatus,
+      };
+    }
+
     return this.findDetails(dto.invoiceId);
   }
 
