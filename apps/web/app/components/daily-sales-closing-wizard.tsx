@@ -58,27 +58,33 @@ function buildSimpleRow(id: string, description: string, amount: number, seconda
   return { id, description, amount, secondary: secondary ?? null };
 }
 
-function SummaryCard({
+function MetricCard({
   item,
   onOpen,
 }: Readonly<{
   item: SummaryCardItem;
-  onOpen: (title: string, rows: DailySalesClosingSummaryLine[] | undefined, total: number) => void;
+  onOpen?: (title: string, rows: DailySalesClosingSummaryLine[] | undefined, total: number) => void;
 }>) {
+  const clickable = Boolean(onOpen);
+
   return (
-    <article className={`closing-summary-card ${item.tone ?? 'default'}`}>
-      <div className="closing-summary-card-copy">
-        <small>{item.subtitle}</small>
+    <article className={`metric-card ${item.tone ?? 'default'} ${clickable ? 'clickable' : 'static'}`}>
+      <div className="metric-card-copy">
+        {item.subtitle ? <small>{item.subtitle}</small> : null}
         <strong>{item.title}</strong>
       </div>
-      <button className="closing-summary-amount" onClick={() => onOpen(item.title, item.rows, item.amount)} type="button">
-        {money(item.amount)}
-      </button>
+      {clickable ? (
+        <button className="metric-card-value" onClick={() => onOpen?.(item.title, item.rows, item.amount)} type="button">
+          {money(item.amount)}
+        </button>
+      ) : (
+        <div className="metric-card-value static">{money(item.amount)}</div>
+      )}
     </article>
   );
 }
 
-function SummarySection({
+function MetricSection({
   title,
   subtitle,
   items,
@@ -87,53 +93,17 @@ function SummarySection({
   title: string;
   subtitle?: string;
   items: SummaryCardItem[];
-  onOpen: (title: string, rows: DailySalesClosingSummaryLine[] | undefined, total: number) => void;
+  onOpen?: (title: string, rows: DailySalesClosingSummaryLine[] | undefined, total: number) => void;
 }>) {
   return (
-    <section className="closing-section">
-      <div className="closing-section-head">
+    <section className="metric-section">
+      <div className="metric-section-head">
         <h4>{title}</h4>
         {subtitle ? <p>{subtitle}</p> : null}
       </div>
-      <div className="closing-card-grid">
+      <div className="metric-card-grid">
         {items.map((item) => (
-          <SummaryCard item={item} key={item.id} onOpen={onOpen} />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function ReadonlySummaryCard({ item }: Readonly<{ item: SummaryCardItem }>) {
-  return (
-    <article className={`closing-summary-card readonly-summary-card ${item.tone ?? 'default'}`}>
-      <div className="closing-summary-card-copy">
-        {item.subtitle ? <small>{item.subtitle}</small> : null}
-        <strong>{item.title}</strong>
-      </div>
-      <div className="closing-summary-amount static">{money(item.amount)}</div>
-    </article>
-  );
-}
-
-function ReadonlySummarySection({
-  title,
-  subtitle,
-  items,
-}: Readonly<{
-  title: string;
-  subtitle?: string;
-  items: SummaryCardItem[];
-}>) {
-  return (
-    <section className="closing-section final-summary-section">
-      <div className="closing-section-head final-summary-head">
-        <h4>{title}</h4>
-        {subtitle ? <p>{subtitle}</p> : null}
-      </div>
-      <div className="closing-card-grid final-summary-grid">
-        {items.map((item) => (
-          <ReadonlySummaryCard item={item} key={item.id} />
+          <MetricCard item={item} key={item.id} onOpen={onOpen} />
         ))}
       </div>
     </section>
@@ -395,7 +365,7 @@ export function DailySalesClosingWizard({
     {
       id: 'operational-cash',
       title: 'صافي المبيعات النقدية التشغيلية',
-      subtitle: 'بعد فصل الجملة وإضافة المصروفات والمشتريات',
+      subtitle: 'بعد فصل الجملة',
       amount: netOperationalCashSales,
       rows: operationalCashRows,
       tone: 'success',
@@ -421,7 +391,7 @@ export function DailySalesClosingWizard({
     {
       id: 'bank-movement',
       title: 'صافي المبيعات البنكية التشغيلية',
-      subtitle: 'بعد فصل الجملة وإضافة المصروفات والمشتريات',
+      subtitle: 'بعد فصل الجملة',
       amount: netOperationalBankSales,
       rows: operationalBankRows,
       tone: 'success',
@@ -451,7 +421,7 @@ export function DailySalesClosingWizard({
     {
       id: 'total-activity',
       title: 'إجمالي الحركة اليومية',
-      subtitle: 'تشغيلي + تحصيلات الجملة',
+      subtitle: 'التشغيل + الجملة',
       amount: Number(summary?.totalDailyActivityAmount ?? 0),
       rows: finalTotalsRows,
       tone: 'default',
@@ -468,18 +438,30 @@ export function DailySalesClosingWizard({
     },
   ];
 
+  const finalSummaryOperationalRows = [
+    ...operationalCashRows.map((row) => ({ ...row, id: `final-cash-${row.id}` })),
+    ...operationalBankRows.map((row) => ({ ...row, id: `final-bank-${row.id}` })),
+  ];
+
+  const finalSummaryWholesaleRows = [
+    ...(summary?.wholesaleCashCollectionLines ?? []).map((row) => ({ ...row, id: `final-wholesale-cash-${row.id}` })),
+    ...(summary?.wholesaleBankCollectionLines ?? []).map((row) => ({ ...row, id: `final-wholesale-bank-${row.id}` })),
+  ];
+
   const finalSummaryCashCards: SummaryCardItem[] = [
     {
       id: 'final-handed-cash',
       title: 'المبلغ المستلم من المحاسب',
       subtitle: 'النقد الفعلي المستلم',
       amount: Number(summary?.handedCashAmount ?? 0),
+      rows: handedCashRows,
     },
     {
       id: 'final-wholesale-cash',
       title: 'تحصيلات الجملة النقدية',
       subtitle: 'ضمن النقد المستلم',
       amount: Number(summary?.wholesaleCashCollections ?? 0),
+      rows: summary?.wholesaleCashCollectionLines,
       tone: 'warning',
     },
     {
@@ -487,6 +469,7 @@ export function DailySalesClosingWizard({
       title: 'صافي المبيعات النقدية التشغيلية',
       subtitle: 'بعد فصل الجملة',
       amount: netOperationalCashSales,
+      rows: operationalCashRows,
       tone: 'success',
     },
   ];
@@ -497,12 +480,14 @@ export function DailySalesClosingWizard({
       title: 'المبيعات البنكية التشغيلية',
       subtitle: 'داخل الفرع والتوصيل والموقع',
       amount: Number(summary?.normalBankSalesAmount ?? 0),
+      rows: normalBankSalesRows,
     },
     {
       id: 'final-wholesale-bank',
       title: 'تحصيلات الجملة البنكية',
       subtitle: 'منفصلة عن مبيعات اليوم',
       amount: Number(summary?.wholesaleBankCollections ?? 0),
+      rows: summary?.wholesaleBankCollectionLines,
       tone: 'warning',
     },
     {
@@ -510,6 +495,7 @@ export function DailySalesClosingWizard({
       title: 'صافي المبيعات البنكية التشغيلية',
       subtitle: 'بعد فصل الجملة',
       amount: netOperationalBankSales,
+      rows: operationalBankRows,
       tone: 'success',
     },
   ];
@@ -520,6 +506,7 @@ export function DailySalesClosingWizard({
       title: 'إجمالي المبيعات التشغيلية اليومية',
       subtitle: 'نقد تشغيلي + بنك تشغيلي',
       amount: Number(summary?.normalDailySalesAmount ?? 0),
+      rows: finalSummaryOperationalRows,
       tone: 'success',
     },
     {
@@ -527,6 +514,7 @@ export function DailySalesClosingWizard({
       title: 'إجمالي تحصيلات الجملة',
       subtitle: 'نقدي + بنكي',
       amount: Number(summary?.wholesaleCollectionsTotal ?? 0),
+      rows: finalSummaryWholesaleRows,
       tone: 'warning',
     },
     {
@@ -534,12 +522,16 @@ export function DailySalesClosingWizard({
       title: 'إجمالي الحركة اليومية',
       subtitle: 'التشغيل + تحصيلات الجملة',
       amount: Number(summary?.totalDailyActivityAmount ?? 0),
+      rows: [...finalSummaryOperationalRows, ...finalSummaryWholesaleRows],
     },
     {
       id: 'final-vault-transfer',
       title: 'تحويل الخزنة',
       subtitle: 'المبلغ المحول',
       amount: Number(summary?.vaultTransferAmount ?? 0),
+      rows: [
+        buildSimpleRow('final-vault-transfer-row', 'تحويل الخزنة', Number(summary?.vaultTransferAmount ?? 0), vaultTransfer.enabled ? 'مفعّل ضمن الإقفال' : 'غير مفعّل'),
+      ],
       tone: 'muted',
     },
   ];
@@ -579,7 +571,7 @@ export function DailySalesClosingWizard({
                 <h3>المصروفات والمشتريات</h3>
                 <p>اعرض المجاميع سريعًا، ثم افتح التفاصيل عند الحاجة من نفس البطاقات المختصرة.</p>
               </div>
-              <SummarySection title="ملخص المصروفات" items={expenseCards} onOpen={openDetails} />
+              <MetricSection title="ملخص المصروفات" subtitle="بطاقات مختصرة لمجاميع اليوم." items={expenseCards} onOpen={openDetails} />
               <div className="form-actions">
                 <Link className="primary-button" href={`/expenses/new?branch_id=${branchId}&expense_date=${closingDate}`} target="_blank">إضافة مصروف سريع</Link>
                 <Link className="secondary-button" href={`/expenses?branch_id=${branchId}&date_from=${closingDate}&date_to=${closingDate}`}>عرض مصروفات اليوم</Link>
@@ -622,7 +614,7 @@ export function DailySalesClosingWizard({
                   </div>
                   <div className="bank-summary-grid">
                     {bankCards.map((item) => (
-                      <SummaryCard item={item} key={item.id} onOpen={openDetails} />
+                      <MetricCard item={item} key={item.id} onOpen={openDetails} />
                     ))}
                   </div>
                 </section>
@@ -675,11 +667,11 @@ export function DailySalesClosingWizard({
                 <label>المبلغ المستلم من المحاسب<input disabled={readOnly} type="number" min="0" step="0.01" value={cashReconciliation.handedCashAmount ?? 0} onChange={(event) => updateDraft('cashReconciliation', { handedCashAmount: Number(event.target.value) })} /></label>
               </div>
               <div className="closing-kpi-row cash-step-kpis">
-                <SummaryCard item={cashCards[0]} onOpen={openDetails} />
-                <SummaryCard item={cashCards[1]} onOpen={openDetails} />
-                <SummaryCard item={cashCards[2]} onOpen={openDetails} />
-                <SummaryCard item={bankCards[2]} onOpen={openDetails} />
-                <SummaryCard item={totalCards[0]} onOpen={openDetails} />
+                <MetricCard item={cashCards[0]} onOpen={openDetails} />
+                <MetricCard item={cashCards[1]} onOpen={openDetails} />
+                <MetricCard item={cashCards[2]} onOpen={openDetails} />
+                <MetricCard item={bankCards[2]} onOpen={openDetails} />
+                <MetricCard item={totalCards[0]} onOpen={openDetails} />
               </div>
             </>
           ) : null}
@@ -699,9 +691,9 @@ export function DailySalesClosingWizard({
                 <p>مراجعة مختصرة ونهائية للأرقام قبل إنهاء الإقفال.</p>
               </div>
               <div className="closing-summary-stack final-summary-stack">
-                <ReadonlySummarySection title="النقد" subtitle="الأرقام النقدية النهائية لليوم." items={finalSummaryCashCards} />
-                <ReadonlySummarySection title="البنك" subtitle="الأرقام البنكية النهائية لليوم." items={finalSummaryBankCards} />
-                <ReadonlySummarySection title="الإجماليات النهائية" subtitle="الخلاصة النهائية للحركة اليومية." items={finalSummaryTotalCards} />
+                <MetricSection title="النقد" subtitle="الأرقام النقدية النهائية لليوم." items={finalSummaryCashCards} onOpen={openDetails} />
+                <MetricSection title="البنك" subtitle="الأرقام البنكية النهائية لليوم." items={finalSummaryBankCards} onOpen={openDetails} />
+                <MetricSection title="الإجماليات النهائية" subtitle="الخلاصة النهائية للحركة اليومية." items={finalSummaryTotalCards} onOpen={openDetails} />
               </div>
               {!readOnly ? <button disabled={isSaving || !closing?.id} onClick={finish} type="button">{isSaving ? 'جارِ الإنهاء...' : 'إنهاء الإقفال'}</button> : null}
               {closing?.status === 'finalized' ? <button className="danger-button" onClick={cancelWithReversal} type="button">إلغاء مع عكس الأثر المالي</button> : null}
@@ -837,22 +829,20 @@ export function DailySalesClosingWizard({
           width: 100%;
         }
         .bank-summary-grid {
-          display: grid;
           gap: 8px;
-          grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
         }
-        .bank-summary-grid .closing-summary-card {
+        .bank-summary-grid .metric-card {
           min-height: 102px;
           padding: 10px 11px;
           gap: 8px;
         }
-        .bank-summary-grid .closing-summary-card-copy small {
+        .bank-summary-grid .metric-card-copy small {
           font-size: 10px;
         }
-        .bank-summary-grid .closing-summary-card-copy strong {
+        .bank-summary-grid .metric-card-copy strong {
           font-size: 12px;
         }
-        .bank-summary-grid .closing-summary-amount {
+        .bank-summary-grid .metric-card-value {
           font-size: 20px;
         }
         .bank-toggle {
@@ -885,86 +875,92 @@ export function DailySalesClosingWizard({
           gap: 8px;
           align-items: stretch;
         }
-        .cash-step-kpis .closing-summary-card {
+        .cash-step-kpis .metric-card {
           min-height: 108px;
           padding: 10px 11px;
           gap: 8px;
           border-radius: 9px;
         }
-        .cash-step-kpis .closing-summary-card-copy {
+        .cash-step-kpis .metric-card-copy {
           gap: 3px;
         }
-        .cash-step-kpis .closing-summary-card-copy small {
+        .cash-step-kpis .metric-card-copy small {
           font-size: 10px;
         }
-        .cash-step-kpis .closing-summary-card-copy strong {
+        .cash-step-kpis .metric-card-copy strong {
           font-size: 12px;
         }
-        .cash-step-kpis .closing-summary-amount {
+        .cash-step-kpis .metric-card-value {
           font-size: 20px;
         }
         .closing-dual-grid {
           grid-template-columns: repeat(2, minmax(0, 1fr));
         }
-        .closing-section {
+        .metric-section {
           display: grid;
           gap: 10px;
         }
-        .closing-section-head {
+        .metric-section-head {
           display: flex;
           align-items: end;
           justify-content: space-between;
           gap: 12px;
           flex-wrap: wrap;
         }
-        .closing-section-head h4 {
+        .metric-section-head h4 {
           margin: 0;
           font-size: 15px;
         }
-        .closing-section-head p {
+        .metric-section-head p {
           margin: 0;
           color: var(--muted);
           font-size: 12px;
         }
-        .closing-card-grid {
+        .metric-card-grid {
           display: grid;
           gap: 10px;
-          grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+          grid-template-columns: repeat(4, minmax(0, 1fr));
         }
-        .closing-summary-card {
+        .metric-card {
           border: 1px solid var(--border);
           border-radius: 10px;
           background: #fff;
           padding: 12px;
           display: grid;
-          gap: 10px;
-          box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+          gap: 8px;
+          align-content: start;
+          min-height: 106px;
+          box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
         }
-        .closing-summary-card.success {
+        .metric-card.clickable {
+          cursor: default;
+        }
+        .metric-card.success {
           border-color: rgba(22, 163, 74, 0.18);
           background: linear-gradient(180deg, #ffffff 0%, #f0fdf4 100%);
         }
-        .closing-summary-card.warning {
+        .metric-card.warning {
           border-color: rgba(245, 158, 11, 0.22);
           background: linear-gradient(180deg, #ffffff 0%, #fffbeb 100%);
         }
-        .closing-summary-card.muted {
+        .metric-card.muted {
           background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
         }
-        .closing-summary-card-copy {
+        .metric-card-copy {
           display: grid;
           gap: 4px;
         }
-        .closing-summary-card-copy small {
+        .metric-card-copy small {
           color: var(--muted);
           font-size: 11px;
           font-weight: 800;
+          line-height: 1.5;
         }
-        .closing-summary-card-copy strong {
+        .metric-card-copy strong {
           font-size: 13px;
+          line-height: 1.55;
         }
-        .closing-summary-amount {
-          position: relative;
+        .metric-card-value {
           border: none;
           background: transparent;
           padding: 0;
@@ -973,9 +969,10 @@ export function DailySalesClosingWizard({
           color: inherit;
           font-size: 22px;
           font-weight: 900;
-          line-height: 1.1;
+          line-height: 1.25;
+          align-self: end;
         }
-        .closing-summary-amount.static {
+        .metric-card-value.static {
           cursor: default;
           pointer-events: none;
         }
@@ -985,40 +982,40 @@ export function DailySalesClosingWizard({
         .final-summary-stack {
           gap: 16px;
         }
-        .final-summary-section {
+        .final-summary-stack .metric-section {
           gap: 12px;
         }
-        .final-summary-head {
+        .final-summary-stack .metric-section-head {
           align-items: start;
         }
-        .final-summary-head h4 {
+        .final-summary-stack .metric-section-head h4 {
           font-size: 16px;
         }
-        .final-summary-head p {
+        .final-summary-stack .metric-section-head p {
           font-size: 12px;
           line-height: 1.6;
         }
-        .final-summary-grid {
+        .final-summary-stack .metric-card-grid {
           gap: 10px;
-          grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+          grid-template-columns: repeat(4, minmax(0, 1fr));
         }
-        .readonly-summary-card {
+        .final-summary-stack .metric-card {
           min-height: 108px;
           padding: 12px;
           gap: 9px;
           box-shadow: 0 8px 20px rgba(15, 23, 42, 0.035);
         }
-        .readonly-summary-card .closing-summary-card-copy {
+        .final-summary-stack .metric-card-copy {
           gap: 5px;
         }
-        .readonly-summary-card .closing-summary-card-copy small {
+        .final-summary-stack .metric-card-copy small {
           font-size: 10px;
         }
-        .readonly-summary-card .closing-summary-card-copy strong {
+        .final-summary-stack .metric-card-copy strong {
           font-size: 12px;
           line-height: 1.55;
         }
-        .readonly-summary-card .closing-summary-amount {
+        .final-summary-stack .metric-card-value {
           font-size: 21px;
         }
         .closing-detail-table {
@@ -1043,14 +1040,25 @@ export function DailySalesClosingWizard({
           .closing-dual-grid {
             grid-template-columns: 1fr;
           }
-          .final-summary-grid {
+          .metric-card-grid,
+          .final-summary-stack .metric-card-grid {
             grid-template-columns: 1fr;
+          }
+        }
+        @media (min-width: 701px) and (max-width: 900px) {
+          .metric-card-grid,
+          .final-summary-stack .metric-card-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
           }
         }
         @media (min-width: 901px) and (max-width: 1200px) {
           .bank-entry-grid,
           .website-option-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+          .metric-card-grid,
+          .final-summary-stack .metric-card-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
           }
           .cash-step-kpis {
             grid-template-columns: repeat(3, minmax(0, 1fr));
