@@ -19,11 +19,13 @@ import { DrawerEntity } from '../drawers/entities/drawer.entity';
 import { VaultTransactionDirection, VaultTransactionEntity, VaultTransactionType } from '../vaults/entities/vault-transaction.entity';
 import { UpsertDailySalesClosingDto } from './dto/upsert-daily-sales-closing.dto';
 import { DailySaleEntity } from './entities/daily-sale.entity';
+import { WholesaleSalesPaymentEntity, WholesaleSalesPaymentMethod } from '../wholesale-sales/entities/wholesale-sales-payment.entity';
 import {
   DailySalesClosingDraftData,
   DailySalesClosingEntity,
   DailySalesClosingStatus,
   DailySalesClosingSummary,
+  DailySalesClosingSummaryLine,
 } from './entities/daily-sales-closing.entity';
 
 @Injectable()
@@ -469,7 +471,7 @@ export class DailySalesClosingService {
     const inStoreCardSalesAmount = this.roundMoney(Number(draft.inStoreCardSales?.amount ?? 0));
     const normalBankSalesAmount = this.roundMoney(deliverySalesAmount + websiteBankSalesAmount + inStoreCardSalesAmount);
 
-    const [drawerRows, bankRows] = await Promise.all([
+    const [drawerRows, bankRows, wholesaleCashPayments, wholesaleBankPayments] = await Promise.all([
       closing.drawerId
         ? this.dataSource.manager.getRepository(DrawerTransactionEntity).find({
             where: { drawerId: closing.drawerId, transactionDate: closing.closingDate },
@@ -480,6 +482,22 @@ export class DailySalesClosingService {
           branchId: closing.branchId,
           transactionDate: closing.closingDate,
         },
+      }),
+      this.dataSource.manager.getRepository(WholesaleSalesPaymentEntity).find({
+        where: {
+          branchId: closing.branchId,
+          paymentDate: closing.closingDate,
+          paymentMethod: WholesaleSalesPaymentMethod.Cash,
+        },
+        relations: { invoice: { customer: true }, drawer: true, bankAccount: true, vault: true },
+      }),
+      this.dataSource.manager.getRepository(WholesaleSalesPaymentEntity).find({
+        where: {
+          branchId: closing.branchId,
+          paymentDate: closing.closingDate,
+          paymentMethod: WholesaleSalesPaymentMethod.Bank,
+        },
+        relations: { invoice: { customer: true }, drawer: true, bankAccount: true, vault: true },
       }),
     ]);
 
@@ -523,6 +541,8 @@ export class DailySalesClosingService {
 
     const bankPaidExpenses = this.summaryLines(bankExpenseRows);
     const bankPaidPurchases = this.summaryLines(bankPurchaseRows);
+    const wholesaleCashCollectionLines = this.wholesaleSummaryLines(wholesaleCashPayments);
+    const wholesaleBankCollectionLines = this.wholesaleSummaryLines(wholesaleBankPayments);
     const bankPaidExpensesAmount = this.roundMoney(bankExpenseRows.reduce((sum, row) => sum + Number(row.amount ?? 0), 0));
     const bankPaidPurchasesAmount = this.roundMoney(bankPurchaseRows.reduce((sum, row) => sum + Number(row.amount ?? 0), 0));
     const wholesaleBankCollections = this.roundMoney(wholesaleBankRows.reduce((sum, row) => sum + Number(row.amount ?? 0), 0));
@@ -552,7 +572,9 @@ export class DailySalesClosingService {
       bankPaidPurchases,
       cashRetailSales,
       wholesaleCashCollections,
+      wholesaleCashCollectionLines,
       wholesaleBankCollections,
+      wholesaleBankCollectionLines,
       wholesaleCollectionsTotal,
       websiteCashSales,
       cashExpensesFromDrawer,
@@ -679,11 +701,35 @@ export class DailySalesClosingService {
     return 'مسودة';
   }
 
-  private summaryLines(rows: { id: string; description: string; amount: number }[]) {
+  private wholesaleSummaryLines(payments: WholesaleSalesPaymentEntity[]): DailySalesClosingSummaryLine[] {
+    return payments.map((payment) => ({
+      id: payment.id,
+      description: payment.invoice?.invoiceNumber ? `فاتورة ${payment.invoice.invoiceNumber}` : payment.paymentNumber,
+      amount: this.roundMoney(Number(payment.amount ?? 0)),
+      date: payment.paymentDate,
+      reference: payment.paymentNumber,
+      secondary: payment.invoice?.customer?.name ?? payment.referenceNumber ?? null,
+    }));
+  }
+
+  private summaryLines(
+    rows: Array<{
+      id: string;
+      description: string;
+      amount: number;
+      transactionDate?: string;
+      paymentDate?: string;
+      referenceNumber?: string | null;
+      notes?: string | null;
+    }>,
+  ) {
     return rows.map((row) => ({
       id: row.id,
       description: row.description,
       amount: this.roundMoney(Number(row.amount ?? 0)),
+      date: row.transactionDate ?? row.paymentDate ?? null,
+      reference: row.referenceNumber ?? null,
+      secondary: row.notes ?? null,
     }));
   }
 }

@@ -65,7 +65,9 @@ export type DailySalesClosingSummary = {
   bankPaidPurchases: DailySalesClosingSummaryLine[];
   cashRetailSales: number;
   wholesaleCashCollections: number;
+  wholesaleCashCollectionLines: DailySalesClosingSummaryLine[];
   wholesaleBankCollections: number;
+  wholesaleBankCollectionLines: DailySalesClosingSummaryLine[];
   wholesaleCollectionsTotal: number;
   websiteCashSales: number;
   cashExpensesFromDrawer: number;
@@ -90,6 +92,9 @@ export type DailySalesClosingSummaryLine = {
   id: string;
   description: string;
   amount: number;
+  date?: string | null;
+  reference?: string | null;
+  secondary?: string | null;
 };
 
 @Entity('daily_sales_closings')
