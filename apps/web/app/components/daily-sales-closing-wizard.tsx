@@ -494,7 +494,7 @@ export function DailySalesClosingWizard({
               <div className="form-grid">
                 <label>المبلغ المستلم من المحاسب<input disabled={readOnly} type="number" min="0" step="0.01" value={cashReconciliation.handedCashAmount ?? 0} onChange={(event) => updateDraft('cashReconciliation', { handedCashAmount: Number(event.target.value) })} /></label>
               </div>
-              <div className="closing-kpi-row">
+              <div className="closing-kpi-row cash-step-kpis">
                 <SummaryCard item={cashCards[0]} onOpen={openDetails} />
                 <SummaryCard item={cashCards[1]} onOpen={openDetails} />
                 <SummaryCard item={cashCards[2]} onOpen={openDetails} />
@@ -598,6 +598,28 @@ export function DailySalesClosingWizard({
           grid-template-columns: repeat(5, minmax(0, 1fr));
           margin-bottom: 14px;
         }
+        .cash-step-kpis {
+          gap: 8px;
+          align-items: stretch;
+        }
+        .cash-step-kpis .closing-summary-card {
+          min-height: 108px;
+          padding: 10px 11px;
+          gap: 8px;
+          border-radius: 9px;
+        }
+        .cash-step-kpis .closing-summary-card-copy {
+          gap: 3px;
+        }
+        .cash-step-kpis .closing-summary-card-copy small {
+          font-size: 10px;
+        }
+        .cash-step-kpis .closing-summary-card-copy strong {
+          font-size: 12px;
+        }
+        .cash-step-kpis .closing-summary-amount {
+          font-size: 20px;
+        }
         .closing-dual-grid {
           grid-template-columns: repeat(2, minmax(0, 1fr));
         }
@@ -689,6 +711,11 @@ export function DailySalesClosingWizard({
           .closing-kpi-row,
           .closing-dual-grid {
             grid-template-columns: 1fr;
+          }
+        }
+        @media (min-width: 901px) and (max-width: 1200px) {
+          .cash-step-kpis {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
           }
         }
       `}</style>
