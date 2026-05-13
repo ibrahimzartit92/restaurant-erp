@@ -463,8 +463,10 @@ export function DailySalesClosingWizard({
 
           {step === 2 ? (
             <>
-              <h3>المصروفات والمشتريات</h3>
-              <p className="field-hint">اعرض المجاميع سريعًا، حرّك المؤشر على أي مبلغ للمعاينة المختصرة، واضغط عليه لفتح كل التفاصيل.</p>
+              <div className="closing-step-intro">
+                <h3>المصروفات والمشتريات</h3>
+                <p>اعرض المجاميع سريعًا، ثم افتح التفاصيل عند الحاجة من نفس البطاقات المختصرة.</p>
+              </div>
               <SummarySection title="ملخص المصروفات" items={expenseCards} onOpen={openDetails} />
               <div className="form-actions">
                 <Link className="primary-button" href={`/expenses/new?branch_id=${branchId}&expense_date=${closingDate}`} target="_blank">إضافة مصروف سريع</Link>
@@ -475,16 +477,82 @@ export function DailySalesClosingWizard({
 
           {step === 3 ? (
             <>
-              <h3>مبيعات البنك</h3>
-              <div className="form-grid">
-                <label>مبلغ مبيعات داخل الفرع البنكية<input disabled={readOnly} type="number" min="0" step="0.01" value={inStoreCardSales.amount ?? 0} onChange={(event) => updateDraft('inStoreCardSales', { amount: Number(event.target.value) })} /></label>
-                <label>الحساب البنكي<select disabled={readOnly} value={inStoreCardSales.bankAccountId ?? bankAccountId} onChange={(event) => updateDraft('inStoreCardSales', { bankAccountId: event.target.value })}><option value="">اختر الحساب البنكي</option>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
+              <div className="bank-step-shell">
+                <div className="closing-step-intro">
+                  <h3>مبيعات البنك</h3>
+                  <p>أدخل القيم البنكية اليومية بترتيب واضح، ثم راجع الملخص المختصر قبل المتابعة.</p>
+                </div>
+
+                <section className="bank-entry-panel">
+                  <div className="bank-entry-head">
+                    <strong>مبيعات داخل الفرع البنكية</strong>
+                    <span>قيد يومي مباشر على تاريخ الإقفال</span>
+                  </div>
+                  <div className="bank-entry-grid">
+                    <label>
+                      مبلغ المبيعات
+                      <input disabled={readOnly} type="number" min="0" step="0.01" value={inStoreCardSales.amount ?? 0} onChange={(event) => updateDraft('inStoreCardSales', { amount: Number(event.target.value) })} />
+                    </label>
+                    <label>
+                      الحساب البنكي
+                      <select disabled={readOnly} value={inStoreCardSales.bankAccountId ?? bankAccountId} onChange={(event) => updateDraft('inStoreCardSales', { bankAccountId: event.target.value })}>
+                        <option value="">اختر الحساب البنكي</option>
+                        {bankAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+                      </select>
+                    </label>
+                  </div>
+                </section>
+
+                <section className="bank-summary-panel">
+                  <div className="bank-summary-head">
+                    <strong>ملخص البنك</strong>
+                    <span>قراءة سريعة لقنوات البنك التشغيلية وتحصيلات الجملة البنكية.</span>
+                  </div>
+                  <div className="bank-summary-grid">
+                    {bankCards.map((item) => (
+                      <SummaryCard item={item} key={item.id} onOpen={openDetails} />
+                    ))}
+                  </div>
+                </section>
+
+                <section className="bank-option-panel">
+                  <label className="checkbox-field bank-toggle"><input disabled={readOnly} checked={Boolean(deliverySales.enabled)} onChange={(event) => updateDraft('deliverySales', { enabled: event.target.checked })} type="checkbox" />تفعيل مبيعات التوصيل</label>
+                  {deliverySales.enabled ? (
+                    <div className="bank-option-body">
+                      <div className="bank-option-title">
+                        <strong>مبيعات التوصيل</strong>
+                        <span>حدّد الفترة والحساب البنكي المرتبط بالقيمة المحصلة.</span>
+                      </div>
+                      <div className="form-grid bank-option-grid">
+                        <label>من تاريخ<input disabled={readOnly} type="date" value={deliverySales.fromDate ?? closingDate} onChange={(event) => updateDraft('deliverySales', { fromDate: event.target.value })} /></label>
+                        <label>إلى تاريخ<input disabled={readOnly} type="date" value={deliverySales.toDate ?? closingDate} onChange={(event) => updateDraft('deliverySales', { toDate: event.target.value })} /></label>
+                        <label>المبلغ<input disabled={readOnly} type="number" min="0" step="0.01" value={deliverySales.amount ?? 0} onChange={(event) => updateDraft('deliverySales', { amount: Number(event.target.value) })} /></label>
+                        <label>الحساب البنكي<select disabled={readOnly} value={deliverySales.bankAccountId ?? bankAccountId} onChange={(event) => updateDraft('deliverySales', { bankAccountId: event.target.value })}>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
+                      </div>
+                    </div>
+                  ) : null}
+                </section>
+
+                <section className="bank-option-panel">
+                  <label className="checkbox-field bank-toggle"><input disabled={readOnly} checked={Boolean(websiteSales.enabled)} onChange={(event) => updateDraft('websiteSales', { enabled: event.target.checked })} type="checkbox" />تفعيل مبيعات الموقع</label>
+                  {websiteSales.enabled ? (
+                    <div className="bank-option-body">
+                      <div className="bank-option-title">
+                        <strong>مبيعات الموقع</strong>
+                        <span>قسّم المبلغ بين النقدي والبنكي وحدّد وجهة كل جزء بوضوح.</span>
+                      </div>
+                      <div className="form-grid bank-option-grid website-option-grid">
+                        <label>من تاريخ<input disabled={readOnly} type="date" value={websiteSales.fromDate ?? closingDate} onChange={(event) => updateDraft('websiteSales', { fromDate: event.target.value })} /></label>
+                        <label>إلى تاريخ<input disabled={readOnly} type="date" value={websiteSales.toDate ?? closingDate} onChange={(event) => updateDraft('websiteSales', { toDate: event.target.value })} /></label>
+                        <label>نقدي<input disabled={readOnly} type="number" min="0" step="0.01" value={websiteSales.cashAmount ?? 0} onChange={(event) => updateDraft('websiteSales', { cashAmount: Number(event.target.value) })} /></label>
+                        <label>بنكي<input disabled={readOnly} type="number" min="0" step="0.01" value={websiteSales.bankAmount ?? 0} onChange={(event) => updateDraft('websiteSales', { bankAmount: Number(event.target.value) })} /></label>
+                        <label>الدرج<select disabled={readOnly} value={websiteSales.drawerId ?? drawerId} onChange={(event) => updateDraft('websiteSales', { drawerId: event.target.value })}>{drawers.map((drawer) => <option key={drawer.id} value={drawer.id}>{drawer.name}</option>)}</select></label>
+                        <label>الحساب البنكي<select disabled={readOnly} value={websiteSales.bankAccountId ?? bankAccountId} onChange={(event) => updateDraft('websiteSales', { bankAccountId: event.target.value })}>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
+                      </div>
+                    </div>
+                  ) : null}
+                </section>
               </div>
-              <SummarySection title="ملخص البنك" subtitle="تفصيل خفيف لقنوات البنك التشغيلية وتحصيلات الجملة البنكية." items={bankCards} onOpen={openDetails} />
-              <label className="checkbox-field"><input disabled={readOnly} checked={Boolean(deliverySales.enabled)} onChange={(event) => updateDraft('deliverySales', { enabled: event.target.checked })} type="checkbox" />تفعيل مبيعات التوصيل</label>
-              {deliverySales.enabled ? <div className="form-grid"><label>من تاريخ<input disabled={readOnly} type="date" value={deliverySales.fromDate ?? closingDate} onChange={(event) => updateDraft('deliverySales', { fromDate: event.target.value })} /></label><label>إلى تاريخ<input disabled={readOnly} type="date" value={deliverySales.toDate ?? closingDate} onChange={(event) => updateDraft('deliverySales', { toDate: event.target.value })} /></label><label>المبلغ<input disabled={readOnly} type="number" min="0" step="0.01" value={deliverySales.amount ?? 0} onChange={(event) => updateDraft('deliverySales', { amount: Number(event.target.value) })} /></label><label>الحساب البنكي<select disabled={readOnly} value={deliverySales.bankAccountId ?? bankAccountId} onChange={(event) => updateDraft('deliverySales', { bankAccountId: event.target.value })}>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label></div> : null}
-              <label className="checkbox-field"><input disabled={readOnly} checked={Boolean(websiteSales.enabled)} onChange={(event) => updateDraft('websiteSales', { enabled: event.target.checked })} type="checkbox" />تفعيل مبيعات الموقع</label>
-              {websiteSales.enabled ? <div className="form-grid"><label>من تاريخ<input disabled={readOnly} type="date" value={websiteSales.fromDate ?? closingDate} onChange={(event) => updateDraft('websiteSales', { fromDate: event.target.value })} /></label><label>إلى تاريخ<input disabled={readOnly} type="date" value={websiteSales.toDate ?? closingDate} onChange={(event) => updateDraft('websiteSales', { toDate: event.target.value })} /></label><label>نقدي<input disabled={readOnly} type="number" min="0" step="0.01" value={websiteSales.cashAmount ?? 0} onChange={(event) => updateDraft('websiteSales', { cashAmount: Number(event.target.value) })} /></label><label>بنكي<input disabled={readOnly} type="number" min="0" step="0.01" value={websiteSales.bankAmount ?? 0} onChange={(event) => updateDraft('websiteSales', { bankAmount: Number(event.target.value) })} /></label><label>الدرج<select disabled={readOnly} value={websiteSales.drawerId ?? drawerId} onChange={(event) => updateDraft('websiteSales', { drawerId: event.target.value })}>{drawers.map((drawer) => <option key={drawer.id} value={drawer.id}>{drawer.name}</option>)}</select></label><label>الحساب البنكي<select disabled={readOnly} value={websiteSales.bankAccountId ?? bankAccountId} onChange={(event) => updateDraft('websiteSales', { bankAccountId: event.target.value })}>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label></div> : null}
             </>
           ) : null}
 
@@ -587,6 +655,106 @@ export function DailySalesClosingWizard({
       </ModalDialog>
 
       <style jsx>{`
+        .bank-step-shell {
+          display: grid;
+          gap: 14px;
+        }
+        .closing-step-intro {
+          display: grid;
+          gap: 6px;
+          margin-bottom: 2px;
+        }
+        .closing-step-intro h3 {
+          margin: 0;
+          font-size: 18px;
+          line-height: 1.25;
+        }
+        .closing-step-intro p {
+          margin: 0;
+          color: var(--muted);
+          font-size: 13px;
+          line-height: 1.7;
+          max-width: 680px;
+        }
+        .bank-entry-panel,
+        .bank-summary-panel,
+        .bank-option-panel {
+          border: 1px solid var(--border);
+          border-radius: 12px;
+          background: #fff;
+          padding: 14px;
+          display: grid;
+          gap: 12px;
+        }
+        .bank-entry-head,
+        .bank-summary-head,
+        .bank-option-title {
+          display: grid;
+          gap: 4px;
+        }
+        .bank-entry-head strong,
+        .bank-summary-head strong,
+        .bank-option-title strong {
+          font-size: 14px;
+        }
+        .bank-entry-head span,
+        .bank-summary-head span,
+        .bank-option-title span {
+          color: var(--muted);
+          font-size: 12px;
+        }
+        .bank-entry-grid {
+          display: grid;
+          gap: 12px;
+          grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+          align-items: end;
+        }
+        .bank-entry-grid label,
+        .bank-option-grid label {
+          display: grid;
+          gap: 6px;
+          font-weight: 700;
+        }
+        .bank-entry-grid input,
+        .bank-entry-grid select,
+        .bank-option-grid input,
+        .bank-option-grid select {
+          width: 100%;
+        }
+        .bank-summary-grid {
+          display: grid;
+          gap: 8px;
+          grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        }
+        .bank-summary-grid .closing-summary-card {
+          min-height: 102px;
+          padding: 10px 11px;
+          gap: 8px;
+        }
+        .bank-summary-grid .closing-summary-card-copy small {
+          font-size: 10px;
+        }
+        .bank-summary-grid .closing-summary-card-copy strong {
+          font-size: 12px;
+        }
+        .bank-summary-grid .closing-summary-amount {
+          font-size: 20px;
+        }
+        .bank-toggle {
+          margin: 0;
+        }
+        .bank-option-body {
+          display: grid;
+          gap: 12px;
+          border-top: 1px solid #eef2f7;
+          padding-top: 12px;
+        }
+        .bank-option-grid {
+          gap: 12px;
+        }
+        .website-option-grid {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
         .closing-summary-stack,
         .closing-dual-grid {
           display: grid;
@@ -708,12 +876,18 @@ export function DailySalesClosingWizard({
           background: #f8fafc;
         }
         @media (max-width: 900px) {
+          .bank-entry-grid,
+          .website-option-grid,
           .closing-kpi-row,
           .closing-dual-grid {
             grid-template-columns: 1fr;
           }
         }
         @media (min-width: 901px) and (max-width: 1200px) {
+          .bank-entry-grid,
+          .website-option-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
           .cash-step-kpis {
             grid-template-columns: repeat(3, minmax(0, 1fr));
           }
