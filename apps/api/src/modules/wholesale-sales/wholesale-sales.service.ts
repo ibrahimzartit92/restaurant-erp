@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
+﻿import { BadRequestException, ConflictException, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import ExcelJS = require('exceljs');
 import puppeteer from 'puppeteer';
@@ -45,6 +45,7 @@ type WholesaleSalesFilters = {
   invoiceDateFrom?: string;
   invoiceDateTo?: string;
   search?: string;
+  collectionDateSort?: 'asc' | 'desc';
 };
 
 export type WholesaleAggregationFilters = {
@@ -102,9 +103,16 @@ export class WholesaleSalesService {
       .leftJoinAndSelect('invoice.branch', 'branch')
       .leftJoinAndSelect('invoice.warehouse', 'warehouse')
       .leftJoinAndSelect('invoice.items', 'invoiceItem')
-      .leftJoinAndSelect('invoiceItem.item', 'item')
-      .orderBy('invoice.invoice_date', 'DESC')
-      .addOrderBy('invoice.invoice_number', 'DESC');
+      .leftJoinAndSelect('invoiceItem.item', 'item');
+
+    const latestPaymentDateSubquery = query
+      .subQuery()
+      .select('MAX(payment.payment_date)')
+      .from(WholesaleSalesPaymentEntity, 'payment')
+      .where('payment.invoice_id = invoice.id')
+      .getQuery();
+
+    query.addSelect(latestPaymentDateSubquery, 'latestPaymentDate');
 
     if (filters.customerId) query.andWhere('invoice.customer_id = :customerId', { customerId: filters.customerId });
     if (filters.warehouseId) query.andWhere('invoice.warehouse_id = :warehouseId', { warehouseId: filters.warehouseId });
@@ -121,7 +129,23 @@ export class WholesaleSalesService {
       });
     }
 
-    return query.getMany();
+    if (filters.collectionDateSort) {
+      const direction = filters.collectionDateSort.toUpperCase() as 'ASC' | 'DESC';
+      query
+        .orderBy(`CASE WHEN ${latestPaymentDateSubquery} IS NULL THEN 1 ELSE 0 END`, 'ASC')
+        .addOrderBy(latestPaymentDateSubquery, direction)
+        .addOrderBy('invoice.invoice_date', 'DESC')
+        .addOrderBy('invoice.invoice_number', 'DESC');
+    } else {
+      query.orderBy('invoice.invoice_date', 'DESC').addOrderBy('invoice.invoice_number', 'DESC');
+    }
+
+    return query.getRawAndEntities().then(({ raw, entities }) =>
+      entities.map((invoice, index) => ({
+        ...invoice,
+        latestPaymentDate: raw[index]?.latestPaymentDate ?? null,
+      })),
+    );
   }
 
   async findDetails(id: string) {
@@ -771,7 +795,7 @@ export class WholesaleSalesService {
     };
   }
 
-  private async exportListExcel(invoices: WholesaleSalesInvoiceEntity[]) {
+  private async exportListExcel(invoices: Array<WholesaleSalesInvoiceEntity & { latestPaymentDate?: string | null }>) {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('فواتير بيع الجملة', {
       views: [{ rightToLeft: true, showGridLines: false }],
@@ -780,6 +804,7 @@ export class WholesaleSalesService {
     worksheet.columns = [
       { header: 'رقم الفاتورة', key: 'invoiceNumber', width: 18 },
       { header: 'التاريخ', key: 'invoiceDate', width: 14 },
+      { header: 'تاريخ التحصيل', key: 'latestPaymentDate', width: 16 },
       { header: 'العميل', key: 'customer', width: 28 },
       { header: 'المخزن', key: 'warehouse', width: 22 },
       { header: 'حالة الفاتورة', key: 'documentStatus', width: 16 },
@@ -789,12 +814,13 @@ export class WholesaleSalesService {
       { header: 'المتبقي للتحصيل', key: 'remainingAmount', width: 18 },
     ];
     worksheet.spliceRows(1, 0, ['مطعم الجود - تقرير فواتير بيع الجملة']);
-    worksheet.mergeCells('A1:I1');
+    worksheet.mergeCells('A1:J1');
     worksheet.getCell('A1').font = { bold: true, size: 16 };
     invoices.forEach((invoice) => {
       worksheet.addRow({
         invoiceNumber: invoice.invoiceNumber,
         invoiceDate: invoice.invoiceDate,
+        latestPaymentDate: invoice.latestPaymentDate ?? '-',
         customer: invoice.customer?.name ?? '',
         warehouse: invoice.warehouse?.name ?? '',
         documentStatus: this.documentStatusLabel(invoice.documentStatus),
@@ -811,7 +837,7 @@ export class WholesaleSalesService {
     };
   }
 
-  private async exportListPdf(invoices: WholesaleSalesInvoiceEntity[]) {
+  private async exportListPdf(invoices: Array<WholesaleSalesInvoiceEntity & { latestPaymentDate?: string | null }>) {
     const rows = invoices
       .map(
         (invoice) => `<tr>
@@ -836,7 +862,7 @@ export class WholesaleSalesService {
         th, td { border: 1px solid #d9e3ec; padding: 8px; text-align: right; }
       </style></head><body><main>
       <h1>مطعم الجود</h1><h2>تقرير فواتير بيع الجملة</h2>
-      <table><thead><tr><th>رقم الفاتورة</th><th>التاريخ</th><th>العميل</th><th>المخزن</th><th>حالة الفاتورة</th><th>حالة التحصيل</th><th>الإجمالي</th><th>المتبقي للتحصيل</th></tr></thead>
+      <table><thead><tr><th>رقم الفاتورة</th><th>التاريخ</th><th>تاريخ التحصيل</th><th>العميل</th><th>المخزن</th><th>حالة الفاتورة</th><th>حالة التحصيل</th><th>الإجمالي</th><th>المتبقي للتحصيل</th></tr></thead>
       <tbody>${rows}</tbody></table></main></body></html>`;
     const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
     try {
@@ -979,5 +1005,6 @@ export class WholesaleSalesService {
     return Math.round((Number(value ?? 0) + Number.EPSILON) * 100) / 100;
   }
 }
+
 
 

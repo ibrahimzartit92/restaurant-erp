@@ -20,6 +20,7 @@ export class WholesaleSalesController {
     @Query('invoice_date_from') invoiceDateFrom?: string,
     @Query('invoice_date_to') invoiceDateTo?: string,
     @Query('search') search?: string,
+    @Query('collection_date_sort') collectionDateSort?: 'asc' | 'desc',
   ) {
     return this.wholesaleSalesService.findAll({
       customerId,
@@ -30,6 +31,7 @@ export class WholesaleSalesController {
       invoiceDateFrom,
       invoiceDateTo,
       search,
+      collectionDateSort,
     });
   }
 
@@ -44,10 +46,11 @@ export class WholesaleSalesController {
     @Query('invoice_date_from') invoiceDateFrom: string | undefined,
     @Query('invoice_date_to') invoiceDateTo: string | undefined,
     @Query('search') search: string | undefined,
+    @Query('collection_date_sort') collectionDateSort: 'asc' | 'desc' | undefined,
     @Res() response: any,
   ) {
     const file = await this.wholesaleSalesService.exportList(
-      { customerId, warehouseId, branchId, documentStatus, paymentStatus, invoiceDateFrom, invoiceDateTo, search },
+      { customerId, warehouseId, branchId, documentStatus, paymentStatus, invoiceDateFrom, invoiceDateTo, search, collectionDateSort },
       format === 'pdf' ? 'pdf' : 'excel',
     );
     response.setHeader('Content-Type', file.contentType);

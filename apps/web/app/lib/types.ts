@@ -138,6 +138,7 @@ export type WholesaleSalesInvoiceSummary = {
   dueDate?: string | null;
   documentStatus: 'draft' | 'approved' | 'cancelled';
   paymentStatus: 'unpaid' | 'partially_paid' | 'paid';
+  latestPaymentDate?: string | null;
   subtotalAmount: number;
   discountAmount: number;
   totalAmount: number;

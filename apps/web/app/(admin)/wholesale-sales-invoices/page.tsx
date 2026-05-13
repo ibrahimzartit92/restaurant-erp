@@ -33,6 +33,7 @@ const columns: DataColumn<WholesaleSalesInvoiceSummary>[] = [
   },
   { key: 'customer', label: 'العميل', render: (row) => row.customer?.name ?? 'غير محدد' },
   { key: 'date', label: 'التاريخ', render: (row) => formatDate(row.invoiceDate) },
+  { key: 'latestPaymentDate', label: 'تاريخ التحصيل', render: (row) => (row.latestPaymentDate ? formatDate(row.latestPaymentDate) : '-') },
   { key: 'warehouse', label: 'المخزن', render: (row) => row.warehouse?.name ?? 'غير محدد' },
   {
     key: 'documentStatus',
@@ -89,6 +90,7 @@ export default async function WholesaleSalesInvoicesPage({ searchParams }: { sea
         payment_status: params.payment_status,
         invoice_date_from: params.invoice_date_from,
         invoice_date_to: params.invoice_date_to,
+        collection_date_sort: params.collection_date_sort,
       })}`,
     ),
     fetchList<CustomerOption>('/customers'),
@@ -154,6 +156,14 @@ export default async function WholesaleSalesInvoicesPage({ searchParams }: { sea
               <option value="unpaid">غير محصلة</option>
               <option value="partially_paid">محصلة جزئيًا</option>
               <option value="paid">محصلة بالكامل</option>
+            </select>
+          </label>
+          <label>
+            ترتيب تاريخ التحصيل
+            <select defaultValue={params.collection_date_sort ?? ''} name="collection_date_sort">
+              <option value="">الافتراضي</option>
+              <option value="asc">من الأقدم إلى الأحدث</option>
+              <option value="desc">من الأحدث إلى الأقدم</option>
             </select>
           </label>
           <label>
