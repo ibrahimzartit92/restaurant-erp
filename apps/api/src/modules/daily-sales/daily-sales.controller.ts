@@ -27,6 +27,21 @@ export class DailySalesController {
     return this.dailySalesClosingService.defaults(branchId);
   }
 
+  @Get('export')
+  async exportClosings(
+    @Query('branch_id') branchId: string | undefined,
+    @Query('date_from') dateFrom: string | undefined,
+    @Query('date_to') dateTo: string | undefined,
+    @Query('status') status: string | undefined,
+    @Query('format') format: 'excel' | 'pdf' = 'excel',
+    @Res() response: any,
+  ) {
+    const file = await this.dailySalesClosingService.exportList({ branchId, dateFrom, dateTo, status }, format === 'pdf' ? 'pdf' : 'excel');
+    response.setHeader('Content-Type', file.contentType);
+    response.setHeader('Content-Disposition', `attachment; filename="${file.filename}"`);
+    return response.send(file.body);
+  }
+
   @Post('closings/draft')
   upsertClosingDraft(@Body() dto: UpsertDailySalesClosingDto) {
     return this.dailySalesClosingService.upsertDraft(dto);

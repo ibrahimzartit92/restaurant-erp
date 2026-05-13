@@ -17,6 +17,7 @@ import {
 } from '../drawer-transactions/entities/drawer-transaction.entity';
 import { DrawerEntity } from '../drawers/entities/drawer.entity';
 import { VaultTransactionDirection, VaultTransactionEntity, VaultTransactionType } from '../vaults/entities/vault-transaction.entity';
+import { UpsertDailySalesClosingDto } from './dto/upsert-daily-sales-closing.dto';
 import { DailySaleEntity } from './entities/daily-sale.entity';
 import {
   DailySalesClosingDraftData,
@@ -24,7 +25,6 @@ import {
   DailySalesClosingStatus,
   DailySalesClosingSummary,
 } from './entities/daily-sales-closing.entity';
-import { UpsertDailySalesClosingDto } from './dto/upsert-daily-sales-closing.dto';
 
 @Injectable()
 export class DailySalesClosingService {
@@ -130,7 +130,7 @@ export class DailySalesClosingService {
     const closing = await this.closingRepository.findOne({ where: { id } });
     if (!closing) throw new NotFoundException('إقفال المبيعات اليومية غير موجود.');
     if (closing.status === DailySalesClosingStatus.Draft) {
-      throw new BadRequestException('احذف المسودة بدلا من إلغاء إقفال غير نهائي.');
+      throw new BadRequestException('احذف المسودة بدلًا من إلغاء إقفال غير نهائي.');
     }
     return this.dataSource.transaction(async (manager) => {
       if (reverseFinancialEffect) await this.deleteFinalMovements(closing.id, closing.generatedDailySaleId, manager);
@@ -143,7 +143,7 @@ export class DailySalesClosingService {
     const closing = await this.closingRepository.findOne({ where: { id } });
     if (!closing) throw new NotFoundException('إقفال المبيعات اليومية غير موجود.');
     if (closing.status !== DailySalesClosingStatus.Draft) {
-      throw new BadRequestException('يمكن حذف المسودات فقط. الإقفالات النهائية تلغى مع عكس الأثر المالي.');
+      throw new BadRequestException('يمكن حذف المسودات فقط. الإقفالات النهائية تُلغى مع عكس الأثر المالي.');
     }
     await this.closingRepository.delete({ id });
     return { deleted: true };
@@ -156,14 +156,17 @@ export class DailySalesClosingService {
       ['الفرع', closing.branch?.name ?? ''],
       ['التاريخ', closing.closingDate],
       ['الحالة', this.statusLabel(closing.status)],
-      ['مصروفات اليوم', String(summary.expensesAmount)],
-      ['مبيعات التوصيل', String(summary.deliverySalesAmount)],
-      ['مبيعات الموقع نقدا', String(summary.websiteCashSales)],
-      ['مبيعات الموقع بنكيا', String(summary.websiteBankSalesAmount)],
-      ['مبيعات داخل الفرع البنكية', String(summary.inStoreCardSalesAmount)],
-      ['تحصيلات الجملة النقدية', String(summary.wholesaleCashCollections)],
-      ['إجمالي المبيعات اليومية', String(summary.reconciledTotalDailySales)],
       ['المبلغ المستلم من المحاسب', String(summary.handedCashAmount)],
+      ['المبيعات البنكية التشغيلية', String(summary.normalBankSalesAmount)],
+      ['تحصيلات الجملة النقدية', String(summary.wholesaleCashCollections)],
+      ['تحصيلات الجملة البنكية', String(summary.wholesaleBankCollections)],
+      ['مصروفات الدرج', String(summary.drawerPaidExpensesAmount)],
+      ['مصروفات البنك', String(summary.bankPaidExpensesAmount)],
+      ['مشتريات الدرج', String(summary.cashPurchasesFromDrawer)],
+      ['مشتريات البنك', String(summary.bankPaidPurchasesAmount)],
+      ['صافي المبيعات اليومية التشغيلية', String(summary.normalDailySalesAmount)],
+      ['إجمالي تحصيلات الجملة', String(summary.wholesaleCollectionsTotal)],
+      ['إجمالي الحركة اليومية', String(summary.totalDailyActivityAmount)],
       ['تحويل الخزنة', String(summary.vaultTransferAmount)],
     ];
     if (format === 'pdf') {
@@ -180,6 +183,7 @@ export class DailySalesClosingService {
         await browser.close();
       }
     }
+
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('إقفال المبيعات اليومية', {
       views: [{ rightToLeft: true, showGridLines: false }],
@@ -199,6 +203,117 @@ export class DailySalesClosingService {
       body: Buffer.from(await workbook.xlsx.writeBuffer()),
       contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       filename: `daily-closing-${closing.closingDate}.xlsx`,
+    };
+  }
+
+  async exportList(
+    filters: { branchId?: string; dateFrom?: string; dateTo?: string; status?: string },
+    format: 'excel' | 'pdf',
+  ) {
+    const closings = await this.findAll(filters);
+    const rows = await Promise.all(
+      closings.map(async (closing) => ({
+        closing,
+        summary: closing.summaryValues ?? (await this.buildSummary(closing)),
+      })),
+    );
+    const aggregates = rows.reduce(
+      (acc, entry) => {
+        acc.normalDailySalesTotal += Number(entry.summary.normalDailySalesAmount ?? 0);
+        acc.wholesaleCollectionsTotal += Number(entry.summary.wholesaleCollectionsTotal ?? 0);
+        acc.handedCashTotal += Number(entry.summary.handedCashAmount ?? 0);
+        acc.normalBankSalesTotal += Number(entry.summary.normalBankSalesAmount ?? 0);
+        acc.expensesTotal += Number(entry.summary.expensesAmount ?? 0);
+        acc.purchasesTotal += Number(entry.summary.purchasesAmount ?? 0);
+        acc.vaultTransferTotal += Number(entry.summary.vaultTransferAmount ?? 0);
+        acc.totalDailyActivityTotal += Number(entry.summary.totalDailyActivityAmount ?? 0);
+        return acc;
+      },
+      {
+        normalDailySalesTotal: 0,
+        wholesaleCollectionsTotal: 0,
+        handedCashTotal: 0,
+        normalBankSalesTotal: 0,
+        expensesTotal: 0,
+        purchasesTotal: 0,
+        vaultTransferTotal: 0,
+        totalDailyActivityTotal: 0,
+      },
+    );
+    Object.keys(aggregates).forEach((key) => {
+      aggregates[key as keyof typeof aggregates] = this.roundMoney(aggregates[key as keyof typeof aggregates]);
+    });
+
+    const aggregateLines = [
+      ['صافي المبيعات اليومية', String(aggregates.normalDailySalesTotal)],
+      ['إجمالي تحصيلات الجملة', String(aggregates.wholesaleCollectionsTotal)],
+      ['إجمالي المبلغ المستلم من المحاسب', String(aggregates.handedCashTotal)],
+      ['إجمالي المبيعات البنكية التشغيلية', String(aggregates.normalBankSalesTotal)],
+      ['إجمالي المصروفات', String(aggregates.expensesTotal)],
+      ['إجمالي المشتريات', String(aggregates.purchasesTotal)],
+      ['إجمالي تحويل الخزنة', String(aggregates.vaultTransferTotal)],
+      ['إجمالي الحركة اليومية', String(aggregates.totalDailyActivityTotal)],
+    ];
+
+    if (format === 'pdf') {
+      const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+      try {
+        const page = await browser.newPage();
+        await page.setContent(this.closingsExportHtml(rows, aggregateLines), { waitUntil: 'networkidle0' });
+        return {
+          body: Buffer.from(await page.pdf({ format: 'A4', landscape: true, printBackground: true })),
+          contentType: 'application/pdf',
+          filename: `daily-closings-${filters.dateFrom ?? 'all'}-${filters.dateTo ?? 'all'}.pdf`,
+        };
+      } finally {
+        await browser.close();
+      }
+    }
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('إقفالات المبيعات', {
+      views: [{ rightToLeft: true, showGridLines: false }],
+      pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
+    });
+    worksheet.columns = [
+      { header: 'التاريخ', key: 'date', width: 14 },
+      { header: 'الفرع', key: 'branch', width: 22 },
+      { header: 'الحالة', key: 'status', width: 12 },
+      { header: 'صافي المبيعات اليومية', key: 'normalSales', width: 18 },
+      { header: 'تحصيلات الجملة', key: 'wholesale', width: 16 },
+      { header: 'المبلغ المستلم', key: 'cash', width: 16 },
+      { header: 'المبيعات البنكية التشغيلية', key: 'bankSales', width: 20 },
+      { header: 'المصروفات', key: 'expenses', width: 14 },
+      { header: 'المشتريات', key: 'purchases', width: 14 },
+      { header: 'تحويل الخزنة', key: 'vault', width: 14 },
+    ];
+    worksheet.mergeCells('A1:J1');
+    worksheet.getCell('A1').value = 'مطعم الجود - تقرير إقفالات المبيعات اليومية';
+    worksheet.getCell('A1').font = { bold: true, size: 16 };
+    worksheet.getRow(3).values = ['البند', 'القيمة'];
+    worksheet.getRow(3).font = { bold: true };
+    aggregateLines.forEach(([label, value]) => worksheet.addRow([label, value]));
+    worksheet.addRow([]);
+    const headerRow = worksheet.addRow(worksheet.columns.map((column) => column.header));
+    headerRow.font = { bold: true };
+    rows.forEach(({ closing, summary }) => {
+      worksheet.addRow({
+        date: closing.closingDate,
+        branch: closing.branch?.name ?? '',
+        status: this.statusLabel(closing.status),
+        normalSales: summary.normalDailySalesAmount,
+        wholesale: summary.wholesaleCollectionsTotal,
+        cash: summary.handedCashAmount,
+        bankSales: summary.normalBankSalesAmount,
+        expenses: summary.expensesAmount,
+        purchases: summary.purchasesAmount,
+        vault: summary.vaultTransferAmount,
+      });
+    });
+    return {
+      body: Buffer.from(await workbook.xlsx.writeBuffer()),
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      filename: `daily-closings-${filters.dateFrom ?? 'all'}-${filters.dateTo ?? 'all'}.xlsx`,
     };
   }
 
@@ -345,8 +460,15 @@ export class DailySalesClosingService {
     ]);
   }
 
-  private async buildSummary(closing: Pick<DailySalesClosingEntity, 'branchId' | 'closingDate' | 'drawerId' | 'draftData'>): Promise<DailySalesClosingSummary> {
+  private async buildSummary(
+    closing: Pick<DailySalesClosingEntity, 'branchId' | 'closingDate' | 'drawerId' | 'draftData'>,
+  ): Promise<DailySalesClosingSummary> {
     const draft = closing.draftData ?? {};
+    const deliverySalesAmount = this.roundMoney(Number(draft.deliverySales?.enabled ? draft.deliverySales.amount ?? 0 : 0));
+    const websiteBankSalesAmount = this.roundMoney(Number(draft.websiteSales?.enabled ? draft.websiteSales.bankAmount ?? 0 : 0));
+    const inStoreCardSalesAmount = this.roundMoney(Number(draft.inStoreCardSales?.amount ?? 0));
+    const normalBankSalesAmount = this.roundMoney(deliverySalesAmount + websiteBankSalesAmount + inStoreCardSalesAmount);
+
     const [drawerRows, bankRows] = await Promise.all([
       closing.drawerId
         ? this.dataSource.manager.getRepository(DrawerTransactionEntity).find({
@@ -357,8 +479,6 @@ export class DailySalesClosingService {
         where: {
           branchId: closing.branchId,
           transactionDate: closing.closingDate,
-          sourceType: 'expense',
-          direction: BankAccountTransactionDirection.Outgoing,
         },
       }),
     ]);
@@ -382,26 +502,58 @@ export class DailySalesClosingService {
       cashRetailSales + wholesaleCashCollections + websiteCashSales - cashExpensesFromDrawer - cashPurchasesFromDrawer - employeeCashOutflowsFromDrawer,
     );
     const handedCashAmount = this.roundMoney(Number(draft.cashReconciliation?.handedCashAmount ?? 0));
+
     const drawerPaidExpenses = this.summaryLines(
       drawerRows.filter((row) => ['expense_payment', 'expense'].includes(row.sourceType ?? '') && row.direction === DrawerTransactionDirection.Out),
     );
     const drawerPaidPurchases = this.summaryLines(
       drawerRows.filter((row) => ['supplier_payment', 'purchase_invoice_payment'].includes(row.sourceType ?? '') && row.direction === DrawerTransactionDirection.Out),
     );
-    const bankPaidExpenses = this.summaryLines(bankRows);
-    const bankPaidExpensesAmount = this.roundMoney(bankRows.reduce((sum, row) => sum + Number(row.amount ?? 0), 0));
-    const closingExpensesAmount = this.roundMoney(cashExpensesFromDrawer + bankPaidExpensesAmount);
-    const reconciledTotalDailySales = this.roundMoney(handedCashAmount + cashExpensesFromDrawer + cashPurchasesFromDrawer + wholesaleCashCollections);
+    const bankExpenseRows = bankRows.filter(
+      (row) => row.sourceType === 'expense' && row.direction === BankAccountTransactionDirection.Outgoing,
+    );
+    const bankPurchaseRows = bankRows.filter(
+      (row) =>
+        ['supplier_payment', 'purchase_invoice_payment'].includes(row.sourceType ?? '') &&
+        row.direction === BankAccountTransactionDirection.Outgoing,
+    );
+    const wholesaleBankRows = bankRows.filter(
+      (row) => row.sourceType === 'wholesale_sales_payment' && row.direction === BankAccountTransactionDirection.Incoming,
+    );
+
+    const bankPaidExpenses = this.summaryLines(bankExpenseRows);
+    const bankPaidPurchases = this.summaryLines(bankPurchaseRows);
+    const bankPaidExpensesAmount = this.roundMoney(bankExpenseRows.reduce((sum, row) => sum + Number(row.amount ?? 0), 0));
+    const bankPaidPurchasesAmount = this.roundMoney(bankPurchaseRows.reduce((sum, row) => sum + Number(row.amount ?? 0), 0));
+    const wholesaleBankCollections = this.roundMoney(wholesaleBankRows.reduce((sum, row) => sum + Number(row.amount ?? 0), 0));
+    const expensesAmount = this.roundMoney(cashExpensesFromDrawer + bankPaidExpensesAmount);
+    const purchasesAmount = this.roundMoney(cashPurchasesFromDrawer + bankPaidPurchasesAmount);
+    const wholesaleCollectionsTotal = this.roundMoney(wholesaleCashCollections + wholesaleBankCollections);
+    const totalBankInflowsAmount = this.roundMoney(normalBankSalesAmount + wholesaleBankCollections);
+    const normalDailySalesAmount = this.roundMoney(
+      (handedCashAmount - wholesaleCashCollections) +
+        cashExpensesFromDrawer +
+        bankPaidExpensesAmount +
+        cashPurchasesFromDrawer +
+        bankPaidPurchasesAmount +
+        (totalBankInflowsAmount - wholesaleBankCollections),
+    );
+    const totalDailyActivityAmount = this.roundMoney(normalDailySalesAmount + wholesaleCollectionsTotal);
 
     return {
-      expensesAmount: closingExpensesAmount,
+      expensesAmount,
+      purchasesAmount,
       drawerPaidExpensesAmount: cashExpensesFromDrawer,
       bankPaidExpensesAmount,
       drawerPaidExpenses,
       bankPaidExpenses,
       drawerPaidPurchases,
+      bankPaidPurchasesAmount,
+      bankPaidPurchases,
       cashRetailSales,
       wholesaleCashCollections,
+      wholesaleBankCollections,
+      wholesaleCollectionsTotal,
       websiteCashSales,
       cashExpensesFromDrawer,
       cashPurchasesFromDrawer,
@@ -410,10 +562,14 @@ export class DailySalesClosingService {
       expectedSystemCash,
       handedCashAmount,
       cashDifference: this.roundMoney(handedCashAmount - expectedSystemCash),
-      reconciledTotalDailySales,
-      deliverySalesAmount: this.roundMoney(Number(draft.deliverySales?.enabled ? draft.deliverySales.amount ?? 0 : 0)),
-      websiteBankSalesAmount: this.roundMoney(Number(draft.websiteSales?.enabled ? draft.websiteSales.bankAmount ?? 0 : 0)),
-      inStoreCardSalesAmount: this.roundMoney(Number(draft.inStoreCardSales?.amount ?? 0)),
+      normalBankSalesAmount,
+      totalBankInflowsAmount,
+      normalDailySalesAmount,
+      totalDailyActivityAmount,
+      reconciledTotalDailySales: normalDailySalesAmount,
+      deliverySalesAmount,
+      websiteBankSalesAmount,
+      inStoreCardSalesAmount,
       vaultTransferAmount: this.roundMoney(Number(draft.vaultTransfer?.enabled ? draft.vaultTransfer.amount ?? 0 : 0)),
     };
   }
@@ -458,6 +614,54 @@ export class DailySalesClosingService {
     return `<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><body style="font-family:Tahoma,Arial,sans-serif;padding:28px"><h1>مطعم الجود</h1><h2>إقفال المبيعات اليومية</h2><table style="width:100%;border-collapse:collapse">${lines
       .map(([key, value]) => `<tr><th style="border:1px solid #ddd;padding:8px;text-align:right">${key}</th><td style="border:1px solid #ddd;padding:8px">${value}</td></tr>`)
       .join('')}</table><p>${closing.notes ?? ''}</p></body></html>`;
+  }
+
+  private closingsExportHtml(
+    rows: { closing: DailySalesClosingEntity; summary: DailySalesClosingSummary }[],
+    aggregateLines: string[][],
+  ) {
+    return `<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><body style="font-family:Tahoma,Arial,sans-serif;padding:24px;color:#111827">
+      <h1 style="margin:0 0 8px">مطعم الجود</h1>
+      <h2 style="margin:0 0 20px">تقرير إقفالات المبيعات اليومية</h2>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:20px">${aggregateLines
+        .map(
+          ([key, value]) =>
+            `<tr><th style="border:1px solid #ddd;padding:8px;text-align:right;background:#f8fafc">${key}</th><td style="border:1px solid #ddd;padding:8px">${value}</td></tr>`,
+        )
+        .join('')}</table>
+      <table style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr>
+            <th style="border:1px solid #ddd;padding:8px;background:#eef2ff">التاريخ</th>
+            <th style="border:1px solid #ddd;padding:8px;background:#eef2ff">الفرع</th>
+            <th style="border:1px solid #ddd;padding:8px;background:#eef2ff">الحالة</th>
+            <th style="border:1px solid #ddd;padding:8px;background:#eef2ff">صافي المبيعات اليومية</th>
+            <th style="border:1px solid #ddd;padding:8px;background:#eef2ff">تحصيلات الجملة</th>
+            <th style="border:1px solid #ddd;padding:8px;background:#eef2ff">المبلغ المستلم</th>
+            <th style="border:1px solid #ddd;padding:8px;background:#eef2ff">المبيعات البنكية التشغيلية</th>
+            <th style="border:1px solid #ddd;padding:8px;background:#eef2ff">المصروفات</th>
+            <th style="border:1px solid #ddd;padding:8px;background:#eef2ff">المشتريات</th>
+            <th style="border:1px solid #ddd;padding:8px;background:#eef2ff">تحويل الخزنة</th>
+          </tr>
+        </thead>
+        <tbody>${rows
+          .map(
+            ({ closing, summary }) => `<tr>
+              <td style="border:1px solid #ddd;padding:8px">${closing.closingDate}</td>
+              <td style="border:1px solid #ddd;padding:8px">${closing.branch?.name ?? ''}</td>
+              <td style="border:1px solid #ddd;padding:8px">${this.statusLabel(closing.status)}</td>
+              <td style="border:1px solid #ddd;padding:8px">${summary.normalDailySalesAmount}</td>
+              <td style="border:1px solid #ddd;padding:8px">${summary.wholesaleCollectionsTotal}</td>
+              <td style="border:1px solid #ddd;padding:8px">${summary.handedCashAmount}</td>
+              <td style="border:1px solid #ddd;padding:8px">${summary.normalBankSalesAmount}</td>
+              <td style="border:1px solid #ddd;padding:8px">${summary.expensesAmount}</td>
+              <td style="border:1px solid #ddd;padding:8px">${summary.purchasesAmount}</td>
+              <td style="border:1px solid #ddd;padding:8px">${summary.vaultTransferAmount}</td>
+            </tr>`,
+          )
+          .join('')}</tbody>
+      </table>
+    </body></html>`;
   }
 
   private normalizeText(value?: string | null) {

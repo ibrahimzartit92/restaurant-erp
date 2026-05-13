@@ -122,9 +122,7 @@ export function DailySalesClosingWizard({
       submitJson<DailySalesClosingSummary>('/daily-sales/closings/draft', 'POST', autosavePayload)
         .then((saved) => {
           setClosing(saved);
-          if (!initialClosing) {
-            window.history.replaceState(null, '', `/daily-sales/${saved.id}/edit`);
-          }
+          if (!initialClosing) window.history.replaceState(null, '', `/daily-sales/${saved.id}/edit`);
         })
         .catch((error) => setMessage(error instanceof Error ? error.message : 'تعذر حفظ المسودة.'));
     }, 500);
@@ -134,11 +132,9 @@ export function DailySalesClosingWizard({
   useEffect(() => {
     if (!closing?.id || readOnly) return;
     const closingId = closing.id;
-
     function refreshClosing() {
       fetchClientJson<DailySalesClosingSummary>(`/daily-sales/${closingId}`).then(setClosing).catch(() => undefined);
     }
-
     window.addEventListener('focus', refreshClosing);
     return () => window.removeEventListener('focus', refreshClosing);
   }, [closing?.id, readOnly]);
@@ -248,10 +244,43 @@ export function DailySalesClosingWizard({
             <>
               <h3>الفرع والتاريخ</h3>
               <div className="form-grid">
-                <label>الفرع<select disabled={readOnly} value={branchId} onChange={(event) => setBranchId(event.target.value)} required><option value="">اختر الفرع</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select></label>
-                <label>تاريخ الإقفال<input disabled={readOnly} type="date" value={closingDate} onChange={(event) => setClosingDate(event.target.value)} /></label>
-                <label>الدرج الافتراضي<select disabled={readOnly} value={drawerId} onChange={(event) => setDrawerId(event.target.value)}><option value="">بدون</option>{drawers.map((drawer) => <option key={drawer.id} value={drawer.id}>{drawer.name}</option>)}</select></label>
-                <label>الحساب البنكي<select disabled={readOnly} value={bankAccountId} onChange={(event) => setBankAccountId(event.target.value)}><option value="">بدون</option>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
+                <label>
+                  الفرع
+                  <select disabled={readOnly} value={branchId} onChange={(event) => setBranchId(event.target.value)} required>
+                    <option value="">اختر الفرع</option>
+                    {branches.map((branch) => (
+                      <option key={branch.id} value={branch.id}>
+                        {branch.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  تاريخ الإقفال
+                  <input disabled={readOnly} type="date" value={closingDate} onChange={(event) => setClosingDate(event.target.value)} />
+                </label>
+                <label>
+                  الدرج الافتراضي
+                  <select disabled={readOnly} value={drawerId} onChange={(event) => setDrawerId(event.target.value)}>
+                    <option value="">بدون</option>
+                    {drawers.map((drawer) => (
+                      <option key={drawer.id} value={drawer.id}>
+                        {drawer.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  الحساب البنكي
+                  <select disabled={readOnly} value={bankAccountId} onChange={(event) => setBankAccountId(event.target.value)}>
+                    <option value="">بدون</option>
+                    {bankAccounts.map((account) => (
+                      <option key={account.id} value={account.id}>
+                        {account.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
               </div>
             </>
           ) : null}
@@ -260,20 +289,44 @@ export function DailySalesClosingWizard({
             <>
               <h3>مصروفات اليوم</h3>
               <div className="payroll-amount-grid">
-                <span className="payroll-amount"><small>مصروفات مسجلة لهذا اليوم</small><strong>{money(summary?.expensesAmount)}</strong></span>
-                <span className="payroll-amount"><small>مصروفات مدفوعة من الدرج</small><strong>{money(summary?.drawerPaidExpensesAmount)}</strong></span>
-                <span className="payroll-amount"><small>مصروفات مدفوعة من البنك</small><strong>{money(summary?.bankPaidExpensesAmount)}</strong></span>
-                <span className="payroll-amount"><small>مشتريات مدفوعة من الدرج</small><strong>{money(summary?.cashPurchasesFromDrawer)}</strong></span>
-                <span className="payroll-amount muted"><small>الفرع</small><strong>{selectedBranch?.name ?? '-'}</strong></span>
+                <span className="payroll-amount">
+                  <small>إجمالي المصروفات</small>
+                  <strong>{money(summary?.expensesAmount)}</strong>
+                </span>
+                <span className="payroll-amount">
+                  <small>مصروفات الدرج</small>
+                  <strong>{money(summary?.drawerPaidExpensesAmount)}</strong>
+                </span>
+                <span className="payroll-amount">
+                  <small>مصروفات البنك</small>
+                  <strong>{money(summary?.bankPaidExpensesAmount)}</strong>
+                </span>
+                <span className="payroll-amount">
+                  <small>مشتريات الدرج</small>
+                  <strong>{money(summary?.cashPurchasesFromDrawer)}</strong>
+                </span>
+                <span className="payroll-amount">
+                  <small>مشتريات البنك</small>
+                  <strong>{money(summary?.bankPaidPurchasesAmount)}</strong>
+                </span>
+                <span className="payroll-amount muted">
+                  <small>الفرع</small>
+                  <strong>{selectedBranch?.name ?? '-'}</strong>
+                </span>
               </div>
               <div className="form-grid">
                 {renderSummaryTable('المصروفات المدفوعة من الدرج', summary?.drawerPaidExpenses, summary?.drawerPaidExpensesAmount)}
                 {renderSummaryTable('المصروفات المدفوعة من البنك', summary?.bankPaidExpenses, summary?.bankPaidExpensesAmount)}
                 {renderSummaryTable('المشتريات المدفوعة من الدرج', summary?.drawerPaidPurchases, summary?.cashPurchasesFromDrawer)}
+                {renderSummaryTable('المشتريات المدفوعة من البنك', summary?.bankPaidPurchases, summary?.bankPaidPurchasesAmount)}
               </div>
               <div className="form-actions">
-                <Link className="primary-button" href={`/expenses/new?branch_id=${branchId}&expense_date=${closingDate}`} target="_blank">إضافة مصروف سريع</Link>
-                <Link className="secondary-button" href={`/expenses?branch_id=${branchId}&date_from=${closingDate}&date_to=${closingDate}`}>عرض مصروفات اليوم</Link>
+                <Link className="primary-button" href={`/expenses/new?branch_id=${branchId}&expense_date=${closingDate}`} target="_blank">
+                  إضافة مصروف سريع
+                </Link>
+                <Link className="secondary-button" href={`/expenses?branch_id=${branchId}&date_from=${closingDate}&date_to=${closingDate}`}>
+                  عرض مصروفات اليوم
+                </Link>
               </div>
             </>
           ) : null}
@@ -282,27 +335,130 @@ export function DailySalesClosingWizard({
             <>
               <h3>المبيعات البنكية</h3>
               <div className="form-grid">
-                <label>مبلغ مبيعات داخل الفرع البنكية<input disabled={readOnly} type="number" min="0" step="0.01" value={inStoreCardSales.amount ?? 0} onChange={(event) => updateDraft('inStoreCardSales', { amount: Number(event.target.value) })} /></label>
-                <label>الحساب البنكي<select disabled={readOnly} value={inStoreCardSales.bankAccountId ?? bankAccountId} onChange={(event) => updateDraft('inStoreCardSales', { bankAccountId: event.target.value })}><option value="">اختر الحساب البنكي</option>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
+                <label>
+                  مبلغ مبيعات داخل الفرع البنكية
+                  <input
+                    disabled={readOnly}
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={inStoreCardSales.amount ?? 0}
+                    onChange={(event) => updateDraft('inStoreCardSales', { amount: Number(event.target.value) })}
+                  />
+                </label>
+                <label>
+                  الحساب البنكي
+                  <select
+                    disabled={readOnly}
+                    value={inStoreCardSales.bankAccountId ?? bankAccountId}
+                    onChange={(event) => updateDraft('inStoreCardSales', { bankAccountId: event.target.value })}
+                  >
+                    <option value="">اختر الحساب البنكي</option>
+                    {bankAccounts.map((account) => (
+                      <option key={account.id} value={account.id}>
+                        {account.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
               </div>
-              <label className="checkbox-field"><input disabled={readOnly} checked={Boolean(deliverySales.enabled)} onChange={(event) => updateDraft('deliverySales', { enabled: event.target.checked })} type="checkbox" />تفعيل مبيعات التوصيل</label>
+
+              <div className="payroll-amount-grid">
+                <span className="payroll-amount">
+                  <small>مبيعات داخل الفرع البنكية</small>
+                  <strong>{money(summary?.inStoreCardSalesAmount)}</strong>
+                </span>
+                <span className="payroll-amount">
+                  <small>مبيعات التوصيل</small>
+                  <strong>{money(summary?.deliverySalesAmount)}</strong>
+                </span>
+                <span className="payroll-amount">
+                  <small>مبيعات الموقع بنكيًا</small>
+                  <strong>{money(summary?.websiteBankSalesAmount)}</strong>
+                </span>
+                <span className="payroll-amount">
+                  <small>تحصيلات الجملة البنكية</small>
+                  <strong>{money(summary?.wholesaleBankCollections)}</strong>
+                </span>
+                <span className="payroll-amount success">
+                  <small>المبيعات البنكية التشغيلية</small>
+                  <strong>{money(summary?.normalBankSalesAmount)}</strong>
+                </span>
+              </div>
+
+              <label className="checkbox-field">
+                <input disabled={readOnly} checked={Boolean(deliverySales.enabled)} onChange={(event) => updateDraft('deliverySales', { enabled: event.target.checked })} type="checkbox" />
+                تفعيل مبيعات التوصيل
+              </label>
               {deliverySales.enabled ? (
                 <div className="form-grid">
-                  <label>من تاريخ<input disabled={readOnly} type="date" value={deliverySales.fromDate ?? closingDate} onChange={(event) => updateDraft('deliverySales', { fromDate: event.target.value })} /></label>
-                  <label>إلى تاريخ<input disabled={readOnly} type="date" value={deliverySales.toDate ?? closingDate} onChange={(event) => updateDraft('deliverySales', { toDate: event.target.value })} /></label>
-                  <label>المبلغ<input disabled={readOnly} type="number" min="0" step="0.01" value={deliverySales.amount ?? 0} onChange={(event) => updateDraft('deliverySales', { amount: Number(event.target.value) })} /></label>
-                  <label>الحساب البنكي<select disabled={readOnly} value={deliverySales.bankAccountId ?? bankAccountId} onChange={(event) => updateDraft('deliverySales', { bankAccountId: event.target.value })}>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
+                  <label>
+                    من تاريخ
+                    <input disabled={readOnly} type="date" value={deliverySales.fromDate ?? closingDate} onChange={(event) => updateDraft('deliverySales', { fromDate: event.target.value })} />
+                  </label>
+                  <label>
+                    إلى تاريخ
+                    <input disabled={readOnly} type="date" value={deliverySales.toDate ?? closingDate} onChange={(event) => updateDraft('deliverySales', { toDate: event.target.value })} />
+                  </label>
+                  <label>
+                    المبلغ
+                    <input disabled={readOnly} type="number" min="0" step="0.01" value={deliverySales.amount ?? 0} onChange={(event) => updateDraft('deliverySales', { amount: Number(event.target.value) })} />
+                  </label>
+                  <label>
+                    الحساب البنكي
+                    <select disabled={readOnly} value={deliverySales.bankAccountId ?? bankAccountId} onChange={(event) => updateDraft('deliverySales', { bankAccountId: event.target.value })}>
+                      {bankAccounts.map((account) => (
+                        <option key={account.id} value={account.id}>
+                          {account.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 </div>
               ) : null}
-              <label className="checkbox-field"><input disabled={readOnly} checked={Boolean(websiteSales.enabled)} onChange={(event) => updateDraft('websiteSales', { enabled: event.target.checked })} type="checkbox" />تفعيل مبيعات الموقع</label>
+
+              <label className="checkbox-field">
+                <input disabled={readOnly} checked={Boolean(websiteSales.enabled)} onChange={(event) => updateDraft('websiteSales', { enabled: event.target.checked })} type="checkbox" />
+                تفعيل مبيعات الموقع
+              </label>
               {websiteSales.enabled ? (
                 <div className="form-grid">
-                  <label>من تاريخ<input disabled={readOnly} type="date" value={websiteSales.fromDate ?? closingDate} onChange={(event) => updateDraft('websiteSales', { fromDate: event.target.value })} /></label>
-                  <label>إلى تاريخ<input disabled={readOnly} type="date" value={websiteSales.toDate ?? closingDate} onChange={(event) => updateDraft('websiteSales', { toDate: event.target.value })} /></label>
-                  <label>نقدي<input disabled={readOnly} type="number" min="0" step="0.01" value={websiteSales.cashAmount ?? 0} onChange={(event) => updateDraft('websiteSales', { cashAmount: Number(event.target.value) })} /></label>
-                  <label>بنكي<input disabled={readOnly} type="number" min="0" step="0.01" value={websiteSales.bankAmount ?? 0} onChange={(event) => updateDraft('websiteSales', { bankAmount: Number(event.target.value) })} /></label>
-                  <label>الدرج<select disabled={readOnly} value={websiteSales.drawerId ?? drawerId} onChange={(event) => updateDraft('websiteSales', { drawerId: event.target.value })}>{drawers.map((drawer) => <option key={drawer.id} value={drawer.id}>{drawer.name}</option>)}</select></label>
-                  <label>الحساب البنكي<select disabled={readOnly} value={websiteSales.bankAccountId ?? bankAccountId} onChange={(event) => updateDraft('websiteSales', { bankAccountId: event.target.value })}>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
+                  <label>
+                    من تاريخ
+                    <input disabled={readOnly} type="date" value={websiteSales.fromDate ?? closingDate} onChange={(event) => updateDraft('websiteSales', { fromDate: event.target.value })} />
+                  </label>
+                  <label>
+                    إلى تاريخ
+                    <input disabled={readOnly} type="date" value={websiteSales.toDate ?? closingDate} onChange={(event) => updateDraft('websiteSales', { toDate: event.target.value })} />
+                  </label>
+                  <label>
+                    نقدي
+                    <input disabled={readOnly} type="number" min="0" step="0.01" value={websiteSales.cashAmount ?? 0} onChange={(event) => updateDraft('websiteSales', { cashAmount: Number(event.target.value) })} />
+                  </label>
+                  <label>
+                    بنكي
+                    <input disabled={readOnly} type="number" min="0" step="0.01" value={websiteSales.bankAmount ?? 0} onChange={(event) => updateDraft('websiteSales', { bankAmount: Number(event.target.value) })} />
+                  </label>
+                  <label>
+                    الدرج
+                    <select disabled={readOnly} value={websiteSales.drawerId ?? drawerId} onChange={(event) => updateDraft('websiteSales', { drawerId: event.target.value })}>
+                      {drawers.map((drawer) => (
+                        <option key={drawer.id} value={drawer.id}>
+                          {drawer.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    الحساب البنكي
+                    <select disabled={readOnly} value={websiteSales.bankAccountId ?? bankAccountId} onChange={(event) => updateDraft('websiteSales', { bankAccountId: event.target.value })}>
+                      {bankAccounts.map((account) => (
+                        <option key={account.id} value={account.id}>
+                          {account.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 </div>
               ) : null}
             </>
@@ -311,16 +467,60 @@ export function DailySalesClosingWizard({
           {step === 4 ? (
             <>
               <h3>تسوية النقد</h3>
-              <p className="notice">تأكد من تسجيل تحصيلات الجملة أولًا إذا تم تحصيل نقدية جملة داخل هذا الدرج قبل إنهاء الإقفال.</p>
+              <p className="notice">
+                إذا وُجدت تحصيلات جملة نقدية داخل الدرج فهي جزء من المبلغ المستلم من المحاسب فعلًا، وتظهر هنا كبند مستقل ليتم خصمها عند اشتقاق صافي
+                المبيعات اليومية التشغيلية.
+              </p>
               <div className="form-grid">
-                <label>المبلغ المستلم من المحاسب<input disabled={readOnly} type="number" min="0" step="0.01" value={cashReconciliation.handedCashAmount ?? 0} onChange={(event) => updateDraft('cashReconciliation', { handedCashAmount: Number(event.target.value) })} /></label>
+                <label>
+                  المبلغ المستلم من المحاسب
+                  <input
+                    disabled={readOnly}
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={cashReconciliation.handedCashAmount ?? 0}
+                    onChange={(event) => updateDraft('cashReconciliation', { handedCashAmount: Number(event.target.value) })}
+                  />
+                </label>
               </div>
               <div className="payroll-amount-grid">
-                <span className="payroll-amount"><small>مبيعات الجملة النقدية</small><strong>{money(summary?.wholesaleCashCollections)}</strong></span>
-                <span className="payroll-amount"><small>المبلغ المستلم من المحاسب</small><strong>{money(summary?.handedCashAmount)}</strong></span>
-                <span className="payroll-amount"><small>مصروفات الدرج</small><strong>{money(summary?.cashExpensesFromDrawer)}</strong></span>
-                <span className="payroll-amount"><small>مشتريات الدرج</small><strong>{money(summary?.cashPurchasesFromDrawer)}</strong></span>
-                <span className="payroll-amount success"><small>إجمالي المبيعات اليومية</small><strong>{money(summary?.reconciledTotalDailySales)}</strong></span>
+                <span className="payroll-amount">
+                  <small>المبلغ المستلم من المحاسب</small>
+                  <strong>{money(summary?.handedCashAmount)}</strong>
+                </span>
+                <span className="payroll-amount">
+                  <small>تحصيلات الجملة النقدية ضمن النقد المستلم</small>
+                  <strong>{money(summary?.wholesaleCashCollections)}</strong>
+                </span>
+                <span className="payroll-amount">
+                  <small>مصروفات الدرج</small>
+                  <strong>{money(summary?.cashExpensesFromDrawer)}</strong>
+                </span>
+                <span className="payroll-amount">
+                  <small>مصروفات البنك</small>
+                  <strong>{money(summary?.bankPaidExpensesAmount)}</strong>
+                </span>
+                <span className="payroll-amount">
+                  <small>مشتريات الدرج</small>
+                  <strong>{money(summary?.cashPurchasesFromDrawer)}</strong>
+                </span>
+                <span className="payroll-amount">
+                  <small>مشتريات البنك</small>
+                  <strong>{money(summary?.bankPaidPurchasesAmount)}</strong>
+                </span>
+                <span className="payroll-amount">
+                  <small>المبيعات البنكية التشغيلية</small>
+                  <strong>{money(summary?.normalBankSalesAmount)}</strong>
+                </span>
+                <span className="payroll-amount">
+                  <small>تحصيلات الجملة البنكية</small>
+                  <strong>{money(summary?.wholesaleBankCollections)}</strong>
+                </span>
+                <span className="payroll-amount success">
+                  <small>صافي المبيعات اليومية التشغيلية</small>
+                  <strong>{money(summary?.normalDailySalesAmount)}</strong>
+                </span>
               </div>
             </>
           ) : null}
@@ -328,11 +528,32 @@ export function DailySalesClosingWizard({
           {step === 5 ? (
             <>
               <h3>تحويل الخزنة</h3>
-              <label className="checkbox-field"><input disabled={readOnly} checked={Boolean(vaultTransfer.enabled)} onChange={(event) => updateDraft('vaultTransfer', { enabled: event.target.checked, amount: cashReconciliation.handedCashAmount ?? 0 })} type="checkbox" />تحويل النقد إلى خزنة</label>
+              <label className="checkbox-field">
+                <input
+                  disabled={readOnly}
+                  checked={Boolean(vaultTransfer.enabled)}
+                  onChange={(event) => updateDraft('vaultTransfer', { enabled: event.target.checked, amount: cashReconciliation.handedCashAmount ?? 0 })}
+                  type="checkbox"
+                />
+                تحويل النقد إلى خزنة
+              </label>
               {vaultTransfer.enabled ? (
                 <div className="form-grid">
-                  <label>مبلغ التحويل<input disabled={readOnly} type="number" min="0" step="0.01" value={vaultTransfer.amount ?? 0} onChange={(event) => updateDraft('vaultTransfer', { amount: Number(event.target.value) })} /></label>
-                  <label>الخزنة<select disabled={readOnly} value={vaultTransfer.vaultId ?? ''} onChange={(event) => updateDraft('vaultTransfer', { vaultId: event.target.value })}><option value="">اختر الخزنة</option>{vaults.map((vault) => <option key={vault.id} value={vault.id}>{vault.name}</option>)}</select></label>
+                  <label>
+                    مبلغ التحويل
+                    <input disabled={readOnly} type="number" min="0" step="0.01" value={vaultTransfer.amount ?? 0} onChange={(event) => updateDraft('vaultTransfer', { amount: Number(event.target.value) })} />
+                  </label>
+                  <label>
+                    الخزنة
+                    <select disabled={readOnly} value={vaultTransfer.vaultId ?? ''} onChange={(event) => updateDraft('vaultTransfer', { vaultId: event.target.value })}>
+                      <option value="">اختر الخزنة</option>
+                      {vaults.map((vault) => (
+                        <option key={vault.id} value={vault.id}>
+                          {vault.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 </div>
               ) : null}
             </>
@@ -346,48 +567,83 @@ export function DailySalesClosingWizard({
                   <tbody>
                     <tr><th>الفرع</th><td>{selectedBranch?.name ?? '-'}</td></tr>
                     <tr><th>تاريخ الإقفال</th><td>{closingDate}</td></tr>
+                    <tr><th>المبلغ المستلم من المحاسب</th><td>{money(summary?.handedCashAmount)}</td></tr>
+                    <tr><th>المبيعات البنكية التشغيلية</th><td>{money(summary?.normalBankSalesAmount)}</td></tr>
                     <tr><th>مصروفات الدرج</th><td>{money(summary?.drawerPaidExpensesAmount)}</td></tr>
                     <tr><th>مصروفات البنك</th><td>{money(summary?.bankPaidExpensesAmount)}</td></tr>
                     <tr><th>مشتريات الدرج</th><td>{money(summary?.cashPurchasesFromDrawer)}</td></tr>
+                    <tr><th>مشتريات البنك</th><td>{money(summary?.bankPaidPurchasesAmount)}</td></tr>
                     <tr><th>مبيعات داخل الفرع البنكية</th><td>{money(summary?.inStoreCardSalesAmount)}</td></tr>
                     <tr><th>مبيعات التوصيل</th><td>{money(summary?.deliverySalesAmount)}</td></tr>
                     <tr><th>مبيعات الموقع نقدًا</th><td>{money(summary?.websiteCashSales)}</td></tr>
                     <tr><th>مبيعات الموقع بنكيًا</th><td>{money(summary?.websiteBankSalesAmount)}</td></tr>
                     <tr><th>تحصيلات الجملة النقدية</th><td>{money(summary?.wholesaleCashCollections)}</td></tr>
-                    <tr><th>المبلغ المستلم من المحاسب</th><td>{money(summary?.handedCashAmount)}</td></tr>
-                    <tr><th>إجمالي المبيعات اليومية</th><td>{money(summary?.reconciledTotalDailySales)}</td></tr>
+                    <tr><th>تحصيلات الجملة البنكية</th><td>{money(summary?.wholesaleBankCollections)}</td></tr>
+                    <tr><th>إجمالي تحصيلات الجملة</th><td>{money(summary?.wholesaleCollectionsTotal)}</td></tr>
+                    <tr><th>صافي المبيعات اليومية التشغيلية</th><td>{money(summary?.normalDailySalesAmount)}</td></tr>
+                    <tr><th>إجمالي الحركة اليومية</th><td>{money(summary?.totalDailyActivityAmount)}</td></tr>
                     <tr><th>تحويل الخزنة</th><td>{money(summary?.vaultTransferAmount)}</td></tr>
                   </tbody>
                 </table>
               </div>
-              {!readOnly ? <button disabled={isSaving || !closing?.id} onClick={finish} type="button">{isSaving ? 'جار الإنهاء...' : 'إنهاء الإقفال'}</button> : null}
-              {closing?.status === 'finalized' ? <button className="danger-button" onClick={cancelWithReversal} type="button">إلغاء مع عكس الأثر المالي</button> : null}
-              {closing?.status === 'draft' ? <button className="danger-button" disabled={isSaving} onClick={deleteDraft} type="button">حذف المسودة</button> : null}
+              {!readOnly ? (
+                <button disabled={isSaving || !closing?.id} onClick={finish} type="button">
+                  {isSaving ? 'جارِ الإنهاء...' : 'إنهاء الإقفال'}
+                </button>
+              ) : null}
+              {closing?.status === 'finalized' ? (
+                <button className="danger-button" onClick={cancelWithReversal} type="button">
+                  إلغاء مع عكس الأثر المالي
+                </button>
+              ) : null}
+              {closing?.status === 'draft' ? (
+                <button className="danger-button" disabled={isSaving} onClick={deleteDraft} type="button">
+                  حذف المسودة
+                </button>
+              ) : null}
             </>
           ) : null}
         </section>
 
         <div className="form-actions">
-          <button disabled={step <= 1} onClick={() => setStep((current) => Math.max(1, current - 1))} type="button">السابق</button>
-          <button disabled={step >= 6} onClick={() => setStep((current) => Math.min(6, current + 1))} type="button">التالي</button>
+          <button disabled={step <= 1} onClick={() => setStep((current) => Math.max(1, current - 1))} type="button">
+            السابق
+          </button>
+          <button disabled={step >= 6} onClick={() => setStep((current) => Math.min(6, current + 1))} type="button">
+            التالي
+          </button>
         </div>
       </main>
 
       <aside className="closing-sticky-summary">
         <strong>ملخص الإقفال</strong>
-        <span>{selectedBranch?.name ?? 'اختر الفرع'} - {closingDate}</span>
+        <span>
+          {selectedBranch?.name ?? 'اختر الفرع'} - {closingDate}
+        </span>
         <dl>
           <div><dt>الحالة</dt><dd>{statusLabel(closing?.status)}</dd></div>
+          <div><dt>المبلغ المستلم</dt><dd>{money(summary?.handedCashAmount)}</dd></div>
+          <div><dt>المبيعات البنكية التشغيلية</dt><dd>{money(summary?.normalBankSalesAmount)}</dd></div>
           <div><dt>مصروفات الدرج</dt><dd>{money(summary?.drawerPaidExpensesAmount)}</dd></div>
           <div><dt>مصروفات البنك</dt><dd>{money(summary?.bankPaidExpensesAmount)}</dd></div>
           <div><dt>مشتريات الدرج</dt><dd>{money(summary?.cashPurchasesFromDrawer)}</dd></div>
+          <div><dt>مشتريات البنك</dt><dd>{money(summary?.bankPaidPurchasesAmount)}</dd></div>
           <div><dt>تحصيلات الجملة النقدية</dt><dd>{money(summary?.wholesaleCashCollections)}</dd></div>
-          <div><dt>المبلغ المستلم من المحاسب</dt><dd>{money(summary?.handedCashAmount)}</dd></div>
-          <div><dt>إجمالي المبيعات اليومية</dt><dd>{money(summary?.reconciledTotalDailySales)}</dd></div>
+          <div><dt>تحصيلات الجملة البنكية</dt><dd>{money(summary?.wholesaleBankCollections)}</dd></div>
+          <div><dt>صافي المبيعات اليومية</dt><dd>{money(summary?.normalDailySalesAmount)}</dd></div>
+          <div><dt>إجمالي تحصيلات الجملة</dt><dd>{money(summary?.wholesaleCollectionsTotal)}</dd></div>
           <div><dt>تحويل الخزنة</dt><dd>{money(summary?.vaultTransferAmount)}</dd></div>
         </dl>
-        {closing?.id ? <Link className="secondary-button" href={`/api/daily-sales/closings/${closing.id}/export?format=pdf`}>تصدير PDF</Link> : null}
-        {closing?.status === 'draft' ? <button className="danger-button" disabled={isSaving} onClick={deleteDraft} type="button">حذف المسودة</button> : null}
+        {closing?.id ? (
+          <Link className="secondary-button" href={`/api/daily-sales/closings/${closing.id}/export?format=pdf`}>
+            تصدير PDF
+          </Link>
+        ) : null}
+        {closing?.status === 'draft' ? (
+          <button className="danger-button" disabled={isSaving} onClick={deleteDraft} type="button">
+            حذف المسودة
+          </button>
+        ) : null}
       </aside>
     </div>
   );

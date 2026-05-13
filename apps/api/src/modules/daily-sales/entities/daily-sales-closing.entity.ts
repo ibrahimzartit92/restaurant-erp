@@ -55,13 +55,18 @@ export type DailySalesClosingDraftData = {
 
 export type DailySalesClosingSummary = {
   expensesAmount: number;
+  purchasesAmount: number;
   drawerPaidExpensesAmount: number;
   bankPaidExpensesAmount: number;
   drawerPaidExpenses: DailySalesClosingSummaryLine[];
   bankPaidExpenses: DailySalesClosingSummaryLine[];
   drawerPaidPurchases: DailySalesClosingSummaryLine[];
+  bankPaidPurchasesAmount: number;
+  bankPaidPurchases: DailySalesClosingSummaryLine[];
   cashRetailSales: number;
   wholesaleCashCollections: number;
+  wholesaleBankCollections: number;
+  wholesaleCollectionsTotal: number;
   websiteCashSales: number;
   cashExpensesFromDrawer: number;
   cashPurchasesFromDrawer: number;
@@ -70,6 +75,10 @@ export type DailySalesClosingSummary = {
   expectedSystemCash: number;
   handedCashAmount: number;
   cashDifference: number;
+  normalBankSalesAmount: number;
+  totalBankInflowsAmount: number;
+  normalDailySalesAmount: number;
+  totalDailyActivityAmount: number;
   reconciledTotalDailySales: number;
   deliverySalesAmount: number;
   websiteBankSalesAmount: number;
