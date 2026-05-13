@@ -16,6 +16,30 @@ import { ModalDialog } from './modal-dialog';
 
 const steps = ['الفرع والتاريخ', 'المصروفات', 'مبيعات البنك', 'تسوية النقد', 'تحويل الخزنة', 'الملخص النهائي'];
 
+type DraftData = {
+  deliverySales?: { enabled?: boolean; fromDate?: string; toDate?: string; amount?: number; bankAccountId?: string };
+  websiteSales?: { enabled?: boolean; fromDate?: string; toDate?: string; cashAmount?: number; bankAmount?: number; drawerId?: string; bankAccountId?: string };
+  inStoreCardSales?: { enabled?: boolean; amount?: number; bankAccountId?: string };
+  cashReconciliation?: { handedCashAmount?: number };
+  vaultTransfer?: { enabled?: boolean; amount?: number; vaultId?: string };
+  notes?: string | null;
+};
+
+type DetailState = {
+  title: string;
+  total: number;
+  rows: DailySalesClosingSummaryLine[];
+} | null;
+
+type SummaryCardItem = {
+  id: string;
+  title: string;
+  subtitle?: string;
+  amount: number;
+  tone?: 'default' | 'success' | 'warning' | 'muted';
+  rows?: DailySalesClosingSummaryLine[];
+};
+
 function today() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -30,81 +54,75 @@ function statusLabel(status?: 'draft' | 'finalized' | 'cancelled' | null) {
   return 'مسودة';
 }
 
-type DraftData = {
-  deliverySales?: { enabled?: boolean; fromDate?: string; toDate?: string; amount?: number; bankAccountId?: string };
-  websiteSales?: { enabled?: boolean; fromDate?: string; toDate?: string; cashAmount?: number; bankAmount?: number; drawerId?: string; bankAccountId?: string };
-  inStoreCardSales?: { enabled?: boolean; amount?: number; bankAccountId?: string };
-  cashReconciliation?: { handedCashAmount?: number };
-  vaultTransfer?: { enabled?: boolean; amount?: number; vaultId?: string };
-  notes?: string | null;
-};
+function buildSimpleRow(id: string, description: string, amount: number, secondary?: string | null): DailySalesClosingSummaryLine {
+  return { id, description, amount, secondary: secondary ?? null };
+}
 
-type DetailState = {
-  title: string;
-  rows: DailySalesClosingSummaryLine[];
-  total: number;
-} | null;
-
-function EquationRow({
-  label,
-  amount,
-  sign = '+',
-  onInspect,
-  rows,
+function SummaryCard({
+  item,
+  onOpen,
 }: Readonly<{
-  label: string;
-  amount: number;
-  sign?: '+' | '-' | '=';
-  onInspect?: () => void;
-  rows?: DailySalesClosingSummaryLine[];
+  item: SummaryCardItem;
+  onOpen: (title: string, rows: DailySalesClosingSummaryLine[] | undefined, total: number) => void;
 }>) {
-  const previewRows = (rows ?? []).slice(0, 3);
-  const clickable = Boolean(onInspect);
+  const rows = item.rows ?? [];
+  const previewRows = rows.slice(0, 3);
   return (
-    <div className={`closing-equation-row ${sign === '=' ? 'result' : ''}`}>
-      <span className={`closing-equation-sign ${sign === '=' ? 'result' : ''}`}>{sign}</span>
-      <div className="closing-equation-copy">
-        <span>{label}</span>
-        {clickable ? (
-          <button className="closing-amount-button" onClick={onInspect} type="button">
-            {money(amount)}
-            <span className="closing-hover-card">
-              <strong>{label}</strong>
-              <small>{(rows ?? []).length} سجل</small>
-              <ul>
-                {previewRows.map((row) => (
-                  <li key={row.id}>
-                    <span>{row.description}</span>
-                    <b>{money(row.amount)}</b>
-                  </li>
-                ))}
-              </ul>
-              <small>الإجمالي: {money(amount)}</small>
-            </span>
-          </button>
-        ) : (
-          <strong>{money(amount)}</strong>
-        )}
+    <article className={`closing-summary-card ${item.tone ?? 'default'}`}>
+      <div className="closing-summary-card-copy">
+        <small>{item.subtitle}</small>
+        <strong>{item.title}</strong>
       </div>
-    </div>
+      <button className="closing-summary-amount" onClick={() => onOpen(item.title, rows, item.amount)} type="button">
+        {money(item.amount)}
+        <span className="closing-summary-preview">
+          <b>{item.title}</b>
+          <small>{rows.length} سجل</small>
+          <ul>
+            {previewRows.length ? (
+              previewRows.map((row) => (
+                <li key={row.id}>
+                  <span>{row.description}</span>
+                  <strong>{money(row.amount)}</strong>
+                </li>
+              ))
+            ) : (
+              <li>
+                <span>لا توجد تفاصيل إضافية</span>
+                <strong>{money(item.amount)}</strong>
+              </li>
+            )}
+          </ul>
+          <small>الإجمالي: {money(item.amount)}</small>
+        </span>
+      </button>
+    </article>
   );
 }
 
-function SourceList({ title, items }: Readonly<{ title: string; items: Array<{ label: string; amount: number }> }>) {
-  const visible = items.filter((item) => Number(item.amount ?? 0) > 0);
-  if (!visible.length) return null;
+function SummarySection({
+  title,
+  subtitle,
+  items,
+  onOpen,
+}: Readonly<{
+  title: string;
+  subtitle?: string;
+  items: SummaryCardItem[];
+  onOpen: (title: string, rows: DailySalesClosingSummaryLine[] | undefined, total: number) => void;
+}>) {
   return (
-    <div className="closing-source-list">
-      <strong>{title}</strong>
-      <ul>
-        {visible.map((item) => (
-          <li key={item.label}>
-            <span>{item.label}</span>
-            <b>{money(item.amount)}</b>
-          </li>
+    <section className="closing-section">
+      <div className="closing-section-head">
+        <h4>{title}</h4>
+        {subtitle ? <p>{subtitle}</p> : null}
+      </div>
+      <div className="closing-card-grid">
+        {items.map((item) => (
+          <SummaryCard item={item} key={item.id} onOpen={onOpen} />
         ))}
-      </ul>
-    </div>
+      </div>
+    </section>
   );
 }
 
@@ -132,6 +150,7 @@ export function DailySalesClosingWizard({
   const [message, setMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [detailState, setDetailState] = useState<DetailState>(null);
+
   const readOnly = closing?.status === 'finalized' || closing?.status === 'cancelled';
   const summary = closing?.summaryValues;
   const selectedBranch = branches.find((branch) => branch.id === branchId);
@@ -140,6 +159,28 @@ export function DailySalesClosingWizard({
   const inStoreCardSales = draftData.inStoreCardSales ?? {};
   const cashReconciliation = draftData.cashReconciliation ?? {};
   const vaultTransfer = draftData.vaultTransfer ?? {};
+
+  const handedCashRows = useMemo(
+    () => [
+      buildSimpleRow(
+        'handed-cash',
+        'المبلغ المستلم من المحاسب',
+        Number(summary?.handedCashAmount ?? 0),
+        'القيمة الفعلية التي تم إدخالها في خطوة تسوية النقد',
+      ),
+    ],
+    [summary?.handedCashAmount],
+  );
+
+  const normalBankSalesRows = useMemo(
+    () =>
+      [
+        buildSimpleRow('in-store-bank', 'مبيعات داخل الفرع البنكية', Number(summary?.inStoreCardSalesAmount ?? 0)),
+        buildSimpleRow('delivery-bank', 'مبيعات التوصيل', Number(summary?.deliverySalesAmount ?? 0)),
+        buildSimpleRow('website-bank', 'مبيعات الموقع بنكيًا', Number(summary?.websiteBankSalesAmount ?? 0)),
+      ].filter((row) => row.amount > 0),
+    [summary?.deliverySalesAmount, summary?.inStoreCardSalesAmount, summary?.websiteBankSalesAmount],
+  );
 
   const netOperationalCashSales = useMemo(
     () =>
@@ -158,6 +199,38 @@ export function DailySalesClosingWizard({
       Number(summary?.bankPaidExpensesAmount ?? 0) +
       Number(summary?.bankPaidPurchasesAmount ?? 0),
     [summary, totalBankMovement],
+  );
+
+  const operationalCashRows = useMemo(
+    () => [
+      buildSimpleRow('cash-start', 'المبلغ المستلم من المحاسب', Number(summary?.handedCashAmount ?? 0)),
+      buildSimpleRow('cash-wholesale', 'تحصيلات الجملة النقدية', Number(summary?.wholesaleCashCollections ?? 0)),
+      buildSimpleRow('cash-expenses', 'مصروفات الدرج', Number(summary?.drawerPaidExpensesAmount ?? 0)),
+      buildSimpleRow('cash-purchases', 'مشتريات الدرج', Number(summary?.cashPurchasesFromDrawer ?? 0)),
+    ],
+    [summary],
+  );
+
+  const operationalBankRows = useMemo(
+    () => [
+      buildSimpleRow('bank-total', 'إجمالي الحركة البنكية', totalBankMovement),
+      buildSimpleRow('bank-wholesale', 'تحصيلات الجملة البنكية', Number(summary?.wholesaleBankCollections ?? 0)),
+      buildSimpleRow('bank-expenses', 'مصروفات البنك', Number(summary?.bankPaidExpensesAmount ?? 0)),
+      buildSimpleRow('bank-purchases', 'مشتريات البنك', Number(summary?.bankPaidPurchasesAmount ?? 0)),
+    ],
+    [summary, totalBankMovement],
+  );
+
+  const finalTotalsRows = useMemo(
+    () => [
+      buildSimpleRow('final-cash', 'صافي المبيعات النقدية التشغيلية', netOperationalCashSales),
+      buildSimpleRow('final-bank', 'صافي المبيعات البنكية التشغيلية', netOperationalBankSales),
+      buildSimpleRow('final-operational', 'إجمالي المبيعات التشغيلية اليومية', Number(summary?.normalDailySalesAmount ?? 0)),
+      buildSimpleRow('final-wholesale', 'إجمالي تحصيلات الجملة', Number(summary?.wholesaleCollectionsTotal ?? 0)),
+      buildSimpleRow('final-activity', 'إجمالي الحركة اليومية', Number(summary?.totalDailyActivityAmount ?? 0)),
+      buildSimpleRow('final-vault', 'تحويل الخزنة', Number(summary?.vaultTransferAmount ?? 0)),
+    ],
+    [netOperationalBankSales, netOperationalCashSales, summary],
   );
 
   useEffect(() => {
@@ -213,6 +286,10 @@ export function DailySalesClosingWizard({
     });
   }
 
+  function openDetails(title: string, rows: DailySalesClosingSummaryLine[] | undefined, total: number) {
+    setDetailState({ title, rows: rows ?? [], total });
+  }
+
   async function finish() {
     if (!closing?.id) {
       setMessage('احفظ بيانات الفرع والتاريخ أولًا.');
@@ -254,9 +331,128 @@ export function DailySalesClosingWizard({
     }
   }
 
-  function openDetails(title: string, rows: DailySalesClosingSummaryLine[] | undefined, total: number | undefined) {
-    setDetailState({ title, rows: rows ?? [], total: Number(total ?? 0) });
-  }
+  const expenseCards: SummaryCardItem[] = [
+    {
+      id: 'drawer-expenses',
+      title: 'مصروفات الدرج',
+      subtitle: 'مدفوعات تشغيلية نقدية',
+      amount: Number(summary?.drawerPaidExpensesAmount ?? 0),
+      rows: summary?.drawerPaidExpenses,
+    },
+    {
+      id: 'bank-expenses',
+      title: 'مصروفات البنك',
+      subtitle: 'مدفوعات تشغيلية بنكية',
+      amount: Number(summary?.bankPaidExpensesAmount ?? 0),
+      rows: summary?.bankPaidExpenses,
+    },
+    {
+      id: 'drawer-purchases',
+      title: 'مشتريات الدرج',
+      subtitle: 'مشتريات مسددة نقدًا',
+      amount: Number(summary?.cashPurchasesFromDrawer ?? 0),
+      rows: summary?.drawerPaidPurchases,
+    },
+    {
+      id: 'bank-purchases',
+      title: 'مشتريات البنك',
+      subtitle: 'مشتريات مسددة بنكيًا',
+      amount: Number(summary?.bankPaidPurchasesAmount ?? 0),
+      rows: summary?.bankPaidPurchases,
+    },
+  ];
+
+  const cashCards: SummaryCardItem[] = [
+    {
+      id: 'handed-cash',
+      title: 'المبلغ المستلم من المحاسب',
+      subtitle: 'النقد الفعلي المستلم',
+      amount: Number(summary?.handedCashAmount ?? 0),
+      rows: handedCashRows,
+    },
+    {
+      id: 'wholesale-cash',
+      title: 'تحصيلات الجملة النقدية',
+      subtitle: 'مشمولة داخل النقد المستلم',
+      amount: Number(summary?.wholesaleCashCollections ?? 0),
+      rows: summary?.wholesaleCashCollectionLines,
+      tone: 'warning',
+    },
+    {
+      id: 'operational-cash',
+      title: 'صافي المبيعات النقدية التشغيلية',
+      subtitle: 'بعد فصل الجملة وإضافة المصروفات والمشتريات',
+      amount: netOperationalCashSales,
+      rows: operationalCashRows,
+      tone: 'success',
+    },
+  ];
+
+  const bankCards: SummaryCardItem[] = [
+    {
+      id: 'normal-bank',
+      title: 'المبيعات البنكية التشغيلية',
+      subtitle: 'داخل الفرع + التوصيل + الموقع',
+      amount: Number(summary?.normalBankSalesAmount ?? 0),
+      rows: normalBankSalesRows,
+    },
+    {
+      id: 'wholesale-bank',
+      title: 'تحصيلات الجملة البنكية',
+      subtitle: 'منفصلة عن مبيعات اليوم',
+      amount: Number(summary?.wholesaleBankCollections ?? 0),
+      rows: summary?.wholesaleBankCollectionLines,
+      tone: 'warning',
+    },
+    {
+      id: 'bank-movement',
+      title: 'صافي المبيعات البنكية التشغيلية',
+      subtitle: 'بعد فصل الجملة وإضافة المصروفات والمشتريات',
+      amount: netOperationalBankSales,
+      rows: operationalBankRows,
+      tone: 'success',
+    },
+  ];
+
+  const totalCards: SummaryCardItem[] = [
+    {
+      id: 'total-operational',
+      title: 'إجمالي المبيعات التشغيلية اليومية',
+      subtitle: 'نقد تشغيلي + بنك تشغيلي',
+      amount: Number(summary?.normalDailySalesAmount ?? 0),
+      rows: finalTotalsRows.slice(0, 3),
+      tone: 'success',
+    },
+    {
+      id: 'total-wholesale',
+      title: 'إجمالي تحصيلات الجملة',
+      subtitle: 'نقدي + بنكي',
+      amount: Number(summary?.wholesaleCollectionsTotal ?? 0),
+      rows: [
+        buildSimpleRow('wholesale-cash-total', 'تحصيلات الجملة النقدية', Number(summary?.wholesaleCashCollections ?? 0)),
+        buildSimpleRow('wholesale-bank-total', 'تحصيلات الجملة البنكية', Number(summary?.wholesaleBankCollections ?? 0)),
+      ],
+      tone: 'warning',
+    },
+    {
+      id: 'total-activity',
+      title: 'إجمالي الحركة اليومية',
+      subtitle: 'تشغيلي + تحصيلات الجملة',
+      amount: Number(summary?.totalDailyActivityAmount ?? 0),
+      rows: finalTotalsRows,
+      tone: 'default',
+    },
+    {
+      id: 'vault-transfer',
+      title: 'تحويل الخزنة',
+      subtitle: 'المبلغ المحول من الدرج',
+      amount: Number(summary?.vaultTransferAmount ?? 0),
+      rows: [
+        buildSimpleRow('vault-transfer-row', 'تحويل الخزنة', Number(summary?.vaultTransferAmount ?? 0), vaultTransfer.enabled ? 'مفعّل ضمن الإقفال' : 'غير مفعّل'),
+      ],
+      tone: 'muted',
+    },
+  ];
 
   return (
     <div className="closing-wizard-shell">
@@ -279,31 +475,10 @@ export function DailySalesClosingWizard({
             <>
               <h3>الفرع والتاريخ</h3>
               <div className="form-grid">
-                <label>
-                  الفرع
-                  <select disabled={readOnly} value={branchId} onChange={(event) => setBranchId(event.target.value)} required>
-                    <option value="">اختر الفرع</option>
-                    {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-                  </select>
-                </label>
-                <label>
-                  تاريخ الإقفال
-                  <input disabled={readOnly} type="date" value={closingDate} onChange={(event) => setClosingDate(event.target.value)} />
-                </label>
-                <label>
-                  الدرج الافتراضي
-                  <select disabled={readOnly} value={drawerId} onChange={(event) => setDrawerId(event.target.value)}>
-                    <option value="">بدون</option>
-                    {drawers.map((drawer) => <option key={drawer.id} value={drawer.id}>{drawer.name}</option>)}
-                  </select>
-                </label>
-                <label>
-                  الحساب البنكي
-                  <select disabled={readOnly} value={bankAccountId} onChange={(event) => setBankAccountId(event.target.value)}>
-                    <option value="">بدون</option>
-                    {bankAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-                  </select>
-                </label>
+                <label>الفرع<select disabled={readOnly} value={branchId} onChange={(event) => setBranchId(event.target.value)} required><option value="">اختر الفرع</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select></label>
+                <label>تاريخ الإقفال<input disabled={readOnly} type="date" value={closingDate} onChange={(event) => setClosingDate(event.target.value)} /></label>
+                <label>الدرج الافتراضي<select disabled={readOnly} value={drawerId} onChange={(event) => setDrawerId(event.target.value)}><option value="">بدون</option>{drawers.map((drawer) => <option key={drawer.id} value={drawer.id}>{drawer.name}</option>)}</select></label>
+                <label>الحساب البنكي<select disabled={readOnly} value={bankAccountId} onChange={(event) => setBankAccountId(event.target.value)}><option value="">بدون</option>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
               </div>
             </>
           ) : null}
@@ -311,13 +486,8 @@ export function DailySalesClosingWizard({
           {step === 2 ? (
             <>
               <h3>المصروفات والمشتريات</h3>
-              <p className="field-hint">اعرض المجاميع سريعًا، حرّك المؤشر لمعاينة أول السجلات، واضغط على أي رقم لفتح التفاصيل الكاملة.</p>
-              <div className="closing-mini-grid">
-                <EquationRow label="مصروفات الدرج" amount={Number(summary?.drawerPaidExpensesAmount ?? 0)} sign="+" rows={summary?.drawerPaidExpenses} onInspect={() => openDetails('تفاصيل مصروفات الدرج', summary?.drawerPaidExpenses, summary?.drawerPaidExpensesAmount)} />
-                <EquationRow label="مصروفات البنك" amount={Number(summary?.bankPaidExpensesAmount ?? 0)} sign="+" rows={summary?.bankPaidExpenses} onInspect={() => openDetails('تفاصيل مصروفات البنك', summary?.bankPaidExpenses, summary?.bankPaidExpensesAmount)} />
-                <EquationRow label="مشتريات الدرج" amount={Number(summary?.cashPurchasesFromDrawer ?? 0)} sign="+" rows={summary?.drawerPaidPurchases} onInspect={() => openDetails('تفاصيل مشتريات الدرج', summary?.drawerPaidPurchases, summary?.cashPurchasesFromDrawer)} />
-                <EquationRow label="مشتريات البنك" amount={Number(summary?.bankPaidPurchasesAmount ?? 0)} sign="+" rows={summary?.bankPaidPurchases} onInspect={() => openDetails('تفاصيل مشتريات البنك', summary?.bankPaidPurchases, summary?.bankPaidPurchasesAmount)} />
-              </div>
+              <p className="field-hint">اعرض المجاميع سريعًا، حرّك المؤشر على أي مبلغ للمعاينة المختصرة، واضغط عليه لفتح كل التفاصيل.</p>
+              <SummarySection title="ملخص المصروفات" items={expenseCards} onOpen={openDetails} />
               <div className="form-actions">
                 <Link className="primary-button" href={`/expenses/new?branch_id=${branchId}&expense_date=${closingDate}`} target="_blank">إضافة مصروف سريع</Link>
                 <Link className="secondary-button" href={`/expenses?branch_id=${branchId}&date_from=${closingDate}&date_to=${closingDate}`}>عرض مصروفات اليوم</Link>
@@ -329,115 +499,27 @@ export function DailySalesClosingWizard({
             <>
               <h3>مبيعات البنك</h3>
               <div className="form-grid">
-                <label>
-                  مبلغ مبيعات داخل الفرع البنكية
-                  <input disabled={readOnly} type="number" min="0" step="0.01" value={inStoreCardSales.amount ?? 0} onChange={(event) => updateDraft('inStoreCardSales', { amount: Number(event.target.value) })} />
-                </label>
-                <label>
-                  الحساب البنكي
-                  <select disabled={readOnly} value={inStoreCardSales.bankAccountId ?? bankAccountId} onChange={(event) => updateDraft('inStoreCardSales', { bankAccountId: event.target.value })}>
-                    <option value="">اختر الحساب البنكي</option>
-                    {bankAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-                  </select>
-                </label>
+                <label>مبلغ مبيعات داخل الفرع البنكية<input disabled={readOnly} type="number" min="0" step="0.01" value={inStoreCardSales.amount ?? 0} onChange={(event) => updateDraft('inStoreCardSales', { amount: Number(event.target.value) })} /></label>
+                <label>الحساب البنكي<select disabled={readOnly} value={inStoreCardSales.bankAccountId ?? bankAccountId} onChange={(event) => updateDraft('inStoreCardSales', { bankAccountId: event.target.value })}><option value="">اختر الحساب البنكي</option>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
               </div>
-
-              <div className="closing-summary-block">
-                <h4>تفسير مصادر البنك</h4>
-                <SourceList
-                  title="قنوات المبيعات البنكية التشغيلية"
-                  items={[
-                    { label: 'مبيعات داخل الفرع البنكية', amount: Number(summary?.inStoreCardSalesAmount ?? 0) },
-                    { label: 'مبيعات التوصيل', amount: Number(summary?.deliverySalesAmount ?? 0) },
-                    { label: 'مبيعات الموقع بنكيًا', amount: Number(summary?.websiteBankSalesAmount ?? 0) },
-                  ]}
-                />
-                <EquationRow label="إجمالي الحركة البنكية" amount={totalBankMovement} sign="+" />
-                <EquationRow
-                  label="تحصيلات الجملة البنكية"
-                  amount={Number(summary?.wholesaleBankCollections ?? 0)}
-                  sign="-"
-                  rows={summary?.wholesaleBankCollectionLines}
-                  onInspect={() => openDetails('تفاصيل تحصيلات الجملة البنكية', summary?.wholesaleBankCollectionLines, summary?.wholesaleBankCollections)}
-                />
-                <EquationRow label="مصروفات البنك" amount={Number(summary?.bankPaidExpensesAmount ?? 0)} sign="+" rows={summary?.bankPaidExpenses} onInspect={() => openDetails('تفاصيل مصروفات البنك', summary?.bankPaidExpenses, summary?.bankPaidExpensesAmount)} />
-                <EquationRow label="مشتريات البنك" amount={Number(summary?.bankPaidPurchasesAmount ?? 0)} sign="+" rows={summary?.bankPaidPurchases} onInspect={() => openDetails('تفاصيل مشتريات البنك', summary?.bankPaidPurchases, summary?.bankPaidPurchasesAmount)} />
-                <EquationRow label="صافي المبيعات البنكية التشغيلية" amount={netOperationalBankSales} sign="=" />
-              </div>
-
+              <SummarySection title="ملخص البنك" subtitle="تفصيل خفيف لقنوات البنك التشغيلية وتحصيلات الجملة البنكية." items={bankCards} onOpen={openDetails} />
               <label className="checkbox-field"><input disabled={readOnly} checked={Boolean(deliverySales.enabled)} onChange={(event) => updateDraft('deliverySales', { enabled: event.target.checked })} type="checkbox" />تفعيل مبيعات التوصيل</label>
-              {deliverySales.enabled ? (
-                <div className="form-grid">
-                  <label>من تاريخ<input disabled={readOnly} type="date" value={deliverySales.fromDate ?? closingDate} onChange={(event) => updateDraft('deliverySales', { fromDate: event.target.value })} /></label>
-                  <label>إلى تاريخ<input disabled={readOnly} type="date" value={deliverySales.toDate ?? closingDate} onChange={(event) => updateDraft('deliverySales', { toDate: event.target.value })} /></label>
-                  <label>المبلغ<input disabled={readOnly} type="number" min="0" step="0.01" value={deliverySales.amount ?? 0} onChange={(event) => updateDraft('deliverySales', { amount: Number(event.target.value) })} /></label>
-                  <label>الحساب البنكي<select disabled={readOnly} value={deliverySales.bankAccountId ?? bankAccountId} onChange={(event) => updateDraft('deliverySales', { bankAccountId: event.target.value })}>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
-                </div>
-              ) : null}
-
+              {deliverySales.enabled ? <div className="form-grid"><label>من تاريخ<input disabled={readOnly} type="date" value={deliverySales.fromDate ?? closingDate} onChange={(event) => updateDraft('deliverySales', { fromDate: event.target.value })} /></label><label>إلى تاريخ<input disabled={readOnly} type="date" value={deliverySales.toDate ?? closingDate} onChange={(event) => updateDraft('deliverySales', { toDate: event.target.value })} /></label><label>المبلغ<input disabled={readOnly} type="number" min="0" step="0.01" value={deliverySales.amount ?? 0} onChange={(event) => updateDraft('deliverySales', { amount: Number(event.target.value) })} /></label><label>الحساب البنكي<select disabled={readOnly} value={deliverySales.bankAccountId ?? bankAccountId} onChange={(event) => updateDraft('deliverySales', { bankAccountId: event.target.value })}>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label></div> : null}
               <label className="checkbox-field"><input disabled={readOnly} checked={Boolean(websiteSales.enabled)} onChange={(event) => updateDraft('websiteSales', { enabled: event.target.checked })} type="checkbox" />تفعيل مبيعات الموقع</label>
-              {websiteSales.enabled ? (
-                <div className="form-grid">
-                  <label>من تاريخ<input disabled={readOnly} type="date" value={websiteSales.fromDate ?? closingDate} onChange={(event) => updateDraft('websiteSales', { fromDate: event.target.value })} /></label>
-                  <label>إلى تاريخ<input disabled={readOnly} type="date" value={websiteSales.toDate ?? closingDate} onChange={(event) => updateDraft('websiteSales', { toDate: event.target.value })} /></label>
-                  <label>نقدي<input disabled={readOnly} type="number" min="0" step="0.01" value={websiteSales.cashAmount ?? 0} onChange={(event) => updateDraft('websiteSales', { cashAmount: Number(event.target.value) })} /></label>
-                  <label>بنكي<input disabled={readOnly} type="number" min="0" step="0.01" value={websiteSales.bankAmount ?? 0} onChange={(event) => updateDraft('websiteSales', { bankAmount: Number(event.target.value) })} /></label>
-                  <label>الدرج<select disabled={readOnly} value={websiteSales.drawerId ?? drawerId} onChange={(event) => updateDraft('websiteSales', { drawerId: event.target.value })}>{drawers.map((drawer) => <option key={drawer.id} value={drawer.id}>{drawer.name}</option>)}</select></label>
-                  <label>الحساب البنكي<select disabled={readOnly} value={websiteSales.bankAccountId ?? bankAccountId} onChange={(event) => updateDraft('websiteSales', { bankAccountId: event.target.value })}>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
-                </div>
-              ) : null}
+              {websiteSales.enabled ? <div className="form-grid"><label>من تاريخ<input disabled={readOnly} type="date" value={websiteSales.fromDate ?? closingDate} onChange={(event) => updateDraft('websiteSales', { fromDate: event.target.value })} /></label><label>إلى تاريخ<input disabled={readOnly} type="date" value={websiteSales.toDate ?? closingDate} onChange={(event) => updateDraft('websiteSales', { toDate: event.target.value })} /></label><label>نقدي<input disabled={readOnly} type="number" min="0" step="0.01" value={websiteSales.cashAmount ?? 0} onChange={(event) => updateDraft('websiteSales', { cashAmount: Number(event.target.value) })} /></label><label>بنكي<input disabled={readOnly} type="number" min="0" step="0.01" value={websiteSales.bankAmount ?? 0} onChange={(event) => updateDraft('websiteSales', { bankAmount: Number(event.target.value) })} /></label><label>الدرج<select disabled={readOnly} value={websiteSales.drawerId ?? drawerId} onChange={(event) => updateDraft('websiteSales', { drawerId: event.target.value })}>{drawers.map((drawer) => <option key={drawer.id} value={drawer.id}>{drawer.name}</option>)}</select></label><label>الحساب البنكي<select disabled={readOnly} value={websiteSales.bankAccountId ?? bankAccountId} onChange={(event) => updateDraft('websiteSales', { bankAccountId: event.target.value })}>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label></div> : null}
             </>
           ) : null}
 
           {step === 4 ? (
             <>
               <h3>تسوية النقد</h3>
-              <p className="notice">تحصيلات الجملة النقدية داخلة بالفعل ضمن المبلغ المستلم من المحاسب، لكنها تُفصل هنا بوضوح حتى يظهر صافي المبيعات النقدية التشغيلية بعيدًا عن تحصيل الذمم.</p>
+              <p className="notice">تحصيلات الجملة النقدية تبقى جزءًا من النقد المستلم فعليًا، لكنها تظهر هنا بشكل مستقل حتى يظل صافي التشغيل واضحًا.</p>
               <div className="form-grid">
                 <label>المبلغ المستلم من المحاسب<input disabled={readOnly} type="number" min="0" step="0.01" value={cashReconciliation.handedCashAmount ?? 0} onChange={(event) => updateDraft('cashReconciliation', { handedCashAmount: Number(event.target.value) })} /></label>
               </div>
-
-              <div className="closing-formula-grid">
-                <section className="closing-summary-block">
-                  <h4>القسم النقدي</h4>
-                  <EquationRow label="المبلغ المستلم من المحاسب" amount={Number(summary?.handedCashAmount ?? 0)} sign="+" />
-                  <EquationRow label="تحصيلات الجملة النقدية" amount={Number(summary?.wholesaleCashCollections ?? 0)} sign="-" rows={summary?.wholesaleCashCollectionLines} onInspect={() => openDetails('تفاصيل تحصيلات الجملة النقدية', summary?.wholesaleCashCollectionLines, summary?.wholesaleCashCollections)} />
-                  <EquationRow label="مصروفات الدرج" amount={Number(summary?.drawerPaidExpensesAmount ?? 0)} sign="+" rows={summary?.drawerPaidExpenses} onInspect={() => openDetails('تفاصيل مصروفات الدرج', summary?.drawerPaidExpenses, summary?.drawerPaidExpensesAmount)} />
-                  <EquationRow label="مشتريات الدرج" amount={Number(summary?.cashPurchasesFromDrawer ?? 0)} sign="+" rows={summary?.drawerPaidPurchases} onInspect={() => openDetails('تفاصيل مشتريات الدرج', summary?.drawerPaidPurchases, summary?.cashPurchasesFromDrawer)} />
-                  <EquationRow label="صافي المبيعات النقدية التشغيلية" amount={netOperationalCashSales} sign="=" />
-                  <div className="closing-note-box">
-                    <span>تحصيلات الجملة النقدية مضمنة داخل النقد المستلم فعليًا من المحاسب.</span>
-                    <strong>إجمالي النقد المستلم فعليًا: {money(summary?.handedCashAmount)}</strong>
-                  </div>
-                  <SourceList
-                    title="مصادر النقد التشغيلية"
-                    items={[
-                      { label: 'نقد المبيعات المباشرة', amount: Number(summary?.cashRetailSales ?? 0) },
-                      { label: 'مبيعات الموقع نقدًا', amount: Number(summary?.websiteCashSales ?? 0) },
-                    ]}
-                  />
-                </section>
-
-                <section className="closing-summary-block">
-                  <h4>القسم البنكي</h4>
-                  <EquationRow label="إجمالي الحركة البنكية" amount={totalBankMovement} sign="+" />
-                  <EquationRow label="تحصيلات الجملة البنكية" amount={Number(summary?.wholesaleBankCollections ?? 0)} sign="-" rows={summary?.wholesaleBankCollectionLines} onInspect={() => openDetails('تفاصيل تحصيلات الجملة البنكية', summary?.wholesaleBankCollectionLines, summary?.wholesaleBankCollections)} />
-                  <EquationRow label="مصروفات البنك" amount={Number(summary?.bankPaidExpensesAmount ?? 0)} sign="+" rows={summary?.bankPaidExpenses} onInspect={() => openDetails('تفاصيل مصروفات البنك', summary?.bankPaidExpenses, summary?.bankPaidExpensesAmount)} />
-                  <EquationRow label="مشتريات البنك" amount={Number(summary?.bankPaidPurchasesAmount ?? 0)} sign="+" rows={summary?.bankPaidPurchases} onInspect={() => openDetails('تفاصيل مشتريات البنك', summary?.bankPaidPurchases, summary?.bankPaidPurchasesAmount)} />
-                  <EquationRow label="صافي المبيعات البنكية التشغيلية" amount={netOperationalBankSales} sign="=" />
-                  <div className="closing-note-box">
-                    <span>تحصيلات الجملة البنكية منفصلة عن المبيعات البنكية التشغيلية حتى لا تضخم نتائج اليوم.</span>
-                    <strong>إجمالي الحركة البنكية: {money(summary?.totalBankInflowsAmount)}</strong>
-                  </div>
-                  <SourceList
-                    title="قنوات البنك التشغيلية"
-                    items={[
-                      { label: 'مبيعات داخل الفرع البنكية', amount: Number(summary?.inStoreCardSalesAmount ?? 0) },
-                      { label: 'مبيعات التوصيل', amount: Number(summary?.deliverySalesAmount ?? 0) },
-                      { label: 'مبيعات الموقع بنكيًا', amount: Number(summary?.websiteBankSalesAmount ?? 0) },
-                    ]}
-                  />
-                </section>
+              <div className="closing-dual-grid">
+                <SummarySection title="النقد" subtitle="النقد التشغيلي منفصل عن تحصيلات الجملة النقدية." items={cashCards} onOpen={openDetails} />
+                <SummarySection title="البنك" subtitle="مبيعات البنك التشغيلية منفصلة عن تحصيلات الجملة البنكية." items={bankCards} onOpen={openDetails} />
               </div>
             </>
           ) : null}
@@ -446,50 +528,18 @@ export function DailySalesClosingWizard({
             <>
               <h3>تحويل الخزنة</h3>
               <label className="checkbox-field"><input disabled={readOnly} checked={Boolean(vaultTransfer.enabled)} onChange={(event) => updateDraft('vaultTransfer', { enabled: event.target.checked, amount: cashReconciliation.handedCashAmount ?? 0 })} type="checkbox" />تحويل النقد إلى خزنة</label>
-              {vaultTransfer.enabled ? (
-                <div className="form-grid">
-                  <label>مبلغ التحويل<input disabled={readOnly} type="number" min="0" step="0.01" value={vaultTransfer.amount ?? 0} onChange={(event) => updateDraft('vaultTransfer', { amount: Number(event.target.value) })} /></label>
-                  <label>الخزنة<select disabled={readOnly} value={vaultTransfer.vaultId ?? ''} onChange={(event) => updateDraft('vaultTransfer', { vaultId: event.target.value })}><option value="">اختر الخزنة</option>{vaults.map((vault) => <option key={vault.id} value={vault.id}>{vault.name}</option>)}</select></label>
-                </div>
-              ) : null}
+              {vaultTransfer.enabled ? <div className="form-grid"><label>مبلغ التحويل<input disabled={readOnly} type="number" min="0" step="0.01" value={vaultTransfer.amount ?? 0} onChange={(event) => updateDraft('vaultTransfer', { amount: Number(event.target.value) })} /></label><label>الخزنة<select disabled={readOnly} value={vaultTransfer.vaultId ?? ''} onChange={(event) => updateDraft('vaultTransfer', { vaultId: event.target.value })}><option value="">اختر الخزنة</option>{vaults.map((vault) => <option key={vault.id} value={vault.id}>{vault.name}</option>)}</select></label></div> : null}
             </>
           ) : null}
 
           {step === 6 ? (
             <>
               <h3>الملخص النهائي</h3>
-              <div className="closing-formula-grid">
-                <section className="closing-summary-block">
-                  <h4>القسم النقدي</h4>
-                  <EquationRow label="المبلغ المستلم من المحاسب" amount={Number(summary?.handedCashAmount ?? 0)} sign="+" />
-                  <EquationRow label="تحصيلات الجملة النقدية" amount={Number(summary?.wholesaleCashCollections ?? 0)} sign="-" rows={summary?.wholesaleCashCollectionLines} onInspect={() => openDetails('تفاصيل تحصيلات الجملة النقدية', summary?.wholesaleCashCollectionLines, summary?.wholesaleCashCollections)} />
-                  <EquationRow label="مصروفات الدرج" amount={Number(summary?.drawerPaidExpensesAmount ?? 0)} sign="+" rows={summary?.drawerPaidExpenses} onInspect={() => openDetails('تفاصيل مصروفات الدرج', summary?.drawerPaidExpenses, summary?.drawerPaidExpensesAmount)} />
-                  <EquationRow label="مشتريات الدرج" amount={Number(summary?.cashPurchasesFromDrawer ?? 0)} sign="+" rows={summary?.drawerPaidPurchases} onInspect={() => openDetails('تفاصيل مشتريات الدرج', summary?.drawerPaidPurchases, summary?.cashPurchasesFromDrawer)} />
-                  <EquationRow label="صافي المبيعات النقدية التشغيلية" amount={netOperationalCashSales} sign="=" />
-                </section>
-
-                <section className="closing-summary-block">
-                  <h4>القسم البنكي</h4>
-                  <EquationRow label="إجمالي الحركة البنكية" amount={totalBankMovement} sign="+" />
-                  <EquationRow label="تحصيلات الجملة البنكية" amount={Number(summary?.wholesaleBankCollections ?? 0)} sign="-" rows={summary?.wholesaleBankCollectionLines} onInspect={() => openDetails('تفاصيل تحصيلات الجملة البنكية', summary?.wholesaleBankCollectionLines, summary?.wholesaleBankCollections)} />
-                  <EquationRow label="مصروفات البنك" amount={Number(summary?.bankPaidExpensesAmount ?? 0)} sign="+" rows={summary?.bankPaidExpenses} onInspect={() => openDetails('تفاصيل مصروفات البنك', summary?.bankPaidExpenses, summary?.bankPaidExpensesAmount)} />
-                  <EquationRow label="مشتريات البنك" amount={Number(summary?.bankPaidPurchasesAmount ?? 0)} sign="+" rows={summary?.bankPaidPurchases} onInspect={() => openDetails('تفاصيل مشتريات البنك', summary?.bankPaidPurchases, summary?.bankPaidPurchasesAmount)} />
-                  <EquationRow label="صافي المبيعات البنكية التشغيلية" amount={netOperationalBankSales} sign="=" />
-                </section>
+              <div className="closing-summary-stack">
+                <SummarySection title="النقد" items={cashCards} onOpen={openDetails} />
+                <SummarySection title="البنك" items={bankCards} onOpen={openDetails} />
+                <SummarySection title="الإجماليات النهائية" subtitle="بطاقات خفيفة لقراءة النتيجة النهائية بسرعة." items={totalCards} onOpen={openDetails} />
               </div>
-
-              <section className="closing-summary-block closing-totals-block">
-                <h4>الإجماليات النهائية</h4>
-                <div className="closing-total-grid">
-                  <div><span>صافي المبيعات النقدية التشغيلية</span><strong>{money(netOperationalCashSales)}</strong></div>
-                  <div><span>صافي المبيعات البنكية التشغيلية</span><strong>{money(netOperationalBankSales)}</strong></div>
-                  <div><span>إجمالي المبيعات التشغيلية اليومية</span><strong>{money(summary?.normalDailySalesAmount)}</strong></div>
-                  <div><span>إجمالي تحصيلات الجملة</span><strong>{money(summary?.wholesaleCollectionsTotal)}</strong></div>
-                  <div><span>إجمالي الحركة اليومية</span><strong>{money(summary?.totalDailyActivityAmount)}</strong></div>
-                  <div><span>تحويل الخزنة</span><strong>{money(summary?.vaultTransferAmount)}</strong></div>
-                </div>
-              </section>
-
               {!readOnly ? <button disabled={isSaving || !closing?.id} onClick={finish} type="button">{isSaving ? 'جارِ الإنهاء...' : 'إنهاء الإقفال'}</button> : null}
               {closing?.status === 'finalized' ? <button className="danger-button" onClick={cancelWithReversal} type="button">إلغاء مع عكس الأثر المالي</button> : null}
               {closing?.status === 'draft' ? <button className="danger-button" disabled={isSaving} onClick={deleteDraft} type="button">حذف المسودة</button> : null}
@@ -510,7 +560,7 @@ export function DailySalesClosingWizard({
           <div><dt>الحالة</dt><dd>{statusLabel(closing?.status)}</dd></div>
           <div><dt>نقد تشغيلي</dt><dd>{money(netOperationalCashSales)}</dd></div>
           <div><dt>بنك تشغيلي</dt><dd>{money(netOperationalBankSales)}</dd></div>
-          <div><dt>إجمالي تشغيل يومي</dt><dd>{money(summary?.normalDailySalesAmount)}</dd></div>
+          <div><dt>تشغيل يومي</dt><dd>{money(summary?.normalDailySalesAmount)}</dd></div>
           <div><dt>تحصيلات الجملة</dt><dd>{money(summary?.wholesaleCollectionsTotal)}</dd></div>
           <div><dt>إجمالي الحركة</dt><dd>{money(summary?.totalDailyActivityAmount)}</dd></div>
           <div><dt>تحويل الخزنة</dt><dd>{money(summary?.vaultTransferAmount)}</dd></div>
@@ -519,188 +569,172 @@ export function DailySalesClosingWizard({
         {closing?.status === 'draft' ? <button className="danger-button" disabled={isSaving} onClick={deleteDraft} type="button">حذف المسودة</button> : null}
       </aside>
 
-      <ModalDialog onClose={() => setDetailState(null)} open={Boolean(detailState)} title={detailState?.title ?? 'تفاصيل'}>
-        <div className="table-wrap compact-table">
-          <table>
-            <thead>
-              <tr>
-                <th>التاريخ</th>
-                <th>البيان</th>
-                <th>مرجع</th>
-                <th>ملاحظات</th>
-                <th>المبلغ</th>
-              </tr>
-            </thead>
-            <tbody>
-              {detailState?.rows.length ? (
-                detailState.rows.map((row) => (
-                  <tr key={row.id}>
-                    <td>{row.date ?? '-'}</td>
-                    <td>{row.description}</td>
-                    <td>{row.reference ?? '-'}</td>
-                    <td>{row.secondary ?? '-'}</td>
-                    <td>{money(row.amount)}</td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={5}>لا توجد سجلات مرتبطة بهذا الرقم.</td>
+      <ModalDialog onClose={() => setDetailState(null)} open={Boolean(detailState)} title={detailState?.title ?? 'التفاصيل'} width="1040px">
+        <table className="closing-detail-table">
+          <thead>
+            <tr>
+              <th>التاريخ</th>
+              <th>البيان</th>
+              <th>مرجع</th>
+              <th>ملاحظات</th>
+              <th>المبلغ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {detailState?.rows.length ? (
+              detailState.rows.map((row) => (
+                <tr key={row.id}>
+                  <td>{row.date ?? '-'}</td>
+                  <td>{row.description}</td>
+                  <td>{row.reference ?? '-'}</td>
+                  <td>{row.secondary ?? '-'}</td>
+                  <td>{money(row.amount)}</td>
                 </tr>
-              )}
-            </tbody>
-            <tfoot>
+              ))
+            ) : (
               <tr>
-                <th colSpan={4}>الإجمالي</th>
-                <th>{money(detailState?.total)}</th>
+                <td colSpan={5}>لا توجد سجلات مرتبطة بهذا الرقم.</td>
               </tr>
-            </tfoot>
-          </table>
-        </div>
+            )}
+          </tbody>
+          <tfoot>
+            <tr>
+              <th colSpan={4}>الإجمالي</th>
+              <th>{money(detailState?.total)}</th>
+            </tr>
+          </tfoot>
+        </table>
       </ModalDialog>
 
       <style jsx>{`
-        .closing-formula-grid,
-        .closing-mini-grid {
+        .closing-summary-stack,
+        .closing-dual-grid {
           display: grid;
+          gap: 14px;
+        }
+        .closing-dual-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .closing-section {
+          display: grid;
+          gap: 10px;
+        }
+        .closing-section-head {
+          display: flex;
+          align-items: end;
+          justify-content: space-between;
           gap: 12px;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
+          flex-wrap: wrap;
         }
-        .closing-mini-grid {
-          grid-template-columns: repeat(2, minmax(0, 1fr));
+        .closing-section-head h4 {
+          margin: 0;
+          font-size: 15px;
         }
-        .closing-summary-block {
+        .closing-section-head p {
+          margin: 0;
+          color: var(--muted);
+          font-size: 12px;
+        }
+        .closing-card-grid {
+          display: grid;
+          gap: 10px;
+          grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+        }
+        .closing-summary-card {
           border: 1px solid var(--border);
-          border-radius: 8px;
+          border-radius: 10px;
           background: #fff;
           padding: 12px;
           display: grid;
           gap: 10px;
+          box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
         }
-        .closing-summary-block h4 {
-          margin: 0;
-          font-size: 14px;
+        .closing-summary-card.success {
+          border-color: rgba(22, 163, 74, 0.18);
+          background: linear-gradient(180deg, #ffffff 0%, #f0fdf4 100%);
         }
-        .closing-equation-row {
+        .closing-summary-card.warning {
+          border-color: rgba(245, 158, 11, 0.22);
+          background: linear-gradient(180deg, #ffffff 0%, #fffbeb 100%);
+        }
+        .closing-summary-card.muted {
+          background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+        }
+        .closing-summary-card-copy {
           display: grid;
-          grid-template-columns: 24px minmax(0, 1fr);
-          gap: 10px;
-          align-items: center;
+          gap: 4px;
         }
-        .closing-equation-sign {
-          width: 24px;
-          height: 24px;
-          border-radius: 999px;
-          display: grid;
-          place-items: center;
-          background: #f3f4f6;
-          color: #475569;
-          font-weight: 900;
-        }
-        .closing-equation-sign.result {
-          background: #dcfce7;
-          color: #166534;
-        }
-        .closing-equation-copy {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 12px;
-          border-bottom: 1px solid #eef2f6;
-          padding-bottom: 8px;
-          font-size: 13px;
+        .closing-summary-card-copy small {
+          color: var(--muted);
+          font-size: 11px;
           font-weight: 800;
         }
-        .closing-equation-row.result .closing-equation-copy {
-          color: #166534;
-          font-size: 14px;
+        .closing-summary-card-copy strong {
+          font-size: 13px;
         }
-        .closing-amount-button {
+        .closing-summary-amount {
           position: relative;
           border: none;
           background: transparent;
-          color: inherit;
-          font: inherit;
-          font-weight: 900;
-          cursor: pointer;
           padding: 0;
+          text-align: right;
+          cursor: pointer;
+          color: inherit;
+          font-size: 22px;
+          font-weight: 900;
+          line-height: 1.1;
         }
-        .closing-hover-card {
+        .closing-summary-preview {
           position: absolute;
           inset-inline-end: 0;
           top: calc(100% + 8px);
           width: 260px;
+          display: none;
+          z-index: 30;
           border: 1px solid var(--border);
           border-radius: 8px;
           background: #fff;
-          box-shadow: 0 18px 40px rgba(15, 23, 42, 0.14);
+          box-shadow: 0 16px 36px rgba(15, 23, 42, 0.16);
           padding: 10px;
-          display: none;
-          z-index: 20;
           text-align: right;
           color: #0f172a;
+          font-size: 12px;
         }
-        .closing-amount-button:hover .closing-hover-card,
-        .closing-amount-button:focus-visible .closing-hover-card {
+        .closing-summary-amount:hover .closing-summary-preview,
+        .closing-summary-amount:focus-visible .closing-summary-preview {
           display: grid;
           gap: 6px;
         }
-        .closing-hover-card ul {
+        .closing-summary-preview ul {
           list-style: none;
           margin: 0;
           padding: 0;
           display: grid;
           gap: 6px;
         }
-        .closing-hover-card li,
-        .closing-source-list li,
-        .closing-total-grid div {
+        .closing-summary-preview li {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          gap: 10px;
-          font-size: 12px;
+          gap: 8px;
         }
-        .closing-source-list {
-          display: grid;
-          gap: 6px;
-          padding: 10px;
-          border-radius: 8px;
+        .closing-detail-table {
+          width: 100%;
+          border-collapse: collapse;
+        }
+        .closing-detail-table th,
+        .closing-detail-table td {
+          border-bottom: 1px solid #e5e7eb;
+          padding: 10px 12px;
+          text-align: right;
+          vertical-align: top;
+        }
+        .closing-detail-table thead th,
+        .closing-detail-table tfoot th {
           background: #f8fafc;
         }
-        .closing-source-list ul {
-          list-style: none;
-          margin: 0;
-          padding: 0;
-          display: grid;
-          gap: 6px;
-        }
-        .closing-note-box {
-          border-radius: 8px;
-          background: #eff6ff;
-          padding: 10px;
-          display: grid;
-          gap: 4px;
-          font-size: 12px;
-          color: #1e3a8a;
-        }
-        .closing-totals-block {
-          background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-        }
-        .closing-total-grid {
-          display: grid;
-          gap: 8px;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-        .closing-total-grid div {
-          border: 1px solid #e2e8f0;
-          border-radius: 8px;
-          padding: 10px;
-          background: #fff;
-        }
         @media (max-width: 900px) {
-          .closing-formula-grid,
-          .closing-mini-grid,
-          .closing-total-grid {
+          .closing-dual-grid {
             grid-template-columns: 1fr;
           }
         }
