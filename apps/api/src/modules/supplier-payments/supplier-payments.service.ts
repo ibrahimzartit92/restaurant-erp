@@ -162,8 +162,12 @@ export class SupplierPaymentsService {
 
   async createBatch(createSupplierPaymentBatchDto: CreateSupplierPaymentBatchDto) {
     const paymentRows = createSupplierPaymentBatchDto.payments ?? [];
+    const purchaseInvoiceId = createSupplierPaymentBatchDto.purchaseInvoiceId;
+    if (!purchaseInvoiceId) {
+      throw new BadRequestException('Purchase invoice is required.');
+    }
     const invoice = await this.purchaseInvoiceRepository.findOne({
-      where: { id: createSupplierPaymentBatchDto.purchaseInvoiceId },
+      where: { id: purchaseInvoiceId },
     });
     if (!invoice) {
       throw new NotFoundException('Purchase invoice was not found.');
@@ -179,7 +183,7 @@ export class SupplierPaymentsService {
     }
 
     const normalizedPayments = paymentRows.map((payment) => ({
-      purchaseInvoiceId: createSupplierPaymentBatchDto.purchaseInvoiceId,
+      purchaseInvoiceId,
       branchId: createSupplierPaymentBatchDto.branchId,
       paymentDate: payment.paymentDate ?? createSupplierPaymentBatchDto.paymentDate,
       paymentMethod:
@@ -217,7 +221,7 @@ export class SupplierPaymentsService {
       }
 
       await this.recalculateInvoicePaymentState(
-        createSupplierPaymentBatchDto.purchaseInvoiceId,
+        purchaseInvoiceId,
         invoiceRepository,
         paymentRepository,
       );

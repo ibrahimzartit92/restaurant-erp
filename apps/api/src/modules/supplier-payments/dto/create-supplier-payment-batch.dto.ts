@@ -4,7 +4,8 @@ import { PaymentAllocationDto } from '../../shared/payment-allocation.dto';
 
 export class CreateSupplierPaymentBatchDto {
   @IsUUID()
-  purchaseInvoiceId!: string;
+  @IsOptional()
+  purchaseInvoiceId?: string;
 
   @IsUUID()
   branchId!: string;
