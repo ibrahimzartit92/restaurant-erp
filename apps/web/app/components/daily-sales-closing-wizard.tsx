@@ -104,6 +104,42 @@ function SummarySection({
   );
 }
 
+function ReadonlySummaryCard({ item }: Readonly<{ item: SummaryCardItem }>) {
+  return (
+    <article className={`closing-summary-card readonly-summary-card ${item.tone ?? 'default'}`}>
+      <div className="closing-summary-card-copy">
+        {item.subtitle ? <small>{item.subtitle}</small> : null}
+        <strong>{item.title}</strong>
+      </div>
+      <div className="closing-summary-amount static">{money(item.amount)}</div>
+    </article>
+  );
+}
+
+function ReadonlySummarySection({
+  title,
+  subtitle,
+  items,
+}: Readonly<{
+  title: string;
+  subtitle?: string;
+  items: SummaryCardItem[];
+}>) {
+  return (
+    <section className="closing-section final-summary-section">
+      <div className="closing-section-head final-summary-head">
+        <h4>{title}</h4>
+        {subtitle ? <p>{subtitle}</p> : null}
+      </div>
+      <div className="closing-card-grid final-summary-grid">
+        {items.map((item) => (
+          <ReadonlySummaryCard item={item} key={item.id} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export function DailySalesClosingWizard({
   branches,
   drawers,
@@ -432,6 +468,82 @@ export function DailySalesClosingWizard({
     },
   ];
 
+  const finalSummaryCashCards: SummaryCardItem[] = [
+    {
+      id: 'final-handed-cash',
+      title: 'المبلغ المستلم من المحاسب',
+      subtitle: 'النقد الفعلي المستلم',
+      amount: Number(summary?.handedCashAmount ?? 0),
+    },
+    {
+      id: 'final-wholesale-cash',
+      title: 'تحصيلات الجملة النقدية',
+      subtitle: 'ضمن النقد المستلم',
+      amount: Number(summary?.wholesaleCashCollections ?? 0),
+      tone: 'warning',
+    },
+    {
+      id: 'final-operational-cash',
+      title: 'صافي المبيعات النقدية التشغيلية',
+      subtitle: 'بعد فصل الجملة',
+      amount: netOperationalCashSales,
+      tone: 'success',
+    },
+  ];
+
+  const finalSummaryBankCards: SummaryCardItem[] = [
+    {
+      id: 'final-normal-bank',
+      title: 'المبيعات البنكية التشغيلية',
+      subtitle: 'داخل الفرع والتوصيل والموقع',
+      amount: Number(summary?.normalBankSalesAmount ?? 0),
+    },
+    {
+      id: 'final-wholesale-bank',
+      title: 'تحصيلات الجملة البنكية',
+      subtitle: 'منفصلة عن مبيعات اليوم',
+      amount: Number(summary?.wholesaleBankCollections ?? 0),
+      tone: 'warning',
+    },
+    {
+      id: 'final-operational-bank',
+      title: 'صافي المبيعات البنكية التشغيلية',
+      subtitle: 'بعد فصل الجملة',
+      amount: netOperationalBankSales,
+      tone: 'success',
+    },
+  ];
+
+  const finalSummaryTotalCards: SummaryCardItem[] = [
+    {
+      id: 'final-operational-total',
+      title: 'إجمالي المبيعات التشغيلية اليومية',
+      subtitle: 'نقد تشغيلي + بنك تشغيلي',
+      amount: Number(summary?.normalDailySalesAmount ?? 0),
+      tone: 'success',
+    },
+    {
+      id: 'final-wholesale-total',
+      title: 'إجمالي تحصيلات الجملة',
+      subtitle: 'نقدي + بنكي',
+      amount: Number(summary?.wholesaleCollectionsTotal ?? 0),
+      tone: 'warning',
+    },
+    {
+      id: 'final-activity-total',
+      title: 'إجمالي الحركة اليومية',
+      subtitle: 'التشغيل + تحصيلات الجملة',
+      amount: Number(summary?.totalDailyActivityAmount ?? 0),
+    },
+    {
+      id: 'final-vault-transfer',
+      title: 'تحويل الخزنة',
+      subtitle: 'المبلغ المحول',
+      amount: Number(summary?.vaultTransferAmount ?? 0),
+      tone: 'muted',
+    },
+  ];
+
   return (
     <div className="closing-wizard-shell">
       <main className="closing-wizard-main">
@@ -582,11 +694,14 @@ export function DailySalesClosingWizard({
 
           {step === 6 ? (
             <>
-              <h3>الملخص النهائي</h3>
-              <div className="closing-summary-stack">
-                <SummarySection title="النقد" items={cashCards} onOpen={openDetails} />
-                <SummarySection title="البنك" items={bankCards} onOpen={openDetails} />
-                <SummarySection title="الإجماليات النهائية" subtitle="بطاقات خفيفة لقراءة النتيجة النهائية بسرعة." items={totalCards} onOpen={openDetails} />
+              <div className="closing-step-intro final-summary-intro">
+                <h3>الملخص النهائي</h3>
+                <p>مراجعة مختصرة ونهائية للأرقام قبل إنهاء الإقفال.</p>
+              </div>
+              <div className="closing-summary-stack final-summary-stack">
+                <ReadonlySummarySection title="النقد" subtitle="الأرقام النقدية النهائية لليوم." items={finalSummaryCashCards} />
+                <ReadonlySummarySection title="البنك" subtitle="الأرقام البنكية النهائية لليوم." items={finalSummaryBankCards} />
+                <ReadonlySummarySection title="الإجماليات النهائية" subtitle="الخلاصة النهائية للحركة اليومية." items={finalSummaryTotalCards} />
               </div>
               {!readOnly ? <button disabled={isSaving || !closing?.id} onClick={finish} type="button">{isSaving ? 'جارِ الإنهاء...' : 'إنهاء الإقفال'}</button> : null}
               {closing?.status === 'finalized' ? <button className="danger-button" onClick={cancelWithReversal} type="button">إلغاء مع عكس الأثر المالي</button> : null}
@@ -860,6 +975,52 @@ export function DailySalesClosingWizard({
           font-weight: 900;
           line-height: 1.1;
         }
+        .closing-summary-amount.static {
+          cursor: default;
+          pointer-events: none;
+        }
+        .final-summary-intro {
+          margin-bottom: 4px;
+        }
+        .final-summary-stack {
+          gap: 16px;
+        }
+        .final-summary-section {
+          gap: 12px;
+        }
+        .final-summary-head {
+          align-items: start;
+        }
+        .final-summary-head h4 {
+          font-size: 16px;
+        }
+        .final-summary-head p {
+          font-size: 12px;
+          line-height: 1.6;
+        }
+        .final-summary-grid {
+          gap: 10px;
+          grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+        }
+        .readonly-summary-card {
+          min-height: 108px;
+          padding: 12px;
+          gap: 9px;
+          box-shadow: 0 8px 20px rgba(15, 23, 42, 0.035);
+        }
+        .readonly-summary-card .closing-summary-card-copy {
+          gap: 5px;
+        }
+        .readonly-summary-card .closing-summary-card-copy small {
+          font-size: 10px;
+        }
+        .readonly-summary-card .closing-summary-card-copy strong {
+          font-size: 12px;
+          line-height: 1.55;
+        }
+        .readonly-summary-card .closing-summary-amount {
+          font-size: 21px;
+        }
         .closing-detail-table {
           width: 100%;
           border-collapse: collapse;
@@ -880,6 +1041,9 @@ export function DailySalesClosingWizard({
           .website-option-grid,
           .closing-kpi-row,
           .closing-dual-grid {
+            grid-template-columns: 1fr;
+          }
+          .final-summary-grid {
             grid-template-columns: 1fr;
           }
         }
