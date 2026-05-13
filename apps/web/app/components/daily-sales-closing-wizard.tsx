@@ -513,13 +513,117 @@ export function DailySalesClosingWizard({
           {step === 4 ? (
             <>
               <h3>تسوية النقد</h3>
-              <p className="notice">تحصيلات الجملة النقدية تبقى جزءًا من النقد المستلم فعليًا، لكنها تظهر هنا بشكل مستقل حتى يظل صافي التشغيل واضحًا.</p>
               <div className="form-grid">
                 <label>المبلغ المستلم من المحاسب<input disabled={readOnly} type="number" min="0" step="0.01" value={cashReconciliation.handedCashAmount ?? 0} onChange={(event) => updateDraft('cashReconciliation', { handedCashAmount: Number(event.target.value) })} /></label>
               </div>
-              <div className="closing-dual-grid">
-                <SummarySection title="النقد" subtitle="النقد التشغيلي منفصل عن تحصيلات الجملة النقدية." items={cashCards} onOpen={openDetails} />
-                <SummarySection title="البنك" subtitle="مبيعات البنك التشغيلية منفصلة عن تحصيلات الجملة البنكية." items={bankCards} onOpen={openDetails} />
+              <div className="closing-kpi-row">
+                <SummaryCard item={cashCards[0]} onOpen={openDetails} />
+                <SummaryCard item={cashCards[1]} onOpen={openDetails} />
+                <SummaryCard item={cashCards[2]} onOpen={openDetails} />
+                <SummaryCard item={bankCards[2]} onOpen={openDetails} />
+                <SummaryCard item={totalCards[0]} onOpen={openDetails} />
+              </div>
+              <div className="closing-accounting-grid">
+                <section className="closing-ledger-card">
+                  <div className="closing-ledger-head">
+                    <h4>النقد</h4>
+                  </div>
+                  <table className="closing-ledger-table">
+                    <tbody>
+                      <tr>
+                        <th>المبلغ المستلم من المحاسب</th>
+                        <td>
+                          <button className="closing-inline-amount" onClick={() => openDetails(cashCards[0].title, cashCards[0].rows, cashCards[0].amount)} type="button">
+                            {money(cashCards[0].amount)}
+                          </button>
+                        </td>
+                      </tr>
+                      <tr>
+                        <th>(-) تحصيلات الجملة النقدية</th>
+                        <td>
+                          <button className="closing-inline-amount warning" onClick={() => openDetails(cashCards[1].title, cashCards[1].rows, cashCards[1].amount)} type="button">
+                            {money(cashCards[1].amount)}
+                          </button>
+                        </td>
+                      </tr>
+                      <tr>
+                        <th>(+) مصروفات الدرج</th>
+                        <td>
+                          <button className="closing-inline-amount" onClick={() => openDetails('مصروفات الدرج', summary?.drawerPaidExpenses, Number(summary?.drawerPaidExpensesAmount ?? 0))} type="button">
+                            {money(summary?.drawerPaidExpensesAmount)}
+                          </button>
+                        </td>
+                      </tr>
+                      <tr>
+                        <th>(+) مشتريات الدرج</th>
+                        <td>
+                          <button className="closing-inline-amount" onClick={() => openDetails('مشتريات الدرج', summary?.drawerPaidPurchases, Number(summary?.cashPurchasesFromDrawer ?? 0))} type="button">
+                            {money(summary?.cashPurchasesFromDrawer)}
+                          </button>
+                        </td>
+                      </tr>
+                    </tbody>
+                    <tfoot>
+                      <tr>
+                        <th>(=) صافي النقد التشغيلي</th>
+                        <td>{money(netOperationalCashSales)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </section>
+
+                <section className="closing-ledger-card">
+                  <div className="closing-ledger-head">
+                    <h4>البنك</h4>
+                  </div>
+                  <table className="closing-ledger-table">
+                    <tbody>
+                      <tr>
+                        <th>مبيعات البنك التشغيلية</th>
+                        <td>
+                          <button className="closing-inline-amount" onClick={() => openDetails(bankCards[0].title, bankCards[0].rows, bankCards[0].amount)} type="button">
+                            {money(bankCards[0].amount)}
+                          </button>
+                        </td>
+                      </tr>
+                      <tr>
+                        <th>(-) تحصيلات الجملة البنكية</th>
+                        <td>
+                          <button className="closing-inline-amount warning" onClick={() => openDetails(bankCards[1].title, bankCards[1].rows, bankCards[1].amount)} type="button">
+                            {money(bankCards[1].amount)}
+                          </button>
+                        </td>
+                      </tr>
+                      <tr>
+                        <th>(+) مصروفات البنك</th>
+                        <td>
+                          <button className="closing-inline-amount" onClick={() => openDetails('مصروفات البنك', summary?.bankPaidExpenses, Number(summary?.bankPaidExpensesAmount ?? 0))} type="button">
+                            {money(summary?.bankPaidExpensesAmount)}
+                          </button>
+                        </td>
+                      </tr>
+                      <tr>
+                        <th>(+) مشتريات البنك</th>
+                        <td>
+                          <button className="closing-inline-amount" onClick={() => openDetails('مشتريات البنك', summary?.bankPaidPurchases, Number(summary?.bankPaidPurchasesAmount ?? 0))} type="button">
+                            {money(summary?.bankPaidPurchasesAmount)}
+                          </button>
+                        </td>
+                      </tr>
+                    </tbody>
+                    <tfoot>
+                      <tr>
+                        <th>(=) صافي البنك التشغيلي</th>
+                        <td>{money(netOperationalBankSales)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </section>
+              </div>
+              <div className="closing-final-total-card">
+                <span>إجمالي المبيعات اليومية</span>
+                <strong>{money(summary?.normalDailySalesAmount)}</strong>
+                <small>صافي النقد التشغيلي + صافي البنك التشغيلي</small>
               </div>
             </>
           ) : null}
@@ -612,8 +716,96 @@ export function DailySalesClosingWizard({
           display: grid;
           gap: 14px;
         }
+        .closing-kpi-row {
+          display: grid;
+          gap: 10px;
+          grid-template-columns: repeat(5, minmax(0, 1fr));
+          margin-bottom: 14px;
+        }
+        .closing-accounting-grid {
+          display: grid;
+          gap: 14px;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
         .closing-dual-grid {
           grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .closing-ledger-card {
+          border: 1px solid var(--border);
+          border-radius: 10px;
+          background: #fff;
+          overflow: hidden;
+        }
+        .closing-ledger-head {
+          padding: 12px 14px 8px;
+        }
+        .closing-ledger-head h4 {
+          margin: 0;
+          font-size: 15px;
+        }
+        .closing-ledger-table {
+          width: 100%;
+          border-collapse: collapse;
+        }
+        .closing-ledger-table th,
+        .closing-ledger-table td {
+          padding: 11px 14px;
+          border-top: 1px solid #edf1f5;
+          text-align: right;
+          font-size: 13px;
+        }
+        .closing-ledger-table tbody th {
+          color: #475569;
+          font-weight: 800;
+        }
+        .closing-ledger-table tbody td {
+          width: 160px;
+          font-weight: 900;
+          color: #111827;
+        }
+        .closing-ledger-table tfoot th,
+        .closing-ledger-table tfoot td {
+          background: #f8fafc;
+          font-size: 15px;
+          font-weight: 900;
+          color: #166534;
+        }
+        .closing-inline-amount {
+          border: none;
+          background: transparent;
+          padding: 0;
+          font: inherit;
+          font-weight: 900;
+          color: inherit;
+          cursor: pointer;
+        }
+        .closing-inline-amount.warning {
+          color: #b45309;
+        }
+        .closing-final-total-card {
+          margin-top: 14px;
+          border: 1px solid rgba(22, 163, 74, 0.18);
+          border-radius: 12px;
+          background: linear-gradient(180deg, #ffffff 0%, #f0fdf4 100%);
+          padding: 14px 16px;
+          display: grid;
+          gap: 4px;
+          justify-items: start;
+        }
+        .closing-final-total-card span {
+          color: #166534;
+          font-size: 13px;
+          font-weight: 800;
+        }
+        .closing-final-total-card strong {
+          font-size: 28px;
+          line-height: 1;
+          color: #14532d;
+        }
+        .closing-final-total-card small {
+          color: #166534;
+          font-size: 12px;
+          font-weight: 700;
         }
         .closing-section {
           display: grid;
@@ -734,6 +926,8 @@ export function DailySalesClosingWizard({
           background: #f8fafc;
         }
         @media (max-width: 900px) {
+          .closing-kpi-row,
+          .closing-accounting-grid,
           .closing-dual-grid {
             grid-template-columns: 1fr;
           }
