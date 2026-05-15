@@ -14,6 +14,7 @@ import {
   DrawerTransactionType,
 } from '../drawer-transactions/entities/drawer-transaction.entity';
 import { DrawerEntity } from '../drawers/entities/drawer.entity';
+import { DailySalesClosingService, DailySalesClosingOperationChange } from '../daily-sales/daily-sales-closing.service';
 import { FinancialPaymentMethod } from '../shared/payment-allocation.dto';
 import { UndoActionEntity } from '../undo-actions/entities/undo-action.entity';
 import { UndoActionsService } from '../undo-actions/undo-actions.service';
@@ -56,6 +57,7 @@ export class SupplierPaymentsService {
     private readonly bankAccountRepository: Repository<BankAccountEntity>,
     private readonly vaultsService: VaultsService,
     private readonly undoActionsService: UndoActionsService,
+    private readonly dailySalesClosingService: DailySalesClosingService,
   ) {}
 
   findAll(filters: SupplierPaymentFilters = {}) {
@@ -150,6 +152,7 @@ export class SupplierPaymentsService {
 
       const savedPayment = await paymentRepository.save(payment);
       await this.recreateFinancialMovement(savedPayment, manager);
+      await this.dailySalesClosingService.recordPostCloseChanges(this.paymentClosingChanges(savedPayment, 'created'), manager);
       await this.recalculateInvoicePaymentState(
         purchaseInvoiceId,
         invoiceRepository,
@@ -217,6 +220,7 @@ export class SupplierPaymentsService {
           }),
         );
         await this.recreateFinancialMovement(savedPayment, manager);
+        await this.dailySalesClosingService.recordPostCloseChanges(this.paymentClosingChanges(savedPayment, 'created'), manager);
         savedPayments.push(savedPayment);
       }
 
@@ -235,6 +239,7 @@ export class SupplierPaymentsService {
 
   async update(id: string, updateSupplierPaymentDto: UpdateSupplierPaymentDto) {
     const payment = await this.findByIdOrFail(id);
+    const previousClosingChanges = this.paymentClosingChanges(payment, 'edited');
 
     await this.ensureCodeIsAvailable(updateSupplierPaymentDto.paymentNumber, id);
     const invoice = await this.validatePaymentReferences({
@@ -263,6 +268,10 @@ export class SupplierPaymentsService {
       const paymentRepository = manager.getRepository(SupplierPaymentEntity);
       const saved = await paymentRepository.save(payment);
       await this.recreateFinancialMovement(saved, manager);
+      await this.dailySalesClosingService.recordPostCloseChanges(
+        [...previousClosingChanges, ...this.paymentClosingChanges(saved, 'edited')],
+        manager,
+      );
       await this.recalculateInvoicePaymentState(
         payment.purchaseInvoiceId,
         manager.getRepository(PurchaseInvoiceEntity),
@@ -284,6 +293,7 @@ export class SupplierPaymentsService {
         await this.deleteFinancialMovement(payment.id, manager);
       }
       await manager.getRepository(SupplierPaymentEntity).remove(payment);
+      await this.dailySalesClosingService.recordPostCloseChanges(this.paymentClosingChanges(payment, 'deleted'), manager);
       await this.recalculateInvoicePaymentState(
         purchaseInvoiceId,
         manager.getRepository(PurchaseInvoiceEntity),
@@ -311,6 +321,7 @@ export class SupplierPaymentsService {
       await this.vaultsService.deleteFinancialMovement('supplier_payment_vault_reversal', restoredPayment.id, manager);
       const saved = await manager.getRepository(SupplierPaymentEntity).save(restoredPayment);
       await this.recreateFinancialMovement(saved, manager);
+      await this.dailySalesClosingService.recordPostCloseChanges(this.paymentClosingChanges(saved, 'created'), manager);
       await this.recalculateInvoicePaymentState(
         saved.purchaseInvoiceId,
         manager.getRepository(PurchaseInvoiceEntity),
@@ -325,9 +336,27 @@ export class SupplierPaymentsService {
 
     for (const payment of payments) {
       await this.recordFinancialReversalToVault(payment, vaultId, manager);
+      await this.dailySalesClosingService.recordPostCloseChanges(this.paymentClosingChanges(payment, 'cancelled'), manager);
     }
 
     return payments;
+  }
+
+  private paymentClosingChanges(
+    payment: SupplierPaymentEntity,
+    actionType: DailySalesClosingOperationChange['actionType'],
+  ): DailySalesClosingOperationChange[] {
+    return [
+      {
+        branchId: payment.branchId,
+        effectiveDate: payment.paymentDate,
+        operationType: 'purchase_invoice_payment',
+        actionType,
+        amount: Number(payment.amount ?? 0),
+        reference: payment.referenceNumber ?? payment.paymentNumber,
+        operationId: payment.id,
+      },
+    ];
   }
 
   private async recreateFinancialMovement(payment: SupplierPaymentEntity, manager = this.dataSource.manager) {

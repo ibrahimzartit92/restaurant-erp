@@ -23,10 +23,21 @@ import { WholesaleSalesPaymentEntity, WholesaleSalesPaymentMethod } from '../who
 import {
   DailySalesClosingDraftData,
   DailySalesClosingEntity,
+  DailySalesClosingPostCloseChange,
   DailySalesClosingStatus,
   DailySalesClosingSummary,
   DailySalesClosingSummaryLine,
 } from './entities/daily-sales-closing.entity';
+
+export type DailySalesClosingOperationChange = {
+  branchId?: string | null;
+  effectiveDate?: string | null;
+  operationType: string;
+  actionType: DailySalesClosingPostCloseChange['actionType'];
+  amount?: number | null;
+  reference?: string | null;
+  operationId?: string | null;
+};
 
 @Injectable()
 export class DailySalesClosingService {
@@ -60,7 +71,54 @@ export class DailySalesClosingService {
   async findByIdOrFail(id: string) {
     const closing = await this.closingRepository.findOne({ where: { id } });
     if (!closing) throw new NotFoundException('إقفال المبيعات اليومية غير موجود.');
-    return { ...closing, summaryValues: await this.buildSummary(closing) };
+    return { ...closing, summaryValues: closing.summaryValues ?? (await this.buildSummary(closing)) };
+  }
+
+  async recordPostCloseChange(change: DailySalesClosingOperationChange, manager: EntityManager = this.dataSource.manager) {
+    if (!change.branchId || !change.effectiveDate) return null;
+    const repository = manager.getRepository(DailySalesClosingEntity);
+    const closing = await repository.findOne({
+      where: [
+        { branchId: change.branchId, closingDate: change.effectiveDate, status: DailySalesClosingStatus.Finalized },
+        { branchId: change.branchId, closingDate: change.effectiveDate, status: DailySalesClosingStatus.UpdatedAfterClose },
+      ],
+    });
+    if (!closing) return null;
+
+    const summary = await this.buildSummary(closing, manager);
+    const handedCashAmount = this.roundMoney(Number(closing.handedCashAmount ?? summary.handedCashAmount ?? 0));
+    summary.handedCashAmount = handedCashAmount;
+    summary.cashDifference = this.roundMoney(handedCashAmount - summary.expectedSystemCash);
+
+    const entry: DailySalesClosingPostCloseChange = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+      operationType: change.operationType,
+      actionType: change.actionType,
+      effectiveDate: change.effectiveDate,
+      recordedAt: new Date().toISOString(),
+      amount: change.amount === undefined ? null : this.roundMoney(Number(change.amount ?? 0)),
+      reference: change.reference ?? null,
+      operationId: change.operationId ?? null,
+    };
+
+    closing.originalSummaryValues = closing.originalSummaryValues ?? closing.summaryValues ?? null;
+    closing.summaryValues = summary;
+    closing.expectedCashAmount = summary.expectedSystemCash;
+    closing.cashDifferenceAmount = summary.cashDifference;
+    closing.status = DailySalesClosingStatus.UpdatedAfterClose;
+    closing.postCloseUpdatedAt = new Date(entry.recordedAt);
+    closing.postCloseChanges = [entry, ...(closing.postCloseChanges ?? [])].slice(0, 50);
+    return repository.save(closing);
+  }
+
+  async recordPostCloseChanges(changes: DailySalesClosingOperationChange[], manager: EntityManager = this.dataSource.manager) {
+    const seen = new Set<string>();
+    for (const change of changes) {
+      const key = `${change.branchId ?? ''}|${change.effectiveDate ?? ''}|${change.operationType}|${change.actionType}|${change.operationId ?? ''}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      await this.recordPostCloseChange(change, manager);
+    }
   }
 
   async defaults(branchId: string) {
@@ -81,7 +139,7 @@ export class DailySalesClosingService {
     await this.ensureBankAccount(bankAccountId);
 
     let closing = await this.closingRepository.findOne({ where: { branchId: dto.branchId, closingDate: dto.closingDate } });
-    if (closing?.status === DailySalesClosingStatus.Finalized) {
+    if (this.isFinalClosedStatus(closing?.status)) {
       throw new ConflictException('يوجد إقفال نهائي بالفعل لهذا الفرع وهذا التاريخ.');
     }
 
@@ -108,12 +166,15 @@ export class DailySalesClosingService {
   async finalize(id: string) {
     const closing = await this.closingRepository.findOne({ where: { id } });
     if (!closing) throw new NotFoundException('إقفال المبيعات اليومية غير موجود.');
-    if (closing.status === DailySalesClosingStatus.Finalized) return closing;
+    if (this.isFinalClosedStatus(closing.status)) return closing;
     if (closing.status === DailySalesClosingStatus.Cancelled) throw new BadRequestException('لا يمكن إنهاء إقفال ملغى.');
 
     await this.ensureNoFinalizedDuplicate(closing.branchId, closing.closingDate, closing.id);
     const summary = await this.buildSummary(closing);
     closing.summaryValues = summary;
+    closing.originalSummaryValues = summary;
+    closing.postCloseChanges = null;
+    closing.postCloseUpdatedAt = null;
     closing.handedCashAmount = summary.handedCashAmount;
     closing.expectedCashAmount = summary.expectedSystemCash;
     closing.cashDifferenceAmount = summary.cashDifference;
@@ -464,6 +525,7 @@ export class DailySalesClosingService {
 
   private async buildSummary(
     closing: Pick<DailySalesClosingEntity, 'branchId' | 'closingDate' | 'drawerId' | 'draftData'>,
+    manager: EntityManager = this.dataSource.manager,
   ): Promise<DailySalesClosingSummary> {
     const draft = closing.draftData ?? {};
     const deliverySalesAmount = this.roundMoney(Number(draft.deliverySales?.enabled ? draft.deliverySales.amount ?? 0 : 0));
@@ -473,17 +535,17 @@ export class DailySalesClosingService {
 
     const [drawerRows, bankRows, wholesaleCashPayments, wholesaleBankPayments] = await Promise.all([
       closing.drawerId
-        ? this.dataSource.manager.getRepository(DrawerTransactionEntity).find({
+        ? manager.getRepository(DrawerTransactionEntity).find({
             where: { drawerId: closing.drawerId, transactionDate: closing.closingDate },
           })
         : Promise.resolve([]),
-      this.dataSource.manager.getRepository(BankAccountTransactionEntity).find({
+      manager.getRepository(BankAccountTransactionEntity).find({
         where: {
           branchId: closing.branchId,
           transactionDate: closing.closingDate,
         },
       }),
-      this.dataSource.manager.getRepository(WholesaleSalesPaymentEntity).find({
+      manager.getRepository(WholesaleSalesPaymentEntity).find({
         where: {
           branchId: closing.branchId,
           paymentDate: closing.closingDate,
@@ -491,7 +553,7 @@ export class DailySalesClosingService {
         },
         relations: { invoice: { customer: true }, drawer: true, bankAccount: true, vault: true },
       }),
-      this.dataSource.manager.getRepository(WholesaleSalesPaymentEntity).find({
+      manager.getRepository(WholesaleSalesPaymentEntity).find({
         where: {
           branchId: closing.branchId,
           paymentDate: closing.closingDate,
@@ -610,7 +672,12 @@ export class DailySalesClosingService {
   }
 
   private async ensureNoFinalizedDuplicate(branchId: string, closingDate: string, currentId: string) {
-    const existing = await this.closingRepository.findOne({ where: { branchId, closingDate, status: DailySalesClosingStatus.Finalized } });
+    const existing = await this.closingRepository.findOne({
+      where: [
+        { branchId, closingDate, status: DailySalesClosingStatus.Finalized },
+        { branchId, closingDate, status: DailySalesClosingStatus.UpdatedAfterClose },
+      ],
+    });
     if (existing && existing.id !== currentId) throw new ConflictException('يوجد إقفال نهائي بالفعل لهذا الفرع وهذا التاريخ.');
   }
 
@@ -697,8 +764,13 @@ export class DailySalesClosingService {
 
   private statusLabel(status: DailySalesClosingStatus) {
     if (status === DailySalesClosingStatus.Finalized) return 'نهائي';
+    if (status === DailySalesClosingStatus.UpdatedAfterClose) return 'مُحدّث بعد الإقفال';
     if (status === DailySalesClosingStatus.Cancelled) return 'ملغى';
     return 'مسودة';
+  }
+
+  private isFinalClosedStatus(status?: DailySalesClosingStatus | null) {
+    return status === DailySalesClosingStatus.Finalized || status === DailySalesClosingStatus.UpdatedAfterClose;
   }
 
   private wholesaleSummaryLines(payments: WholesaleSalesPaymentEntity[]): DailySalesClosingSummaryLine[] {

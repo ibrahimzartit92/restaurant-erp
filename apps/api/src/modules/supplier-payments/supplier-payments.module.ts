@@ -5,6 +5,7 @@ import { BankAccountTransactionEntity } from '../bank-account-transactions/entit
 import { BranchEntity } from '../branches/entities/branch.entity';
 import { DrawerTransactionEntity } from '../drawer-transactions/entities/drawer-transaction.entity';
 import { DrawerEntity } from '../drawers/entities/drawer.entity';
+import { DailySalesModule } from '../daily-sales/daily-sales.module';
 import { PurchaseInvoiceEntity } from '../purchase-invoices/entities/purchase-invoice.entity';
 import { UndoActionsModule } from '../undo-actions/undo-actions.module';
 import { VaultsModule } from '../vaults/vaults.module';
@@ -16,6 +17,7 @@ import { SupplierPaymentsService } from './supplier-payments.service';
   imports: [
     UndoActionsModule,
     VaultsModule,
+    DailySalesModule,
     TypeOrmModule.forFeature([
       BankAccountEntity,
       BankAccountTransactionEntity,

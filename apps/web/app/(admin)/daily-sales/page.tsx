@@ -9,7 +9,7 @@ type DailySaleClosingRow = {
   id: string;
   branch?: { name: string } | null;
   closingDate: string;
-  status: 'draft' | 'finalized' | 'cancelled';
+  status: 'draft' | 'finalized' | 'updated_after_close' | 'cancelled';
   handedCashAmount?: number;
   summaryValues?: {
     normalDailySalesAmount?: number;

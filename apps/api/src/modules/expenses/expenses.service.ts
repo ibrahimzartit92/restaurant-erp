@@ -14,6 +14,7 @@ import {
   DrawerTransactionType,
 } from '../drawer-transactions/entities/drawer-transaction.entity';
 import { DrawerEntity } from '../drawers/entities/drawer.entity';
+import { DailySalesClosingService, DailySalesClosingOperationChange } from '../daily-sales/daily-sales-closing.service';
 import { ExpenseCategoryEntity } from '../expense-categories/entities/expense-category.entity';
 import { ExpenseTypeEntity } from '../expense-types/entities/expense-type.entity';
 import { FinancialPaymentMethod, PaymentAllocationDto } from '../shared/payment-allocation.dto';
@@ -46,6 +47,7 @@ export class ExpensesService {
     private readonly bankAccountRepository: Repository<BankAccountEntity>,
     private readonly vaultsService: VaultsService,
     private readonly undoActionsService: UndoActionsService,
+    private readonly dailySalesClosingService: DailySalesClosingService,
   ) {}
 
   async findAll(filters: {
@@ -203,6 +205,7 @@ export class ExpensesService {
     return this.dataSource.transaction(async (manager) => {
       const savedExpense = await manager.getRepository(ExpenseEntity).save(expense);
       await this.recreateFinancialMovement(savedExpense, manager);
+      await this.dailySalesClosingService.recordPostCloseChanges(this.expenseClosingChanges(savedExpense, 'created'), manager);
       return savedExpense;
     });
   }
@@ -212,6 +215,7 @@ export class ExpensesService {
       throw new BadRequestException('يجب تشغيل ترحيل قاعدة البيانات الخاص بتسلسل المصاريف قبل تعديل المصاريف.');
     }
     const expense = await this.findByIdOrFail(id);
+    const previousClosingChanges = this.expenseClosingChanges(expense, 'edited');
     await this.ensureNumberIsAvailable(updateExpenseDto.expenseNumber, id);
     const nextExpense = { ...expense, ...updateExpenseDto };
     const expenseType = await this.findExpenseTypeForWrite(nextExpense.expenseTypeId ?? undefined, nextExpense.expenseCategoryId);
@@ -254,6 +258,10 @@ export class ExpensesService {
     return this.dataSource.transaction(async (manager) => {
       const savedExpense = await manager.getRepository(ExpenseEntity).save(expense);
       await this.recreateFinancialMovement(savedExpense, manager);
+      await this.dailySalesClosingService.recordPostCloseChanges(
+        [...previousClosingChanges, ...this.expenseClosingChanges(savedExpense, 'edited')],
+        manager,
+      );
       return savedExpense;
     });
   }
@@ -267,6 +275,7 @@ export class ExpensesService {
         await this.deleteFinancialMovement(expense.id, manager);
       }
       await manager.getRepository(ExpenseEntity).remove(expense);
+      await this.dailySalesClosingService.recordPostCloseChanges(this.expenseClosingChanges(expense, 'deleted'), manager);
       await this.recordUndoSafely({
         actionType: reverseFinancialEffect ? 'delete_with_vault_reversal' : 'delete_only',
         entityType: 'expense',
@@ -289,8 +298,28 @@ export class ExpensesService {
       await this.vaultsService.deleteFinancialMovement('expense_vault_reversal', restoredExpense.id, manager);
       const saved = await manager.getRepository(ExpenseEntity).save(restoredExpense);
       await this.recreateFinancialMovement(saved, manager);
+      await this.dailySalesClosingService.recordPostCloseChanges(this.expenseClosingChanges(saved, 'created'), manager);
       return saved;
     });
+  }
+
+  private expenseClosingChanges(
+    expense: ExpenseEntity,
+    actionType: DailySalesClosingOperationChange['actionType'],
+  ): DailySalesClosingOperationChange[] {
+    const allocations = expense.paymentAllocations ?? this.legacyExpenseAllocations(expense);
+    const rows = allocations.length
+      ? allocations
+      : [{ amount: expense.amount, paymentDate: expense.expenseDate, referenceNumber: expense.expenseNumber }];
+    return rows.map((allocation) => ({
+      branchId: expense.branchId,
+      effectiveDate: allocation.paymentDate ?? expense.expenseDate,
+      operationType: 'expense',
+      actionType,
+      amount: Number(allocation.amount ?? expense.amount ?? 0),
+      reference: expense.expenseNumber ? `${expense.expenseNumber} - ${expense.title}` : expense.title,
+      operationId: expense.id,
+    }));
   }
 
   private async recreateFinancialMovement(expense: ExpenseEntity, manager = this.dataSource.manager) {

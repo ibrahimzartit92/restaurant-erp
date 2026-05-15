@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, Repository } from 'typeorm';
+import { DailySalesClosingService, DailySalesClosingOperationChange } from '../daily-sales/daily-sales-closing.service';
 import {
   BankAccountTransactionDirection,
   BankAccountTransactionEntity,
@@ -61,6 +62,7 @@ export class EmployeeFinancialObligationsService {
     private readonly vaultsService: VaultsService,
     private readonly reportExportService: ReportExportService,
     private readonly settingsService: SettingsService,
+    private readonly dailySalesClosingService: DailySalesClosingService,
   ) {}
 
   async findAll(filters: {
@@ -200,12 +202,14 @@ export class EmployeeFinancialObligationsService {
     return this.dataSource.transaction(async (manager) => {
       const saved = await manager.getRepository(EmployeeDebtEntity).save(debt);
       await this.recreateDebtFinancialMovement(saved, manager);
+      await this.dailySalesClosingService.recordPostCloseChanges(await this.debtClosingChanges(saved, 'created', manager), manager);
       return saved;
     });
   }
 
   async updateDebt(id: string, dto: UpdateEmployeeDebtDto) {
     const debt = await this.findDebt(id);
+    const previousClosingChanges = await this.debtClosingChanges(debt, 'edited');
     const source =
       dto.drawerId !== undefined || dto.bankAccountId !== undefined || dto.vaultId !== undefined
         ? await this.resolveOneSource({
@@ -241,6 +245,10 @@ export class EmployeeFinancialObligationsService {
     return this.dataSource.transaction(async (manager) => {
       const saved = await manager.getRepository(EmployeeDebtEntity).save(debt);
       await this.recreateDebtFinancialMovement(saved, manager);
+      await this.dailySalesClosingService.recordPostCloseChanges(
+        [...previousClosingChanges, ...(await this.debtClosingChanges(saved, 'edited', manager))],
+        manager,
+      );
       return saved;
     });
   }
@@ -253,6 +261,7 @@ export class EmployeeFinancialObligationsService {
       if (reverseFinancialEffect) {
         await this.recordDebtReversal(debt, manager);
       }
+      await this.dailySalesClosingService.recordPostCloseChanges(await this.debtClosingChanges(debt, 'cancelled', manager), manager);
       return { id, cancelled: true };
     });
   }
@@ -552,6 +561,38 @@ export class EmployeeFinancialObligationsService {
         manager,
       );
     }
+  }
+
+  private async debtClosingChanges(
+    debt: EmployeeDebtEntity,
+    actionType: DailySalesClosingOperationChange['actionType'],
+    manager: EntityManager = this.dataSource.manager,
+  ): Promise<DailySalesClosingOperationChange[]> {
+    const branchId = await this.branchIdFromSource(
+      { drawerId: debt.drawerId, bankAccountId: debt.bankAccountId, vaultId: debt.vaultId },
+      manager,
+    );
+    return [
+      {
+        branchId,
+        effectiveDate: debt.debtDate,
+        operationType: 'employee_debt',
+        actionType,
+        amount: Number(debt.amount ?? 0),
+        reference: debt.employee?.fullName ?? debt.employeeId,
+        operationId: debt.id,
+      },
+    ];
+  }
+
+  private async branchIdFromSource(
+    source: { drawerId?: string | null; bankAccountId?: string | null; vaultId?: string | null },
+    manager: EntityManager,
+  ) {
+    if (source.drawerId) return (await manager.getRepository(DrawerEntity).findOne({ where: { id: source.drawerId } }))?.branchId ?? null;
+    if (source.bankAccountId) return (await manager.getRepository(BankAccountEntity).findOne({ where: { id: source.bankAccountId } }))?.branchId ?? null;
+    if (source.vaultId) return (await this.vaultsService.findEntityByIdOrFail(source.vaultId))?.branchId ?? null;
+    return null;
   }
 
   private async recordDebtReversal(debt: EmployeeDebtEntity, manager: EntityManager) {

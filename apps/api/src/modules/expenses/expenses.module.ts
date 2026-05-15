@@ -5,6 +5,7 @@ import { BankAccountTransactionEntity } from '../bank-account-transactions/entit
 import { BranchEntity } from '../branches/entities/branch.entity';
 import { DrawerTransactionEntity } from '../drawer-transactions/entities/drawer-transaction.entity';
 import { DrawerEntity } from '../drawers/entities/drawer.entity';
+import { DailySalesModule } from '../daily-sales/daily-sales.module';
 import { ExpenseCategoryEntity } from '../expense-categories/entities/expense-category.entity';
 import { ExpenseTemplateEntity } from '../expense-templates/entities/expense-template.entity';
 import { ExpenseTypeEntity } from '../expense-types/entities/expense-type.entity';
@@ -18,6 +19,7 @@ import { ExpensesService } from './expenses.service';
   imports: [
     UndoActionsModule,
     VaultsModule,
+    DailySalesModule,
     TypeOrmModule.forFeature([
       BankAccountEntity,
       BankAccountTransactionEntity,

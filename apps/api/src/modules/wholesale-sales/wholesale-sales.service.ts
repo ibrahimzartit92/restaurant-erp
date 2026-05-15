@@ -11,6 +11,7 @@ import {
 import { BankAccountEntity } from '../bank-accounts/entities/bank-account.entity';
 import { BranchEntity } from '../branches/entities/branch.entity';
 import { CustomerEntity } from '../customers/entities/customer.entity';
+import { DailySalesClosingService, DailySalesClosingOperationChange } from '../daily-sales/daily-sales-closing.service';
 import {
   DrawerTransactionDirection,
   DrawerTransactionEntity,
@@ -94,6 +95,7 @@ export class WholesaleSalesService {
     private readonly bankAccountRepository: Repository<BankAccountEntity>,
     private readonly stockMovementsService: StockMovementsService,
     private readonly vaultsService: VaultsService,
+    private readonly dailySalesClosingService: DailySalesClosingService,
   ) {}
 
   findAll(filters: WholesaleSalesFilters = {}) {
@@ -276,6 +278,7 @@ export class WholesaleSalesService {
       await this.stockMovementsService.replaceSourceMovements('wholesale_sales_invoice', invoice.id, [], manager);
       for (const payment of invoice.payments ?? []) {
         await this.reversePaymentFinancialMovement(payment, invoice, manager);
+        await this.dailySalesClosingService.recordPostCloseChanges(this.paymentClosingChanges(payment, 'cancelled'), manager);
       }
       invoice.documentStatus = WholesaleSalesDocumentStatus.Cancelled;
       return manager.getRepository(WholesaleSalesInvoiceEntity).save(invoice);
@@ -450,6 +453,7 @@ export class WholesaleSalesService {
         );
         paymentIds.push(saved.id);
         await this.recreatePaymentMovement(saved, manager, invoice);
+        await this.dailySalesClosingService.recordPostCloseChanges(this.paymentClosingChanges(saved, 'created'), manager);
       }
       await this.recalculatePaymentState(dto.invoiceId, manager);
       return paymentIds;
@@ -542,6 +546,23 @@ export class WholesaleSalesService {
         manager,
       );
     }
+  }
+
+  private paymentClosingChanges(
+    payment: WholesaleSalesPaymentEntity,
+    actionType: DailySalesClosingOperationChange['actionType'],
+  ): DailySalesClosingOperationChange[] {
+    return [
+      {
+        branchId: payment.branchId,
+        effectiveDate: payment.paymentDate,
+        operationType: 'wholesale_collection',
+        actionType,
+        amount: Number(payment.amount ?? 0),
+        reference: payment.referenceNumber ?? payment.paymentNumber,
+        operationId: payment.id,
+      },
+    ];
   }
 
   private async reversePaymentFinancialMovement(

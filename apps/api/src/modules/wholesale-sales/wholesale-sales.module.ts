@@ -4,6 +4,7 @@ import { BankAccountTransactionEntity } from '../bank-account-transactions/entit
 import { BankAccountEntity } from '../bank-accounts/entities/bank-account.entity';
 import { BranchEntity } from '../branches/entities/branch.entity';
 import { CustomerEntity } from '../customers/entities/customer.entity';
+import { DailySalesModule } from '../daily-sales/daily-sales.module';
 import { DrawerTransactionEntity } from '../drawer-transactions/entities/drawer-transaction.entity';
 import { DrawerEntity } from '../drawers/entities/drawer.entity';
 import { ItemEntity } from '../items/entities/item.entity';
@@ -37,6 +38,7 @@ import { WholesaleSalesService } from './wholesale-sales.service';
     ]),
     StockMovementsModule,
     VaultsModule,
+    DailySalesModule,
   ],
   controllers: [WholesaleSalesController],
   providers: [WholesaleSalesService],

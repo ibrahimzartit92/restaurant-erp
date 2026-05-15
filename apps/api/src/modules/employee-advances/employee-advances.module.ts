@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { EmployeesModule } from '../employees/employees.module';
+import { DailySalesModule } from '../daily-sales/daily-sales.module';
 import { BankAccountEntity } from '../bank-accounts/entities/bank-account.entity';
 import { BankAccountTransactionEntity } from '../bank-account-transactions/entities/bank-account-transaction.entity';
 import { DrawerTransactionEntity } from '../drawer-transactions/entities/drawer-transaction.entity';
@@ -23,6 +24,7 @@ import { PayrollRecordEntity } from '../payroll/entities/payroll-record.entity';
       PayrollRecordEntity,
     ]),
     EmployeesModule,
+    DailySalesModule,
     UndoActionsModule,
     VaultsModule,
   ],

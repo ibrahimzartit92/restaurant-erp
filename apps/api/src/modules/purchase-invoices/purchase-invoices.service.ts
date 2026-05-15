@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { BranchEntity } from '../branches/entities/branch.entity';
+import { DailySalesClosingService, DailySalesClosingOperationChange } from '../daily-sales/daily-sales-closing.service';
 import { ItemEntity } from '../items/entities/item.entity';
 import { PurchaseInvoiceItemEntity } from '../purchase-invoice-items/entities/purchase-invoice-item.entity';
 import { SupplierRepresentativeEntity } from '../supplier-representatives/entities/supplier-representative.entity';
@@ -43,6 +44,7 @@ export class PurchaseInvoicesService {
     private readonly itemRepository: Repository<ItemEntity>,
     private readonly supplierPaymentsService: SupplierPaymentsService,
     private readonly stockMovementsService: StockMovementsService,
+    private readonly dailySalesClosingService: DailySalesClosingService,
   ) {}
 
   findAll(filters: PurchaseInvoiceFilters) {
@@ -207,6 +209,7 @@ export class PurchaseInvoicesService {
         })),
         manager,
       );
+      await this.dailySalesClosingService.recordPostCloseChanges(this.invoiceClosingChanges(savedInvoice, 'created'), manager);
 
       return invoiceRepository.findOneOrFail({
         where: { id: savedInvoice.id },
@@ -220,6 +223,7 @@ export class PurchaseInvoicesService {
 
   async update(id: string, updatePurchaseInvoiceDto: UpdatePurchaseInvoiceDto) {
     const invoice = await this.findByIdOrFail(id);
+    const previousClosingChanges = this.invoiceClosingChanges(invoice, 'edited');
     await this.ensureCodeIsAvailable(updatePurchaseInvoiceDto.invoiceNumber, id);
     const nextSupplierId =
       updatePurchaseInvoiceDto.supplierId === undefined ? invoice.supplierId : updatePurchaseInvoiceDto.supplierId;
@@ -262,7 +266,12 @@ export class PurchaseInvoicesService {
     invoice.remainingAmount = this.roundMoney(totalAmount - invoice.paidAmount);
     invoice.status = updatePurchaseInvoiceDto.status ?? this.resolveInvoiceStatus(totalAmount, invoice.paidAmount);
 
-    return this.purchaseInvoiceRepository.save(invoice);
+    const saved = await this.purchaseInvoiceRepository.save(invoice);
+    await this.dailySalesClosingService.recordPostCloseChanges([
+      ...previousClosingChanges,
+      ...this.invoiceClosingChanges(saved, 'edited'),
+    ]);
+    return saved;
   }
 
   async remove(id: string) {
@@ -276,6 +285,7 @@ export class PurchaseInvoicesService {
       await this.stockMovementsService.replaceSourceMovements('purchase_invoice', invoice.id, [], manager);
       await manager.getRepository(PurchaseInvoiceItemEntity).delete({ purchaseInvoiceId: invoice.id });
       await manager.getRepository(PurchaseInvoiceEntity).remove(invoice);
+      await this.dailySalesClosingService.recordPostCloseChanges(this.invoiceClosingChanges(invoice, 'deleted'), manager);
     });
 
     return { id };
@@ -304,9 +314,27 @@ export class PurchaseInvoicesService {
       await this.stockMovementsService.replaceSourceMovements('purchase_invoice', invoice.id, [], manager);
       invoice.status = PurchaseInvoiceStatus.Cancelled;
       invoice.remainingAmount = 0;
+      await this.dailySalesClosingService.recordPostCloseChanges(this.invoiceClosingChanges(invoice, 'cancelled'), manager);
 
       return invoiceRepository.save(invoice);
     });
+  }
+
+  private invoiceClosingChanges(
+    invoice: PurchaseInvoiceEntity,
+    actionType: DailySalesClosingOperationChange['actionType'],
+  ): DailySalesClosingOperationChange[] {
+    return [
+      {
+        branchId: invoice.branchId,
+        effectiveDate: invoice.invoiceDate,
+        operationType: 'purchase_invoice',
+        actionType,
+        amount: Number(invoice.totalAmount ?? 0),
+        reference: invoice.invoiceNumber,
+        operationId: invoice.id,
+      },
+    ];
   }
 
   private async validateHeaderReferences(data: {

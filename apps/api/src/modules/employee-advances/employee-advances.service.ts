@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
+import { DailySalesClosingService, DailySalesClosingOperationChange } from '../daily-sales/daily-sales-closing.service';
 import {
   BankAccountTransactionDirection,
   BankAccountTransactionEntity,
@@ -37,6 +38,7 @@ export class EmployeeAdvancesService {
     private readonly employeesService: EmployeesService,
     private readonly undoActionsService: UndoActionsService,
     private readonly vaultsService: VaultsService,
+    private readonly dailySalesClosingService: DailySalesClosingService,
   ) {}
 
   async findAll(filters: {
@@ -105,12 +107,14 @@ export class EmployeeAdvancesService {
     return this.dataSource.transaction(async (manager) => {
       const savedAdvance = await manager.getRepository(EmployeeAdvanceEntity).save(advance);
       await this.recreateFinancialMovement(savedAdvance, manager);
+      await this.dailySalesClosingService.recordPostCloseChanges(await this.advanceClosingChanges(savedAdvance, 'created', manager), manager);
       return savedAdvance;
     });
   }
 
   async update(id: string, updateDto: UpdateEmployeeAdvanceDto) {
     const advance = await this.findByIdOrFail(id);
+    const previousClosingChanges = await this.advanceClosingChanges(advance, 'edited');
     const previousPayrollRecordId = advance.payrollRecordId;
 
     if (updateDto.employeeId) {
@@ -148,6 +152,10 @@ export class EmployeeAdvancesService {
         await this.recalculatePayrollById(previousPayrollRecordId, manager);
       }
       await this.recreateFinancialMovement(savedAdvance, manager);
+      await this.dailySalesClosingService.recordPostCloseChanges(
+        [...previousClosingChanges, ...(await this.advanceClosingChanges(savedAdvance, 'edited', manager))],
+        manager,
+      );
       return savedAdvance;
     });
   }
@@ -177,6 +185,7 @@ export class EmployeeAdvancesService {
       }
 
       await manager.getRepository(EmployeeAdvanceEntity).remove(advance);
+      await this.dailySalesClosingService.recordPostCloseChanges(await this.advanceClosingChanges(advance, 'deleted', manager), manager);
       if (previousPayrollRecordId) {
         await this.recalculatePayrollById(previousPayrollRecordId, manager);
       }
@@ -202,8 +211,41 @@ export class EmployeeAdvancesService {
       await this.vaultsService.deleteFinancialMovement('employee_advance_vault_reversal', restoredAdvance.id, manager);
       const saved = await manager.getRepository(EmployeeAdvanceEntity).save(restoredAdvance);
       await this.recreateFinancialMovement(saved, manager);
+      await this.dailySalesClosingService.recordPostCloseChanges(await this.advanceClosingChanges(saved, 'created', manager), manager);
       return saved;
     });
+  }
+
+  private async advanceClosingChanges(
+    advance: EmployeeAdvanceEntity,
+    actionType: DailySalesClosingOperationChange['actionType'],
+    manager: EntityManager = this.dataSource.manager,
+  ): Promise<DailySalesClosingOperationChange[]> {
+    const branchId = await this.branchIdFromSource(
+      { drawerId: advance.drawerId, bankAccountId: advance.bankAccountId, vaultId: advance.vaultId },
+      manager,
+    );
+    return [
+      {
+        branchId,
+        effectiveDate: advance.advanceDate,
+        operationType: 'employee_advance',
+        actionType,
+        amount: Number(advance.amount ?? 0),
+        reference: advance.employee?.fullName ?? advance.employeeId,
+        operationId: advance.id,
+      },
+    ];
+  }
+
+  private async branchIdFromSource(
+    source: { drawerId?: string | null; bankAccountId?: string | null; vaultId?: string | null },
+    manager: EntityManager,
+  ) {
+    if (source.drawerId) return (await manager.getRepository(DrawerEntity).findOne({ where: { id: source.drawerId } }))?.branchId ?? null;
+    if (source.bankAccountId) return (await manager.getRepository(BankAccountEntity).findOne({ where: { id: source.bankAccountId } }))?.branchId ?? null;
+    if (source.vaultId) return (await this.vaultsService.findEntityByIdOrFail(source.vaultId))?.branchId ?? null;
+    return null;
   }
 
   private async resolvePaymentSource(source: { drawerId?: string | null; bankAccountId?: string | null; vaultId?: string | null }) {

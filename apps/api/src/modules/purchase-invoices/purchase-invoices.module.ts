@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BranchEntity } from '../branches/entities/branch.entity';
+import { DailySalesModule } from '../daily-sales/daily-sales.module';
 import { ItemEntity } from '../items/entities/item.entity';
 import { PurchaseInvoiceItemEntity } from '../purchase-invoice-items/entities/purchase-invoice-item.entity';
 import { SupplierRepresentativeEntity } from '../supplier-representatives/entities/supplier-representative.entity';
@@ -25,6 +26,7 @@ import { PurchaseInvoicesService } from './purchase-invoices.service';
     ]),
     SupplierPaymentsModule,
     StockMovementsModule,
+    DailySalesModule,
   ],
   controllers: [PurchaseInvoicesController],
   providers: [PurchaseInvoicesService],

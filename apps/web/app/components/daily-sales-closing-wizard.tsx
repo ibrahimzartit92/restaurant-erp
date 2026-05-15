@@ -48,10 +48,35 @@ function money(value?: number | string | null) {
   return new Intl.NumberFormat('ar', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value ?? 0));
 }
 
-function statusLabel(status?: 'draft' | 'finalized' | 'cancelled' | null) {
+function statusLabel(status?: DailySalesClosingSummary['status'] | null) {
   if (status === 'finalized') return 'نهائي';
+  if (status === 'updated_after_close') return 'مُحدّث بعد الإقفال';
   if (status === 'cancelled') return 'ملغى';
   return 'مسودة';
+}
+
+function operationTypeLabel(type: string) {
+  const labels: Record<string, string> = {
+    expense: 'مصروف',
+    purchase_invoice: 'فاتورة شراء',
+    purchase_invoice_payment: 'دفعة شراء',
+    supplier_payment: 'دفعة مورد',
+    wholesale_collection: 'تحصيل جملة',
+    wholesale_sales_invoice: 'فاتورة بيع جملة',
+    employee_debt: 'دين موظف',
+    employee_advance: 'سلفة موظف',
+  };
+  return labels[type] ?? type;
+}
+
+function actionTypeLabel(type: string) {
+  const labels: Record<string, string> = {
+    created: 'إضافة',
+    edited: 'تعديل',
+    cancelled: 'إلغاء',
+    deleted: 'حذف',
+  };
+  return labels[type] ?? type;
 }
 
 function buildSimpleRow(id: string, description: string, amount: number, secondary?: string | null): DailySalesClosingSummaryLine {
@@ -135,8 +160,9 @@ export function DailySalesClosingWizard({
   const [isSaving, setIsSaving] = useState(false);
   const [detailState, setDetailState] = useState<DetailState>(null);
 
-  const readOnly = closing?.status === 'finalized' || closing?.status === 'cancelled';
+  const readOnly = closing?.status === 'finalized' || closing?.status === 'updated_after_close' || closing?.status === 'cancelled';
   const summary = closing?.summaryValues;
+  const postCloseChanges = closing?.postCloseChanges ?? [];
   const selectedBranch = branches.find((branch) => branch.id === branchId);
   const deliverySales = draftData.deliverySales ?? {};
   const websiteSales = draftData.websiteSales ?? {};
@@ -695,8 +721,28 @@ export function DailySalesClosingWizard({
                 <MetricSection title="البنك" subtitle="الأرقام البنكية النهائية لليوم." items={finalSummaryBankCards} onOpen={openDetails} />
                 <MetricSection title="الإجماليات النهائية" subtitle="الخلاصة النهائية للحركة اليومية." items={finalSummaryTotalCards} onOpen={openDetails} />
               </div>
+              {postCloseChanges.length ? (
+                <section className="post-close-panel" aria-live="polite">
+                  <div>
+                    <strong>تغييرات لاحقة بعد الإقفال</strong>
+                    <span>تم تحديث الملخص فقط، وبقي مبلغ المحاسب والحركات الأصلية كما سُجلت.</span>
+                  </div>
+                  <ul>
+                    {postCloseChanges.slice(0, 6).map((change) => (
+                      <li key={change.id}>
+                        <span>{operationTypeLabel(change.operationType)}</span>
+                        <span>{actionTypeLabel(change.actionType)}</span>
+                        <span>{change.effectiveDate}</span>
+                        <span>{new Date(change.recordedAt).toLocaleString('ar')}</span>
+                        <strong>{money(change.amount)}</strong>
+                        <em>{change.reference ?? '-'}</em>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
               {!readOnly ? <button disabled={isSaving || !closing?.id} onClick={finish} type="button">{isSaving ? 'جارِ الإنهاء...' : 'إنهاء الإقفال'}</button> : null}
-              {closing?.status === 'finalized' ? <button className="danger-button" onClick={cancelWithReversal} type="button">إلغاء مع عكس الأثر المالي</button> : null}
+              {(closing?.status === 'finalized' || closing?.status === 'updated_after_close') ? <button className="danger-button" onClick={cancelWithReversal} type="button">إلغاء مع عكس الأثر المالي</button> : null}
               {closing?.status === 'draft' ? <button className="danger-button" disabled={isSaving} onClick={deleteDraft} type="button">حذف المسودة</button> : null}
             </>
           ) : null}
@@ -720,6 +766,9 @@ export function DailySalesClosingWizard({
           <div><dt>إجمالي الحركة</dt><dd>{money(summary?.totalDailyActivityAmount)}</dd></div>
           <div><dt>تحويل الخزنة</dt><dd>{money(summary?.vaultTransferAmount)}</dd></div>
         </dl>
+        {postCloseChanges.length ? (
+          <p className="post-close-note">تنبيه: توجد عمليات لاحقة أثرت على أرقام هذا اليوم بعد الإقفال.</p>
+        ) : null}
         {closing?.id ? <Link className="secondary-button" href={`/api/daily-sales/closings/${closing.id}/export?format=pdf`}>تصدير PDF</Link> : null}
         {closing?.status === 'draft' ? <button className="danger-button" disabled={isSaving} onClick={deleteDraft} type="button">حذف المسودة</button> : null}
       </aside>
@@ -1033,6 +1082,50 @@ export function DailySalesClosingWizard({
         .closing-detail-table tfoot th {
           background: #f8fafc;
         }
+        .post-close-note {
+          margin: 10px 0 0;
+          padding: 10px;
+          border: 1px solid #fde68a;
+          border-radius: 8px;
+          background: #fffbeb;
+          color: #92400e;
+          font-size: 0.82rem;
+          line-height: 1.7;
+        }
+        .post-close-panel {
+          display: grid;
+          gap: 12px;
+          border: 1px solid #fde68a;
+          border-radius: 8px;
+          background: #fffbeb;
+          padding: 14px;
+          color: #713f12;
+        }
+        .post-close-panel > div {
+          display: grid;
+          gap: 4px;
+        }
+        .post-close-panel span,
+        .post-close-panel em {
+          font-size: 0.82rem;
+          font-style: normal;
+        }
+        .post-close-panel ul {
+          display: grid;
+          gap: 8px;
+          margin: 0;
+          padding: 0;
+          list-style: none;
+        }
+        .post-close-panel li {
+          display: grid;
+          grid-template-columns: 1fr 0.8fr 0.9fr 1.2fr 0.8fr 1fr;
+          gap: 8px;
+          align-items: center;
+          padding: 8px;
+          border-radius: 6px;
+          background: #fff;
+        }
         @media (max-width: 900px) {
           .bank-entry-grid,
           .website-option-grid,
@@ -1043,6 +1136,9 @@ export function DailySalesClosingWizard({
           .metric-card-grid,
           .final-summary-stack .metric-card-grid {
             grid-template-columns: 1fr;
+          }
+          .post-close-panel li {
+            grid-template-columns: 1fr 1fr;
           }
         }
         @media (min-width: 701px) and (max-width: 900px) {

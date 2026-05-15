@@ -402,7 +402,7 @@ export type DailySalesClosingSummary = {
   branchId: string;
   branch?: BranchOption | null;
   closingDate: string;
-  status: 'draft' | 'finalized' | 'cancelled';
+  status: 'draft' | 'finalized' | 'updated_after_close' | 'cancelled';
   drawerId?: string | null;
   drawer?: DrawerOption | null;
   bankAccountId?: string | null;
@@ -414,6 +414,18 @@ export type DailySalesClosingSummary = {
   expectedCashAmount?: number;
   cashDifferenceAmount?: number;
   generatedDailySaleId?: string | null;
+  originalSummaryValues?: DailySalesClosingSummaryValues | null;
+  postCloseUpdatedAt?: string | null;
+  postCloseChanges?: {
+    id: string;
+    operationType: string;
+    actionType: 'created' | 'edited' | 'cancelled' | 'deleted';
+    effectiveDate: string;
+    recordedAt: string;
+    amount?: number | null;
+    reference?: string | null;
+    operationId?: string | null;
+  }[] | null;
   notes?: string | null;
 };
 

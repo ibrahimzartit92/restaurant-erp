@@ -17,6 +17,7 @@ import { numericTransformer } from '../../expenses/expense-shared';
 export enum DailySalesClosingStatus {
   Draft = 'draft',
   Finalized = 'finalized',
+  UpdatedAfterClose = 'updated_after_close',
   Cancelled = 'cancelled',
 }
 
@@ -97,6 +98,17 @@ export type DailySalesClosingSummaryLine = {
   secondary?: string | null;
 };
 
+export type DailySalesClosingPostCloseChange = {
+  id: string;
+  operationType: string;
+  actionType: 'created' | 'edited' | 'cancelled' | 'deleted';
+  effectiveDate: string;
+  recordedAt: string;
+  amount?: number | null;
+  reference?: string | null;
+  operationId?: string | null;
+};
+
 @Entity('daily_sales_closings')
 @Unique('uq_daily_sales_closings_branch_date', ['branchId', 'closingDate'])
 export class DailySalesClosingEntity {
@@ -141,6 +153,15 @@ export class DailySalesClosingEntity {
 
   @Column({ name: 'summary_values', type: 'jsonb', nullable: true })
   summaryValues!: DailySalesClosingSummary | null;
+
+  @Column({ name: 'original_summary_values', type: 'jsonb', nullable: true })
+  originalSummaryValues!: DailySalesClosingSummary | null;
+
+  @Column({ name: 'post_close_changes', type: 'jsonb', nullable: true })
+  postCloseChanges!: DailySalesClosingPostCloseChange[] | null;
+
+  @Column({ name: 'post_close_updated_at', type: 'timestamptz', nullable: true })
+  postCloseUpdatedAt!: Date | null;
 
   @Column({ name: 'handed_cash_amount', type: 'numeric', precision: 12, scale: 2, default: 0, transformer: numericTransformer })
   handedCashAmount!: number;
