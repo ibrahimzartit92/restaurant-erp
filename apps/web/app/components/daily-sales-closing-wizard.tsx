@@ -776,7 +776,6 @@ export function DailySalesClosingWizard({
             <>
               <div className="closing-step-intro final-summary-intro">
                 <h3>الملخص النهائي</h3>
-                <p>مراجعة مختصرة ونهائية للأرقام قبل إنهاء الإقفال.</p>
               </div>
               <div className="closing-summary-stack final-summary-stack">
                 <MetricSection title="النقد" items={finalSummaryCashCards} onOpen={openDetails} />
@@ -784,26 +783,6 @@ export function DailySalesClosingWizard({
                 <MetricSection title="المصروفات والمشتريات" items={finalSummaryExpensePurchaseCards} onOpen={openDetails} />
                 <MetricSection title="الإجماليات النهائية" items={finalSummaryTotalCards} onOpen={openDetails} />
               </div>
-              {postCloseChanges.length ? (
-                <section className="post-close-panel" aria-live="polite">
-                  <div>
-                    <strong>تغييرات لاحقة بعد الإقفال</strong>
-                    <span>تم تحديث الملخص فقط، وبقي مبلغ المحاسب والحركات الأصلية كما سُجلت.</span>
-                  </div>
-                  <ul>
-                    {postCloseChanges.slice(0, 6).map((change) => (
-                      <li key={change.id}>
-                        <span>{operationTypeLabel(change.operationType)}</span>
-                        <span>{actionTypeLabel(change.actionType)}</span>
-                        <span>{change.effectiveDate}</span>
-                        <span>{new Date(change.recordedAt).toLocaleString('ar')}</span>
-                        <strong>{money(change.amount)}</strong>
-                        <em>{change.reference ?? '-'}</em>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              ) : null}
               {!readOnly ? <button disabled={isSaving || !closing?.id} onClick={finish} type="button">{isSaving ? 'جارِ الإنهاء...' : 'إنهاء الإقفال'}</button> : null}
               {(closing?.status === 'finalized' || closing?.status === 'updated_after_close') ? <button className="danger-button" onClick={cancelWithReversal} type="button">إلغاء مع عكس الأثر المالي</button> : null}
               {closing?.status === 'draft' ? <button className="danger-button" disabled={isSaving} onClick={deleteDraft} type="button">حذف المسودة</button> : null}
@@ -830,7 +809,23 @@ export function DailySalesClosingWizard({
           <div><dt>تحويل الخزنة</dt><dd>{money(summary?.vaultTransferAmount)}</dd></div>
         </dl>
         {postCloseChanges.length ? (
-          <p className="post-close-note">تنبيه: توجد عمليات لاحقة أثرت على أرقام هذا اليوم بعد الإقفال.</p>
+          <section className="post-close-panel" aria-live="polite">
+            <div>
+              <strong>تغييرات لاحقة بعد الإقفال</strong>
+              <span>تم تحديث الملخص فقط، وبقي مبلغ المحاسب والحركات الأصلية كما سُجلت.</span>
+            </div>
+            <ul>
+              {postCloseChanges.slice(0, 5).map((change) => (
+                <li key={change.id}>
+                  <span>{operationTypeLabel(change.operationType)}</span>
+                  <span>{actionTypeLabel(change.actionType)}</span>
+                  <span>{change.effectiveDate}</span>
+                  <strong>{money(change.amount)}</strong>
+                  <em>{change.reference ?? '-'}</em>
+                </li>
+              ))}
+            </ul>
+          </section>
         ) : null}
         {closing?.id ? <Link className="secondary-button" href={`/api/daily-sales/closings/${closing.id}/export?format=pdf`}>تصدير PDF</Link> : null}
         {closing?.status === 'draft' ? <button className="danger-button" disabled={isSaving} onClick={deleteDraft} type="button">حذف المسودة</button> : null}
@@ -1078,12 +1073,18 @@ export function DailySalesClosingWizard({
           overflow-wrap: anywhere;
         }
         .metric-card-value {
+          appearance: none;
           border: none;
           background: transparent;
+          box-shadow: none;
           padding: 0;
           text-align: right;
           cursor: pointer;
           color: #0f172a;
+          display: block;
+          width: 100%;
+          min-height: auto;
+          font-family: inherit;
           font-size: 23px;
           font-weight: 900;
           line-height: 1.25;
@@ -1200,7 +1201,7 @@ export function DailySalesClosingWizard({
         }
         .post-close-panel li {
           display: grid;
-          grid-template-columns: 1fr 0.8fr 0.9fr 1.2fr 0.8fr 1fr;
+          grid-template-columns: 1fr 0.8fr 0.9fr 0.8fr 1fr;
           gap: 8px;
           align-items: center;
           padding: 8px;

@@ -101,14 +101,20 @@ export class DailySalesClosingService {
       operationId: change.operationId ?? null,
     };
 
-    closing.originalSummaryValues = closing.originalSummaryValues ?? closing.summaryValues ?? null;
-    closing.summaryValues = summary;
-    closing.expectedCashAmount = summary.expectedSystemCash;
-    closing.cashDifferenceAmount = summary.cashDifference;
-    closing.status = DailySalesClosingStatus.UpdatedAfterClose;
-    closing.postCloseUpdatedAt = new Date(entry.recordedAt);
-    closing.postCloseChanges = [entry, ...(closing.postCloseChanges ?? [])].slice(0, 50);
-    return repository.save(closing);
+    const postCloseUpdatedAt = new Date(entry.recordedAt);
+    await repository.update(
+      { id: closing.id },
+      {
+        originalSummaryValues: closing.originalSummaryValues ?? closing.summaryValues ?? null,
+        summaryValues: summary,
+        expectedCashAmount: summary.expectedSystemCash,
+        cashDifferenceAmount: summary.cashDifference,
+        status: DailySalesClosingStatus.UpdatedAfterClose,
+        postCloseUpdatedAt,
+        postCloseChanges: [entry, ...(closing.postCloseChanges ?? [])].slice(0, 50),
+      },
+    );
+    return repository.findOne({ where: { id: closing.id } });
   }
 
   async recordPostCloseChanges(changes: DailySalesClosingOperationChange[], manager: EntityManager = this.dataSource.manager) {

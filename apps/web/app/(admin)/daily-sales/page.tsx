@@ -23,6 +23,19 @@ type DailySaleClosingRow = {
   } | null;
 };
 
+function closingStatusTone(status: DailySaleClosingRow['status']) {
+  if (status === 'finalized') return 'success';
+  if (status === 'cancelled') return 'danger';
+  return 'warning';
+}
+
+function closingStatusLabel(status: DailySaleClosingRow['status']) {
+  if (status === 'finalized') return 'نهائي';
+  if (status === 'updated_after_close') return 'مُحدّث بعد الإقفال';
+  if (status === 'cancelled') return 'ملغى';
+  return 'مسودة';
+}
+
 const columns: DataColumn<DailySaleClosingRow>[] = [
   { key: 'closingDate', label: 'التاريخ', render: (row) => formatDate(row.closingDate) },
   { key: 'branch', label: 'الفرع', render: (row) => row.branch?.name ?? 'غير محدد' },
@@ -30,8 +43,8 @@ const columns: DataColumn<DailySaleClosingRow>[] = [
     key: 'status',
     label: 'الحالة',
     render: (row) => (
-      <span className={`payroll-status ${row.status === 'finalized' ? 'success' : row.status === 'cancelled' ? 'danger' : 'warning'}`}>
-        {row.status === 'finalized' ? 'نهائي' : row.status === 'cancelled' ? 'ملغى' : 'مسودة'}
+      <span className={`payroll-status ${closingStatusTone(row.status)}`}>
+        {closingStatusLabel(row.status)}
       </span>
     ),
   },
