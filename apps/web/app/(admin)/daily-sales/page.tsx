@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { DailySalesClosingChangesButton } from '../../components/daily-sales-closing-changes-button';
 import { DailySalesClosingDeleteButton } from '../../components/daily-sales-closing-delete-button';
 import { DataTable, type DataColumn } from '../../components/data-table';
 import { ListFilters } from '../../components/list-filters';
@@ -11,6 +12,16 @@ type DailySaleClosingRow = {
   closingDate: string;
   status: 'draft' | 'finalized' | 'updated_after_close' | 'cancelled';
   handedCashAmount?: number;
+  postCloseChanges?: {
+    id?: string | null;
+    operationType: string;
+    actionType: 'created' | 'edited' | 'cancelled' | 'deleted';
+    effectiveDate: string;
+    recordedAt: string;
+    amount?: number | null;
+    reference?: string | null;
+    operationId?: string | null;
+  }[] | null;
   summaryValues?: {
     normalDailySalesAmount?: number;
     normalBankSalesAmount?: number;
@@ -24,14 +35,13 @@ type DailySaleClosingRow = {
 };
 
 function closingStatusTone(status: DailySaleClosingRow['status']) {
-  if (status === 'finalized') return 'success';
+  if (status === 'finalized' || status === 'updated_after_close') return 'success';
   if (status === 'cancelled') return 'danger';
   return 'warning';
 }
 
 function closingStatusLabel(status: DailySaleClosingRow['status']) {
-  if (status === 'finalized') return 'نهائي';
-  if (status === 'updated_after_close') return 'مُحدّث بعد الإقفال';
+  if (status === 'finalized' || status === 'updated_after_close') return 'نهائي';
   if (status === 'cancelled') return 'ملغى';
   return 'مسودة';
 }
@@ -63,6 +73,7 @@ const columns: DataColumn<DailySaleClosingRow>[] = [
         <Link className="text-link" href={`/daily-sales/${row.id}/edit`}>
           فتح المعالج
         </Link>
+        {row.status === 'updated_after_close' || row.postCloseChanges?.length ? <DailySalesClosingChangesButton changes={row.postCloseChanges} /> : null}
         {row.status === 'draft' ? <DailySalesClosingDeleteButton closingId={row.id} /> : null}
       </span>
     ),

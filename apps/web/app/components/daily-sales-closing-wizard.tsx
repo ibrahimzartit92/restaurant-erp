@@ -51,7 +51,7 @@ function money(value?: number | string | null) {
 
 function statusLabel(status?: DailySalesClosingSummary['status'] | null) {
   if (status === 'finalized') return 'نهائي';
-  if (status === 'updated_after_close') return 'مُحدّث بعد الإقفال';
+  if (status === 'updated_after_close') return 'نهائي';
   if (status === 'cancelled') return 'ملغى';
   return 'مسودة';
 }
@@ -92,24 +92,27 @@ function MetricCard({
   onOpen?: (title: string, rows: DailySalesClosingSummaryLine[] | undefined, total: number) => void;
 }>) {
   const clickable = Boolean(onOpen && item.rows !== undefined);
-
-  return (
-    <article className={`metric-card ${item.tone ?? 'default'} ${clickable ? 'clickable' : 'static'}`}>
+  const content = (
+    <>
       <div className="metric-card-copy">
         <strong>{item.title}</strong>
         {item.subtitle ? <small>{item.subtitle}</small> : null}
       </div>
-      {clickable ? (
-        <button aria-label={`عرض تفاصيل ${item.title}`} className="metric-card-value" onClick={() => onOpen?.(item.title, item.rows, item.amount)} type="button">
-          <bdi>{money(item.amount)}</bdi>
-        </button>
-      ) : (
-        <div className="metric-card-value static">
-          <bdi>{money(item.amount)}</bdi>
-        </div>
-      )}
-    </article>
+      <div className="metric-card-value">
+        <bdi>{money(item.amount)}</bdi>
+      </div>
+    </>
   );
+
+  if (clickable) {
+    return (
+      <button aria-label={`عرض تفاصيل ${item.title}`} className={`metric-card metric-card-button ${item.tone ?? 'default'} clickable`} onClick={() => onOpen?.(item.title, item.rows, item.amount)} type="button">
+        {content}
+      </button>
+    );
+  }
+
+  return <article className={`metric-card ${item.tone ?? 'default'} static`}>{content}</article>;
 }
 
 function MetricSection({
@@ -815,8 +818,8 @@ export function DailySalesClosingWizard({
               <span>تم تحديث الملخص فقط، وبقي مبلغ المحاسب والحركات الأصلية كما سُجلت.</span>
             </div>
             <ul>
-              {postCloseChanges.slice(0, 5).map((change) => (
-                <li key={change.id}>
+              {postCloseChanges.slice(0, 5).map((change, index) => (
+                <li key={`${change.id}-${index}`}>
                   <span>{operationTypeLabel(change.operationType)}</span>
                   <span>{actionTypeLabel(change.actionType)}</span>
                   <span>{change.effectiveDate}</span>
@@ -844,8 +847,8 @@ export function DailySalesClosingWizard({
           </thead>
           <tbody>
             {detailState?.rows.length ? (
-              detailState.rows.map((row) => (
-                <tr key={row.id}>
+              detailState.rows.map((row, index) => (
+                <tr key={`${row.id}-${index}`}>
                   <td>{row.date ?? '-'}</td>
                   <td>{row.description}</td>
                   <td>{row.reference ?? '-'}</td>
@@ -1039,9 +1042,19 @@ export function DailySalesClosingWizard({
           min-height: 118px;
           min-width: 0;
           box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+          text-align: right;
         }
-        .metric-card.clickable {
-          cursor: default;
+        .metric-card-button {
+          appearance: none;
+          border-color: var(--border);
+          color: inherit;
+          font: inherit;
+          width: 100%;
+          cursor: pointer;
+        }
+        .metric-card.clickable:hover {
+          border-color: rgba(20, 116, 111, 0.32);
+          box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
         }
         .metric-card.success {
           border-color: rgba(22, 163, 74, 0.18);
@@ -1073,13 +1086,12 @@ export function DailySalesClosingWizard({
           overflow-wrap: anywhere;
         }
         .metric-card-value {
-          appearance: none;
           border: none;
           background: transparent;
           box-shadow: none;
           padding: 0;
           text-align: right;
-          cursor: pointer;
+          cursor: inherit;
           color: #0f172a;
           display: block;
           width: 100%;
@@ -1100,12 +1112,8 @@ export function DailySalesClosingWizard({
           direction: ltr;
           unicode-bidi: isolate;
         }
-        .metric-card.clickable .metric-card-value:hover {
+        .metric-card.clickable:hover .metric-card-value {
           color: #14746f;
-        }
-        .metric-card-value.static {
-          cursor: default;
-          pointer-events: none;
         }
         .final-summary-intro {
           margin-bottom: 4px;
