@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
-import { submitJson, submitWriteJson } from '../lib/client-api';
+import { submitJson } from '../lib/client-api';
 import type { BankAccountOption, BranchOption, DrawerOption, ExpenseCategoryOption, ExpenseTypeOption, VaultOption } from '../lib/types';
 import {
   PaymentSourceRows,
@@ -145,7 +145,7 @@ export function ExpenseForm({
       if (mode === 'create') {
         await submitJson('/expenses', 'POST', payload);
       } else {
-        await submitWriteJson(`/expenses/${initialExpense?.id}`, 'PATCH', payload);
+        await submitJson(`/expenses/${initialExpense?.id}`, 'PUT', payload);
       }
       router.push('/expenses');
       router.refresh();
