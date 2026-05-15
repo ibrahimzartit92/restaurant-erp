@@ -27,6 +27,10 @@ function joinReadUrl(path: string) {
   return `/api${path.startsWith('/') ? path : `/${path}`}`;
 }
 
+function joinWriteUrl(path: string) {
+  return `/api/write${path.startsWith('/') ? path : `/${path}`}`;
+}
+
 function formatBackendMessage(body: ApiErrorBody | string | null, fallbackMessage: string) {
   if (!body) {
     return fallbackMessage;
@@ -95,6 +99,28 @@ export async function submitJson<T = unknown>(
   });
 
   await throwIfApiError(response, 'تعذر حفظ البيانات.');
+
+  return (await readSuccessJson(response)) as T;
+}
+
+export async function submitWriteJson<T = unknown>(
+  path: string,
+  method: 'POST' | 'PATCH' | 'PUT' | 'DELETE',
+  body: Record<string, unknown>,
+) {
+  const accessToken = readAccessTokenFromDocument();
+  const response = await fetch(joinWriteUrl(path), {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-write-method': method,
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+
+  await throwIfApiError(response, 'ØªØ¹Ø°Ø± Ø­ÙØ¸ Ø§Ù„Ø¨ÙŠØ§Ù†Ø§Øª.');
 
   return (await readSuccessJson(response)) as T;
 }

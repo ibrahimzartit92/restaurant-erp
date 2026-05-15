@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
-import { submitJson } from '../lib/client-api';
+import { submitJson, submitWriteJson } from '../lib/client-api';
 import type { BankAccountOption, BranchOption, DrawerOption, ExpenseCategoryOption, ExpenseTypeOption, VaultOption } from '../lib/types';
 import {
   PaymentSourceRows,
@@ -131,13 +131,22 @@ export function ExpenseForm({
       expenseTypeId,
       title: String(formData.get('title') ?? '') || null,
       amount: numericAmount,
-      payments: selectedRows.map(toBackendPayment),
+      payments: selectedRows.map((row) =>
+        toBackendPayment({
+          ...row,
+          paymentDate: mode === 'edit' && row.paymentDate === initialExpenseDate ? String(formData.get('expenseDate') ?? '') : row.paymentDate,
+        }),
+      ),
       isFixed: formData.get('isFixed') === 'on',
       notes: String(formData.get('notes') ?? '') || null,
     };
 
     try {
-      await submitJson(mode === 'create' ? '/expenses' : `/expenses/${initialExpense?.id}`, mode === 'create' ? 'POST' : 'PATCH', payload);
+      if (mode === 'create') {
+        await submitJson('/expenses', 'POST', payload);
+      } else {
+        await submitWriteJson(`/expenses/${initialExpense?.id}`, 'PATCH', payload);
+      }
       router.push('/expenses');
       router.refresh();
     } catch (error) {
