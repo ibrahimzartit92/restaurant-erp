@@ -32,6 +32,7 @@ const navigationSections: NavigationSection[] = [
       { href: '/daily-sales', label: 'المبيعات اليومية', mark: 'ي', permissionCodes: ['view_daily_sales'] },
       { href: '/expenses', label: 'المصاريف', mark: 'ص', permissionCodes: ['view_expenses'] },
       { href: '/drawers', label: 'الأدراج', mark: 'د', permissionCodes: ['view_drawers'] },
+      { href: '/drawer-transactions', label: 'حركات الدرج', mark: 'ح', permissionCodes: ['view_drawers'] },
       { href: '/vaults', label: 'الخزن', mark: 'خ', alwaysVisible: true },
       { href: '/vault-transactions', label: 'حركات الخزنة', mark: 'ح', alwaysVisible: true },
       { href: '/bank-accounts', label: 'الحسابات البنكية', mark: 'ب', alwaysVisible: true },

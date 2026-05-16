@@ -86,6 +86,9 @@ export default async function DrawersPage({
 
       <div className="page-toolbar">
         <ListFilters searchPlaceholder="اسم أو كود الدرج" showBranch />
+        <Link className="secondary-button" href="/drawer-transactions">
+          حركات الدرج
+        </Link>
         <Link className="primary-button" href="/drawers/new">
           درج جديد
         </Link>
