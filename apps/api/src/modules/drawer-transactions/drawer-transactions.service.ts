@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { BranchEntity } from '../branches/entities/branch.entity';
 import { DrawerEntity } from '../drawers/entities/drawer.entity';
+import { TransactionExportFormat, TransactionExportService } from '../shared/transaction-export.service';
 import { CreateDrawerTransactionDto } from './dto/create-drawer-transaction.dto';
 import { UpdateDrawerTransactionDto } from './dto/update-drawer-transaction.dto';
 import { DrawerTransactionDirection, DrawerTransactionEntity } from './entities/drawer-transaction.entity';
@@ -16,6 +17,7 @@ export class DrawerTransactionsService {
     private readonly drawerRepository: Repository<DrawerEntity>,
     @InjectRepository(BranchEntity)
     private readonly branchRepository: Repository<BranchEntity>,
+    private readonly transactionExportService: TransactionExportService,
   ) {}
 
   findAll(filters: { drawerId?: string; branchId?: string; dateFrom?: string; dateTo?: string }) {
@@ -43,6 +45,36 @@ export class DrawerTransactionsService {
     }
 
     return query.getMany();
+  }
+
+  async exportAll(
+    filters: { drawerId?: string; branchId?: string; dateFrom?: string; dateTo?: string },
+    format: TransactionExportFormat,
+  ) {
+    const rows = await this.findAll(filters);
+    return this.transactionExportService.exportTransactions({
+      key: 'drawer-transactions',
+      title: 'تصدير حركات الدرج',
+      description: 'حركات الأدراج النقدية الداخلة والخارجة حسب الفلاتر المحددة.',
+      format,
+      filterSummary: [
+        { label: 'الدرج', value: filters.drawerId ?? 'كل الأدراج' },
+        { label: 'الفرع', value: filters.branchId ?? 'كل الفروع' },
+        { label: 'من تاريخ', value: filters.dateFrom ?? 'غير محدد' },
+        { label: 'إلى تاريخ', value: filters.dateTo ?? 'غير محدد' },
+        { label: 'تاريخ التصدير', value: new Date().toLocaleString('ar') },
+      ],
+      rows: rows.map((transaction) => ({
+        date: transaction.transactionDate,
+        account: transaction.drawer?.name ?? 'غير محدد',
+        type: transaction.transactionType,
+        reference: transaction.sourceType ?? '',
+        description: transaction.description,
+        source: transaction.branch?.name ?? 'غير محدد',
+        incomingAmount: transaction.direction === DrawerTransactionDirection.In ? Number(transaction.amount) : 0,
+        outgoingAmount: transaction.direction === DrawerTransactionDirection.Out ? Number(transaction.amount) : 0,
+      })),
+    });
   }
 
   async findByIdOrFail(id: string) {

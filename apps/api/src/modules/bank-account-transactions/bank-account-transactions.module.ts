@@ -5,6 +5,7 @@ import { BranchesModule } from '../branches/branches.module';
 import { BankAccountTransactionEntity } from './entities/bank-account-transaction.entity';
 import { BankAccountTransactionsController } from './bank-account-transactions.controller';
 import { BankAccountTransactionsService } from './bank-account-transactions.service';
+import { TransactionExportService } from '../shared/transaction-export.service';
 
 @Module({
   imports: [
@@ -13,7 +14,7 @@ import { BankAccountTransactionsService } from './bank-account-transactions.serv
     BranchesModule,
   ],
   controllers: [BankAccountTransactionsController],
-  providers: [BankAccountTransactionsService],
+  providers: [BankAccountTransactionsService, TransactionExportService],
   exports: [BankAccountTransactionsService],
 })
 export class BankAccountTransactionsModule {}

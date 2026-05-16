@@ -14,6 +14,7 @@ import {
   DrawerTransactionType,
 } from '../drawer-transactions/entities/drawer-transaction.entity';
 import { DrawerEntity } from '../drawers/entities/drawer.entity';
+import { TransactionExportFormat, TransactionExportService } from '../shared/transaction-export.service';
 import { CreateVaultTransferDto, VaultTransferKind } from './dto/create-vault-transfer.dto';
 import { CreateVaultDto } from './dto/create-vault.dto';
 import { UpdateVaultDto } from './dto/update-vault.dto';
@@ -37,6 +38,7 @@ export class VaultsService {
     private readonly drawerRepository: Repository<DrawerEntity>,
     @InjectRepository(BankAccountEntity)
     private readonly bankAccountRepository: Repository<BankAccountEntity>,
+    private readonly transactionExportService: TransactionExportService,
   ) {}
 
   async findAll(search?: string) {
@@ -115,6 +117,45 @@ export class VaultsService {
     }
 
     return query.getMany();
+  }
+
+  async exportTransactions(
+    filters: {
+      vaultId?: string;
+      transactionType?: VaultTransactionType;
+      direction?: VaultTransactionDirection;
+      dateFrom?: string;
+      dateTo?: string;
+      search?: string;
+    },
+    format: TransactionExportFormat,
+  ) {
+    const rows = await this.findTransactions(filters);
+    return this.transactionExportService.exportTransactions({
+      key: 'vault-transactions',
+      title: 'تصدير حركات الخزنة',
+      description: 'حركات الخزن الداخلة والخارجة حسب الفلاتر المحددة.',
+      format,
+      filterSummary: [
+        { label: 'الخزنة', value: filters.vaultId ?? 'كل الخزن' },
+        { label: 'نوع الحركة', value: filters.transactionType ?? 'كل الأنواع' },
+        { label: 'الاتجاه', value: filters.direction ?? 'الكل' },
+        { label: 'من تاريخ', value: filters.dateFrom ?? 'غير محدد' },
+        { label: 'إلى تاريخ', value: filters.dateTo ?? 'غير محدد' },
+        ...(filters.search ? [{ label: 'بحث', value: filters.search }] : []),
+        { label: 'تاريخ التصدير', value: new Date().toLocaleString('ar') },
+      ],
+      rows: rows.map((transaction) => ({
+        date: transaction.transactionDate,
+        account: transaction.vault?.name ?? 'غير محدد',
+        type: transaction.transactionType,
+        reference: transaction.referenceNumber ?? '',
+        description: transaction.description,
+        source: transaction.drawer?.name ?? transaction.bankAccount?.name ?? transaction.branch?.name ?? 'الخزنة',
+        incomingAmount: transaction.direction === VaultTransactionDirection.In ? Number(transaction.amount) : 0,
+        outgoingAmount: transaction.direction === VaultTransactionDirection.Out ? Number(transaction.amount) : 0,
+      })),
+    });
   }
 
   async create(createDto: CreateVaultDto) {

@@ -4,6 +4,7 @@ import { BankAccountTransactionEntity } from '../bank-account-transactions/entit
 import { BankAccountEntity } from '../bank-accounts/entities/bank-account.entity';
 import { DrawerTransactionEntity } from '../drawer-transactions/entities/drawer-transaction.entity';
 import { DrawerEntity } from '../drawers/entities/drawer.entity';
+import { TransactionExportService } from '../shared/transaction-export.service';
 import { VaultTransactionEntity } from './entities/vault-transaction.entity';
 import { VaultEntity } from './entities/vault.entity';
 import { VaultsController } from './vaults.controller';
@@ -21,7 +22,7 @@ import { VaultsService } from './vaults.service';
     ]),
   ],
   controllers: [VaultsController],
-  providers: [VaultsService],
+  providers: [VaultsService, TransactionExportService],
   exports: [VaultsService],
 })
 export class VaultsModule {}

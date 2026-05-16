@@ -26,6 +26,16 @@ const columns: DataColumn<DrawerTransactionRow>[] = [
   { key: 'description', label: 'الوصف', render: (row) => row.description },
 ];
 
+function exportQuery(params: Record<string, string | undefined>, format: 'excel' | 'pdf') {
+  return buildQuery({
+    drawer_id: params.drawer_id,
+    branch_id: params.branch_id,
+    date_from: params.date_from,
+    date_to: params.date_to,
+    format,
+  });
+}
+
 export default async function DrawerTransactionsPage({
   searchParams,
 }: {
@@ -82,6 +92,14 @@ export default async function DrawerTransactionsPage({
           <input name="date_to" type="date" defaultValue={params.date_to ?? ''} />
         </label>
       </AutoApplyFilterForm>
+      <div className="report-export-actions">
+        <a className="secondary-button" href={`/api/drawer-transactions/export${exportQuery(params, 'excel')}`}>
+          تصدير Excel
+        </a>
+        <a className="secondary-button" href={`/api/drawer-transactions/export${exportQuery(params, 'pdf')}`}>
+          تصدير PDF
+        </a>
+      </div>
       {result.error ? <p className="notice">{result.error}</p> : null}
       <SplitTransactionsTables
         columns={columns}

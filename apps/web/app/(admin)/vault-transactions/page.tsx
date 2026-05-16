@@ -37,6 +37,18 @@ function typeLabel(value: string) {
   return typeOptions.find(([key]) => key === value)?.[1] ?? value;
 }
 
+function exportQuery(params: Record<string, string | undefined>, format: 'excel' | 'pdf') {
+  return buildQuery({
+    vault_id: params.vault_id,
+    transaction_type: params.transaction_type,
+    direction: params.direction,
+    date_from: params.date_from,
+    date_to: params.date_to,
+    search: params.search,
+    format,
+  });
+}
+
 export default async function VaultTransactionsPage({
   searchParams,
 }: {
@@ -127,6 +139,14 @@ export default async function VaultTransactionsPage({
         </div>
       </AutoApplyFilterForm>
 
+      <div className="report-export-actions">
+        <a className="secondary-button" href={`/api/vaults/transactions/export${exportQuery(params, 'excel')}`}>
+          تصدير Excel
+        </a>
+        <a className="secondary-button" href={`/api/vaults/transactions/export${exportQuery(params, 'pdf')}`}>
+          تصدير PDF
+        </a>
+      </div>
       {transactions.error ? <p className="notice">{transactions.error}</p> : null}
       <SplitTransactionsTables
         columns={columns}

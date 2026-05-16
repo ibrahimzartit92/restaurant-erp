@@ -9,6 +9,7 @@ import {
   BankAccountTransactionEntity,
   BankAccountTransactionType,
 } from './entities/bank-account-transaction.entity';
+import { TransactionExportService, TransactionExportFormat } from '../shared/transaction-export.service';
 
 @Injectable()
 export class BankAccountTransactionsService {
@@ -17,6 +18,7 @@ export class BankAccountTransactionsService {
     private readonly transactionRepository: Repository<BankAccountTransactionEntity>,
     private readonly bankAccountsService: BankAccountsService,
     private readonly branchesService: BranchesService,
+    private readonly transactionExportService: TransactionExportService,
   ) {}
 
   async findAll(filters: {
@@ -69,6 +71,38 @@ export class BankAccountTransactionsService {
     return query.getMany();
   }
 
+  async exportAll(
+    filters: {
+      search?: string;
+      bankAccountId?: string;
+      branchId?: string;
+      transactionType?: BankAccountTransactionType;
+      direction?: BankAccountTransactionDirection;
+      dateFrom?: string;
+      dateTo?: string;
+    },
+    format: TransactionExportFormat,
+  ) {
+    const rows = await this.findAll(filters);
+    return this.transactionExportService.exportTransactions({
+      key: 'bank-transactions',
+      title: 'تصدير حركات البنك',
+      description: 'الحركات البنكية الداخلة والخارجة حسب الفلاتر المحددة.',
+      format,
+      filterSummary: this.filterSummary(filters),
+      rows: rows.map((transaction) => ({
+        date: transaction.transactionDate,
+        account: transaction.bankAccount?.name ?? 'غير محدد',
+        type: transaction.transactionType,
+        reference: transaction.referenceNumber ?? '',
+        description: transaction.description,
+        source: transaction.branch?.name ?? 'بدون فرع',
+        incomingAmount: transaction.direction === BankAccountTransactionDirection.Incoming ? Number(transaction.amount) : 0,
+        outgoingAmount: transaction.direction === BankAccountTransactionDirection.Outgoing ? Number(transaction.amount) : 0,
+      })),
+    });
+  }
+
   async create(createDto: CreateBankAccountTransactionDto) {
     const bankAccount = await this.bankAccountsService.findEntityByIdOrFail(createDto.bankAccountId);
 
@@ -104,5 +138,26 @@ export class BankAccountTransactionsService {
   private normalizeOptionalText(value?: string | null) {
     const normalizedValue = value?.trim();
     return normalizedValue ? normalizedValue : null;
+  }
+
+  private filterSummary(filters: {
+    search?: string;
+    bankAccountId?: string;
+    branchId?: string;
+    transactionType?: BankAccountTransactionType;
+    direction?: BankAccountTransactionDirection;
+    dateFrom?: string;
+    dateTo?: string;
+  }) {
+    return [
+      { label: 'الحساب البنكي', value: filters.bankAccountId ?? 'كل الحسابات' },
+      { label: 'الفرع', value: filters.branchId ?? 'كل الفروع' },
+      { label: 'نوع الحركة', value: filters.transactionType ?? 'كل الأنواع' },
+      { label: 'الاتجاه', value: filters.direction ?? 'الكل' },
+      { label: 'من تاريخ', value: filters.dateFrom ?? 'غير محدد' },
+      { label: 'إلى تاريخ', value: filters.dateTo ?? 'غير محدد' },
+      ...(filters.search ? [{ label: 'بحث', value: filters.search }] : []),
+      { label: 'تاريخ التصدير', value: new Date().toLocaleString('ar') },
+    ];
   }
 }

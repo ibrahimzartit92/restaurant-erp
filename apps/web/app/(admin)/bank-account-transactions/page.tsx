@@ -29,6 +29,18 @@ const transactionTypeOptions = [
   { value: 'refund_bank', label: 'مرتجع بنكي' },
 ];
 
+function exportQuery(params: Record<string, string | undefined>, format: 'excel' | 'pdf') {
+  return buildQuery({
+    search: params.search,
+    branch_id: params.branch_id,
+    bank_account_id: params.bank_account_id,
+    transaction_type: params.transaction_type,
+    date_from: params.date_from,
+    date_to: params.date_to,
+    format,
+  });
+}
+
 export default async function BankAccountTransactionsPage({
   searchParams,
 }: {
@@ -105,6 +117,14 @@ export default async function BankAccountTransactionsPage({
         <Link className="primary-button" href="/bank-account-transactions/new">
           حركة بنكية جديدة
         </Link>
+      </div>
+      <div className="report-export-actions">
+        <a className="secondary-button" href={`/api/bank-account-transactions/export${exportQuery(params, 'excel')}`}>
+          تصدير Excel
+        </a>
+        <a className="secondary-button" href={`/api/bank-account-transactions/export${exportQuery(params, 'pdf')}`}>
+          تصدير PDF
+        </a>
       </div>
       {transactionsResult.error ? <p className="notice">{transactionsResult.error}</p> : null}
       <SplitTransactionsTables

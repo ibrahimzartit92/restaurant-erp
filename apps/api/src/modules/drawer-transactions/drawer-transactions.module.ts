@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BranchEntity } from '../branches/entities/branch.entity';
 import { DrawerEntity } from '../drawers/entities/drawer.entity';
+import { TransactionExportService } from '../shared/transaction-export.service';
 import { DrawerTransactionEntity } from './entities/drawer-transaction.entity';
 import { DrawerTransactionsController } from './drawer-transactions.controller';
 import { DrawerTransactionsService } from './drawer-transactions.service';
@@ -9,7 +10,7 @@ import { DrawerTransactionsService } from './drawer-transactions.service';
 @Module({
   imports: [TypeOrmModule.forFeature([BranchEntity, DrawerEntity, DrawerTransactionEntity])],
   controllers: [DrawerTransactionsController],
-  providers: [DrawerTransactionsService],
+  providers: [DrawerTransactionsService, TransactionExportService],
   exports: [DrawerTransactionsService],
 })
 export class DrawerTransactionsModule {}

@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Res } from '@nestjs/common';
 import { CreateDrawerTransactionDto } from './dto/create-drawer-transaction.dto';
 import { UpdateDrawerTransactionDto } from './dto/update-drawer-transaction.dto';
 import { DrawerTransactionsService } from './drawer-transactions.service';
@@ -6,6 +6,24 @@ import { DrawerTransactionsService } from './drawer-transactions.service';
 @Controller('drawer-transactions')
 export class DrawerTransactionsController {
   constructor(private readonly drawerTransactionsService: DrawerTransactionsService) {}
+
+  @Get('export')
+  async exportAll(
+    @Query('drawer_id') drawerId: string | undefined,
+    @Query('branch_id') branchId: string | undefined,
+    @Query('date_from') dateFrom: string | undefined,
+    @Query('date_to') dateTo: string | undefined,
+    @Query('format') format: 'excel' | 'pdf' = 'excel',
+    @Res() response: any,
+  ) {
+    const file = await this.drawerTransactionsService.exportAll(
+      { drawerId, branchId, dateFrom, dateTo },
+      format === 'pdf' ? 'pdf' : 'excel',
+    );
+    response.setHeader('Content-Type', file.contentType);
+    response.setHeader('Content-Disposition', `attachment; filename="${file.filename}"`);
+    return response.send(file.body);
+  }
 
   @Get()
   findAll(
