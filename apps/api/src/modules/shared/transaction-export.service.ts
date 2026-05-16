@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import ExcelJS = require('exceljs');
 import puppeteer from 'puppeteer';
+import { arabicDisplayLabel } from './display-labels';
 
 export type TransactionExportFormat = 'excel' | 'pdf';
 
@@ -37,19 +38,36 @@ const pdfContentType = 'application/pdf';
 export class TransactionExportService {
   async exportTransactions(input: TransactionExportInput): Promise<TransactionExportFile> {
     const filenameBase = `${input.key}-${new Date().toISOString().slice(0, 10)}`;
+    const localizedInput = this.localizeInput(input);
 
-    if (input.format === 'pdf') {
+    if (localizedInput.format === 'pdf') {
       return {
-        body: await this.toPdf(input),
+        body: await this.toPdf(localizedInput),
         contentType: pdfContentType,
         filename: `${filenameBase}.pdf`,
       };
     }
 
     return {
-      body: await this.toExcel(input),
+      body: await this.toExcel(localizedInput),
       contentType: excelContentType,
       filename: `${filenameBase}.xlsx`,
+    };
+  }
+
+  private localizeInput(input: TransactionExportInput): TransactionExportInput {
+    return {
+      ...input,
+      filterSummary: input.filterSummary.map((item) => ({
+        ...item,
+        value: arabicDisplayLabel(item.value),
+      })),
+      rows: input.rows.map((row) => ({
+        ...row,
+        type: arabicDisplayLabel(row.type),
+        reference: arabicDisplayLabel(row.reference, row.reference),
+        source: arabicDisplayLabel(row.source, row.source),
+      })),
     };
   }
 

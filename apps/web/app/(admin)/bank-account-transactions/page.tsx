@@ -5,6 +5,7 @@ import { PageHeader } from '../../components/page-header';
 import { SplitTransactionsTables } from '../../components/split-transactions-tables';
 import { StatusBadge } from '../../components/status-badge';
 import { buildQuery, fetchList, formatDate, formatMoney } from '../../lib/api';
+import { displayLabel } from '../../lib/display-labels';
 import type { BankAccountSummary, BankAccountTransactionSummary, BranchOption } from '../../lib/types';
 
 const columns: DataColumn<BankAccountTransactionSummary>[] = [
@@ -100,7 +101,7 @@ export default async function BankAccountTransactionsPage({
             <select defaultValue={params.transaction_type ?? ''} name="transaction_type">
               {transactionTypeOptions.map((option) => (
                 <option key={option.value || 'all'} value={option.value}>
-                  {option.label}
+                  {option.value ? displayLabel(option.value) : option.label}
                 </option>
               ))}
             </select>

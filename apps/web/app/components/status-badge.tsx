@@ -1,32 +1,4 @@
-const labels: Record<string, string> = {
-  completed: 'مكتمل',
-  draft: 'مسودة',
-  open: 'مفتوحة',
-  partially_paid: 'مدفوعة جزئيًا',
-  paid: 'مدفوعة',
-  reopened: 'مفتوحة للتعديل',
-  cancelled: 'ملغاة',
-  closed: 'مغلقة',
-  cash: 'نقدًا',
-  bank: 'بنكي',
-  other: 'أخرى',
-  all_branches: 'جميع الفروع',
-  single_branch: 'فرع واحد',
-  daily_cash_sales: 'مبيعات نقدية',
-  supplier_payment_cash: 'دفعة مورد نقدية',
-  expense_cash: 'مصروف نقدي',
-  sales_return_cash: 'مرتجع نقدي',
-  deposit: 'إيداع',
-  withdrawal: 'سحب',
-  settlement: 'تسوية',
-  transfer: 'تحويل',
-  supplier_payment_bank: 'دفعة مورد بنكية',
-  expense_bank: 'مصروف بنكي',
-  sales_receipt_bank: 'قبض مبيعات بنكي',
-  refund_bank: 'مرتجع بنكي',
-  incoming: 'داخل',
-  outgoing: 'خارج',
-};
+import { displayLabel } from '../lib/display-labels';
 
 export function StatusBadge({
   value,
@@ -35,11 +7,7 @@ export function StatusBadge({
   value?: string | boolean | null;
   className?: string;
 }>) {
-  if (typeof value === 'boolean') {
-    return <span className={`status-badge ${value ? 'success' : 'muted'} ${className}`.trim()}>{value ? 'نشط' : 'متوقف'}</span>;
-  }
+  const tone = typeof value === 'boolean' ? (value ? 'success' : 'muted') : '';
 
-  const normalized = value ?? 'غير محدد';
-
-  return <span className={`status-badge ${className}`.trim()}>{labels[normalized] ?? normalized}</span>;
+  return <span className={`status-badge ${tone} ${className}`.trim()}>{displayLabel(value)}</span>;
 }

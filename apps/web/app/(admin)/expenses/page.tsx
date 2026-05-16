@@ -5,6 +5,7 @@ import { ExpenseHierarchyManager } from '../../components/expense-hierarchy-mana
 import { PageHeader } from '../../components/page-header';
 import { StatusBadge } from '../../components/status-badge';
 import { buildQuery, fetchList, formatDate, getMoneyFormatter } from '../../lib/api';
+import { displayLabel } from '../../lib/display-labels';
 import type { BankAccountOption, BranchOption, ExpenseCategoryOption, ExpenseTypeOption, VaultOption } from '../../lib/types';
 
 type ExpensesPageProps = {
@@ -103,7 +104,7 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
     { key: 'paidAmount', label: 'المدفوع', render: (row) => formatMoney(row.paidAmount ?? 0) },
     { key: 'remainingAmount', label: 'المتبقي', render: (row) => formatMoney(row.remainingAmount ?? 0) },
     { key: 'paymentStatus', label: 'حالة الدفع', render: (row) => <StatusBadge value={paymentStatusLabel(row.paymentStatus)} /> },
-    { key: 'source', label: 'جهة الدفع', render: (row) => row.drawer?.name ?? row.bankAccount?.name ?? row.paymentMethod },
+    { key: 'source', label: 'جهة الدفع', render: (row) => row.drawer?.name ?? row.bankAccount?.name ?? displayLabel(row.paymentMethod) },
     {
       key: 'actions',
       label: 'إجراء',

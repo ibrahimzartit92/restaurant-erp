@@ -11,14 +11,14 @@ type ReportPageProps = {
 };
 
 const reportFilterHints: Record<string, { status?: string; paymentMethod?: string; needsSupplier?: boolean }> = {
-  purchases: { status: 'draft / open / partially_paid / paid / cancelled' },
+  purchases: { status: 'مسودة / مفتوحة / مدفوعة جزئيا / مدفوعة / ملغاة' },
   'supplier-statement': { needsSupplier: true },
-  'supplier-payments': { paymentMethod: 'cash / bank / other' },
-  drawer: { status: 'open / closed' },
-  'bank-transactions': { status: 'incoming / outgoing', paymentMethod: 'deposit / withdrawal / transfer' },
-  'branch-transfers': { status: 'draft / completed / cancelled' },
-  'stock-counts': { status: 'draft / completed / cancelled' },
-  expenses: { paymentMethod: 'cash / bank / other' },
+  'supplier-payments': { paymentMethod: 'نقدي / بنكي / أخرى' },
+  drawer: { status: 'مفتوحة / مغلقة' },
+  'bank-transactions': { status: 'داخل / خارج', paymentMethod: 'إيداع / سحب / تحويل' },
+  'branch-transfers': { status: 'مسودة / مكتملة / ملغاة' },
+  'stock-counts': { status: 'مسودة / مكتملة / ملغاة' },
+  expenses: { paymentMethod: 'نقدي / بنكي / أخرى' },
 };
 
 function reportQuery(params: Record<string, string | undefined>, format?: 'excel' | 'pdf') {

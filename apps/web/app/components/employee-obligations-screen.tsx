@@ -2,6 +2,7 @@
 
 import { startTransition, useMemo, useState } from 'react';
 import { fetchClientJson, submitJson } from '../lib/client-api';
+import { displayLabel } from '../lib/display-labels';
 import type {
   BankAccountOption,
   DrawerOption,
@@ -90,12 +91,12 @@ export function EmployeeObligationsScreen({
     {
       key: 'type',
       label: 'النوع',
-      render: (row) => <StatusBadge value={typeLabels[row.obligationType] ?? row.obligationType} className="info" />,
+      render: (row) => <StatusBadge value={typeLabels[row.obligationType] ?? displayLabel(row.obligationType)} className="info" />,
     },
     {
       key: 'status',
       label: 'الحالة',
-      render: (row) => <StatusBadge value={statusLabels[row.status] ?? row.status} className={statusTone(row.status)} />,
+      render: (row) => <StatusBadge value={statusLabels[row.status] ?? displayLabel(row.status)} className={statusTone(row.status)} />,
     },
     { key: 'original', label: 'الأصلي', render: (row) => money(row.originalAmount) },
     { key: 'recovered', label: 'المحصل', render: (row) => money(row.recoveredAmount) },

@@ -5,6 +5,7 @@ import { PageHeader } from '../../../components/page-header';
 import { StatusBadge } from '../../../components/status-badge';
 import { VaultTransferForm } from '../../../components/vault-transfer-form';
 import { fetchList, fetchOne, formatDate, getMoneyFormatter } from '../../../lib/api';
+import { displayLabel } from '../../../lib/display-labels';
 import type { BankAccountOption, BranchOption, DrawerOption } from '../../../lib/types';
 
 type VaultDetails = {
@@ -48,7 +49,7 @@ function transactionTypeLabel(value: string) {
     settlement: 'تسوية',
   };
 
-  return labels[value] ?? value;
+  return labels[value] ?? displayLabel(value);
 }
 
 export default async function VaultDetailsPage({ params }: { params: Promise<{ id: string }> }) {

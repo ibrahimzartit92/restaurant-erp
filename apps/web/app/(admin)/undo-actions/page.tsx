@@ -2,6 +2,7 @@ import { DataTable, type DataColumn } from '../../components/data-table';
 import { PageHeader } from '../../components/page-header';
 import { UndoActionButton } from '../../components/undo-action-button';
 import { fetchList, formatDate } from '../../lib/api';
+import { displayLabel } from '../../lib/display-labels';
 import type { UndoActionSummary } from '../../lib/types';
 
 const actionTypeLabels: Record<string, string> = {
@@ -18,8 +19,8 @@ const entityTypeLabels: Record<string, string> = {
 };
 
 const columns: DataColumn<UndoActionSummary>[] = [
-  { key: 'type', label: 'العملية', render: (row) => actionTypeLabels[row.actionType] ?? row.actionType },
-  { key: 'entity', label: 'السجل', render: (row) => `${entityTypeLabels[row.entityType] ?? row.entityType} - ${row.recordSummary}` },
+  { key: 'type', label: 'العملية', render: (row) => actionTypeLabels[row.actionType] ?? displayLabel(row.actionType) },
+  { key: 'entity', label: 'السجل', render: (row) => `${entityTypeLabels[row.entityType] ?? displayLabel(row.entityType)} - ${row.recordSummary}` },
   { key: 'vault', label: 'الخزنة', render: (row) => (row.reverseToVault ? 'تم إرجاع المبلغ للخزنة' : 'بدون إرجاع مالي') },
   { key: 'createdAt', label: 'الوقت', render: (row) => formatDate(row.createdAt) },
   { key: 'actions', label: 'إجراء', render: (row) => <UndoActionButton actionId={row.id} /> },

@@ -21,6 +21,7 @@ import { SupplierPaymentEntity } from '../supplier-payments/entities/supplier-pa
 import { TransferEntity } from '../transfers/entities/transfer.entity';
 import { VaultTransactionEntity } from '../vaults/entities/vault-transaction.entity';
 import { WholesaleSalesService } from '../wholesale-sales/wholesale-sales.service';
+import { localizedDisplayLabel } from '../shared/display-labels';
 import { ReportColumn, ReportFilters, ReportKey, ReportLanguage, ReportResult, ReportRow, ReportSummary } from './reports.types';
 
 type ReportBuilder = (filters: ReportFilters) => Promise<ReportResult>;
@@ -377,7 +378,9 @@ export class ReportsService {
 
   private translateReportValue(value: string, language: ReportLanguage) {
     const normalized = value.trim();
-    return valueTranslations[normalized]?.[language] ?? normalized;
+    return localizedDisplayLabel(normalized, language) !== normalized
+      ? localizedDisplayLabel(normalized, language)
+      : valueTranslations[normalized]?.[language] ?? normalized;
   }
 
   private isEnumLike(value: string) {

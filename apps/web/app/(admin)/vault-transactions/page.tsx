@@ -3,6 +3,7 @@ import { type DataColumn } from '../../components/data-table';
 import { PageHeader } from '../../components/page-header';
 import { SplitTransactionsTables } from '../../components/split-transactions-tables';
 import { buildQuery, fetchList, formatDate, getMoneyFormatter } from '../../lib/api';
+import { displayLabel } from '../../lib/display-labels';
 import type { VaultOption } from '../../lib/types';
 
 type VaultTransaction = {
@@ -32,10 +33,6 @@ const typeOptions = [
   ['manual_withdrawal', 'سحب يدوي'],
   ['settlement', 'تسوية'],
 ];
-
-function typeLabel(value: string) {
-  return typeOptions.find(([key]) => key === value)?.[1] ?? value;
-}
 
 function exportQuery(params: Record<string, string | undefined>, format: 'excel' | 'pdf') {
   return buildQuery({
@@ -74,7 +71,7 @@ export default async function VaultTransactionsPage({
   const columns: DataColumn<VaultTransaction>[] = [
     { key: 'date', label: 'التاريخ', render: (row) => formatDate(row.transactionDate) },
     { key: 'vault', label: 'الخزنة', render: (row) => row.vault?.name ?? 'غير محدد' },
-    { key: 'type', label: 'نوع الحركة', render: (row) => typeLabel(row.transactionType) },
+    { key: 'type', label: 'نوع الحركة', render: (row) => displayLabel(row.transactionType) },
     { key: 'amount', label: 'المبلغ', render: (row) => formatMoney(row.amount) },
     {
       key: 'source',
@@ -105,9 +102,9 @@ export default async function VaultTransactionsPage({
           نوع الحركة
           <select name="transaction_type" defaultValue={params.transaction_type ?? ''}>
             <option value="">كل الأنواع</option>
-            {typeOptions.map(([value, label]) => (
+            {typeOptions.map(([value]) => (
               <option key={value} value={value}>
-                {label}
+                {displayLabel(value)}
               </option>
             ))}
           </select>
