@@ -1,6 +1,5 @@
 import { NextRequest } from 'next/server';
 import { buildServerApiUrl, getServerApiBaseUrls } from '../../lib/api-url';
-import { sessionCookieName } from '../../lib/auth';
 
 const hopByHopHeaders = new Set([
   'connection',
@@ -16,15 +15,10 @@ async function proxyRequest(request: NextRequest, context: { params: Promise<{ p
   const { path } = await context.params;
   const upstreamPath = `/${path.join('/')}${request.nextUrl.search}`;
   const requestHeaders = new Headers(request.headers);
-  const cookieToken = request.cookies.get(sessionCookieName)?.value;
   let apiBaseUrls: string[];
 
   for (const header of hopByHopHeaders) {
     requestHeaders.delete(header);
-  }
-
-  if (!requestHeaders.has('authorization') && cookieToken) {
-    requestHeaders.set('authorization', `Bearer ${cookieToken}`);
   }
 
   try {

@@ -1,5 +1,4 @@
 import { NextRequest } from 'next/server';
-import { sessionCookieName } from '../../../lib/auth';
 import { buildServerApiUrl, getInternalApiBaseUrls } from '../../../lib/api-url';
 
 const hopByHopHeaders = new Set([
@@ -18,17 +17,12 @@ type WriteContext = {
 
 function buildForwardHeaders(request: NextRequest) {
   const headers = new Headers(request.headers);
-  const cookieToken = request.cookies.get(sessionCookieName)?.value;
 
   for (const header of hopByHopHeaders) {
     headers.delete(header);
   }
 
   headers.delete('x-write-method');
-
-  if (!headers.has('authorization') && cookieToken) {
-    headers.set('authorization', `Bearer ${cookieToken}`);
-  }
 
   return headers;
 }
