@@ -557,6 +557,9 @@ export type ReportResult = {
   title: string;
   description: string;
   generatedAt: string;
+  language?: 'ar' | 'de';
+  availableSummaries?: ReportSummary[];
+  availableColumns?: ReportColumn[];
   summaries: ReportSummary[];
   columns: ReportColumn[];
   rows: ReportRow[];

@@ -46,7 +46,7 @@ export class ReportExportService {
     workbook.modified = new Date();
 
     const worksheet = workbook.addWorksheet(this.safeSheetName(report.title), {
-      views: [{ rightToLeft: true, showGridLines: false }],
+      views: [{ rightToLeft: this.isArabic(report), showGridLines: false }],
       pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
     });
 
@@ -55,13 +55,13 @@ export class ReportExportService {
     const titleCell = worksheet.getCell(1, 1);
     titleCell.value = report.title;
     titleCell.font = { bold: true, size: 16, color: { argb: 'FF17212B' } };
-    titleCell.alignment = { horizontal: 'right', vertical: 'middle' };
+    titleCell.alignment = { horizontal: this.isArabic(report) ? 'right' : 'left', vertical: 'middle' };
 
     worksheet.mergeCells(2, 1, 2, columnCount);
     const descriptionCell = worksheet.getCell(2, 1);
     descriptionCell.value = report.description;
     descriptionCell.font = { size: 11, color: { argb: 'FF647381' } };
-    descriptionCell.alignment = { horizontal: 'right', vertical: 'middle' };
+    descriptionCell.alignment = { horizontal: this.isArabic(report) ? 'right' : 'left', vertical: 'middle' };
 
     const metaRows = this.filterSummary(report);
     let cursor = 4;
@@ -90,7 +90,7 @@ export class ReportExportService {
         const cell = excelRow.getCell(columnIndex + 1);
         cell.value = this.excelCellValue(row[column.key], column);
         cell.alignment = {
-          horizontal: column.type === 'money' || column.type === 'number' ? 'center' : 'right',
+          horizontal: column.type === 'money' || column.type === 'number' ? 'center' : this.isArabic(report) ? 'right' : 'left',
           vertical: 'middle',
         };
         cell.border = this.thinBorder('FFD9E3EC');
@@ -105,7 +105,7 @@ export class ReportExportService {
     report.columns.forEach((column, index) => {
       const cell = totalRow.getCell(index + 1);
       if (index === 0) {
-        cell.value = 'مجموع الفترة';
+        cell.value = this.totalLabel(report);
       } else if (column.type === 'money' || column.type === 'number') {
         cell.value = this.sum(report.rows, column.key);
         if (column.type === 'money') cell.numFmt = `#,##0.${'0'.repeat(this.decimalPlaces(currencySettings))}`;
@@ -174,13 +174,13 @@ export class ReportExportService {
     const totalsRow = this.totalRow(report);
     const columnWidth = `${100 / Math.max(report.columns.length, 1)}%`;
     const rowsHtml = report.rows
-      .map((row) => this.pdfTableRow(report.columns, row, currencySettings))
+      .map((row) => this.pdfTableRow(report, report.columns, row, currencySettings))
       .join('');
-    const totalsHtml = this.pdfTableRow(report.columns, totalsRow, currencySettings, true);
+    const totalsHtml = this.pdfTableRow(report, report.columns, totalsRow, currencySettings, true);
     const summariesHtml = report.summaries
       .map((summary) => {
         const value =
-          summary.type === 'money' ? this.formatMoney(summary.value, currencySettings) : String(summary.value ?? '');
+          summary.type === 'money' ? this.formatMoney(summary.value, currencySettings, report) : String(summary.value ?? '');
         return `
           <div class="summary-item">
             <span>${this.escapeHtml(summary.label)}</span>
@@ -191,7 +191,7 @@ export class ReportExportService {
       .join('');
 
     return `<!doctype html>
-<html lang="ar" dir="rtl">
+<html lang="${this.isArabic(report) ? 'ar' : 'de'}" dir="${this.isArabic(report) ? 'rtl' : 'ltr'}">
 <head>
   <meta charset="utf-8" />
   <title>${this.escapeHtml(report.title)}</title>
@@ -203,11 +203,11 @@ export class ReportExportService {
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      direction: rtl;
+      direction: ${this.isArabic(report) ? 'rtl' : 'ltr'};
       unicode-bidi: plaintext;
       color: #17212b;
       background: #ffffff;
-      font-family: Tahoma, "Noto Naskh Arabic", "Noto Sans Arabic", Arial, sans-serif;
+      font-family: ${this.isArabic(report) ? 'Tahoma, "Noto Naskh Arabic", "Noto Sans Arabic", Arial, sans-serif' : 'Arial, "Noto Sans", sans-serif'};
       font-size: 11px;
       line-height: 1.55;
       -webkit-print-color-adjust: exact;
@@ -268,7 +268,7 @@ export class ReportExportService {
       width: 100%;
       border-collapse: collapse;
       table-layout: fixed;
-      direction: rtl;
+      direction: ${this.isArabic(report) ? 'rtl' : 'ltr'};
       page-break-inside: auto;
     }
     thead { display: table-header-group; }
@@ -346,7 +346,7 @@ export class ReportExportService {
       <h1>${this.escapeHtml(report.title)}</h1>
       <p class="description">${this.escapeHtml(report.description)}</p>
     </div>
-    <div class="brand">Restaurant ERP</div>
+    <div class="brand">${this.escapeHtml(this.brandLabel(report))}</div>
   </header>
   <section class="meta-grid">
     ${metaRows
@@ -360,7 +360,7 @@ export class ReportExportService {
       )
       .join('')}
   </section>
-  ${report.rows.length ? '' : '<div class="empty">لا توجد بيانات ضمن الفلاتر المحددة.</div>'}
+  ${report.rows.length ? '' : `<div class="empty">${this.escapeHtml(this.emptyLabel(report))}</div>`}
   <table>
     <thead>
       <tr>${report.columns.map((column) => `<th>${this.escapeHtml(column.label)}</th>`).join('')}</tr>
@@ -372,10 +372,10 @@ export class ReportExportService {
 </html>`;
   }
 
-  private pdfTableRow(columns: ReportColumn[], row: ReportRow, currencySettings: CurrencySettings, isTotal = false) {
+  private pdfTableRow(report: ReportResult, columns: ReportColumn[], row: ReportRow, currencySettings: CurrencySettings, isTotal = false) {
     return `<tr class="${isTotal ? 'total-row' : ''}">${columns
       .map((column) => {
-        const value = this.reportValue(row[column.key], column, currencySettings);
+        const value = this.reportValue(report, row[column.key], column, currencySettings);
         const className = column.type === 'money' || column.type === 'number' ? 'number-cell' : '';
         return `<td class="${className}">${this.escapeHtml(value)}</td>`;
       })
@@ -387,6 +387,17 @@ export class ReportExportService {
     if (explicitSummary.length) return explicitSummary;
 
     const filters = report.filters;
+    if (!this.isArabic(report)) {
+      return [
+        { label: 'Filiale', value: filters.branchId ?? 'Alle Filialen' },
+        { label: 'Von Datum', value: filters.dateFrom ?? 'Nicht festgelegt' },
+        { label: 'Bis Datum', value: filters.dateTo ?? 'Nicht festgelegt' },
+        ...(filters.search ? [{ label: 'Suche', value: filters.search }] : []),
+        ...(filters.categoryId ? [{ label: 'Kategorie', value: filters.categoryId }] : []),
+        ...(filters.paymentMethod ? [{ label: 'Zahlungsart', value: filters.paymentMethod }] : []),
+        { label: 'Erstellt am', value: new Date(report.generatedAt).toLocaleString('de-DE') },
+      ];
+    }
     return [
       { label: 'الفرع', value: filters.branchId ?? 'كل الفروع' },
       { label: 'من تاريخ', value: filters.dateFrom ?? 'غير محدد' },
@@ -406,11 +417,11 @@ export class ReportExportService {
     return value ?? '';
   }
 
-  private reportValue(value: string | number | null, column: ReportColumn, currencySettings: CurrencySettings) {
-    if (column.type === 'money') return this.formatMoney(value, currencySettings);
+  private reportValue(report: ReportResult, value: string | number | null, column: ReportColumn, currencySettings: CurrencySettings) {
+    if (column.type === 'money') return this.formatMoney(value, currencySettings, report);
     if (column.type === 'number') {
       const numericValue = Number(value ?? 0);
-      return new Intl.NumberFormat('ar').format(Number.isFinite(numericValue) ? numericValue : 0);
+      return new Intl.NumberFormat(this.isArabic(report) ? 'ar' : 'de-DE').format(Number.isFinite(numericValue) ? numericValue : 0);
     }
     return String(value ?? '');
   }
@@ -418,7 +429,7 @@ export class ReportExportService {
   private totalRow(report: ReportResult): ReportRow {
     return Object.fromEntries(
       report.columns.map((column, index) => {
-        if (index === 0) return [column.key, 'مجموع الفترة'];
+        if (index === 0) return [column.key, this.totalLabel(report)];
         if (column.type === 'money' || column.type === 'number') return [column.key, this.sum(report.rows, column.key)];
         return [column.key, ''];
       }),
@@ -429,9 +440,9 @@ export class ReportExportService {
     return Math.round(rows.reduce((total, row) => total + Number(row[key] ?? 0), 0) * 100) / 100;
   }
 
-  private formatMoney(value: string | number | null, currencySettings: CurrencySettings) {
+  private formatMoney(value: string | number | null, currencySettings: CurrencySettings, report?: ReportResult) {
     const numericValue = Number(value ?? 0);
-    return `${new Intl.NumberFormat('ar', {
+    return `${new Intl.NumberFormat(!report || this.isArabic(report) ? 'ar' : 'de-DE', {
       minimumFractionDigits: this.decimalPlaces(currencySettings),
       maximumFractionDigits: this.decimalPlaces(currencySettings),
     }).format(Number.isFinite(numericValue) ? numericValue : 0)} ${currencySettings.currencySymbol}`.trim();
@@ -467,6 +478,22 @@ export class ReportExportService {
 
   private pdfLandscape(report: ReportResult) {
     return report.columns.length > 6;
+  }
+
+  private isArabic(report: ReportResult) {
+    return report.language !== 'de';
+  }
+
+  private totalLabel(report: ReportResult) {
+    return this.isArabic(report) ? 'مجموع الفترة' : 'Summe des Zeitraums';
+  }
+
+  private brandLabel(report: ReportResult) {
+    return this.isArabic(report) ? 'نظام إدارة المطعم' : 'Restaurantverwaltung';
+  }
+
+  private emptyLabel(report: ReportResult) {
+    return this.isArabic(report) ? 'لا توجد بيانات ضمن الفلاتر المحددة.' : 'Keine Daten innerhalb der gewählten Filter.';
   }
 
   private escapeHtml(value: string) {

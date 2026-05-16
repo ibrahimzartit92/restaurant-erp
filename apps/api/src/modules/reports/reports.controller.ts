@@ -28,11 +28,14 @@ export class ReportsController {
     @Query('vault_id') vaultId: string | undefined,
     @Query('bank_account_id') bankAccountId: string | undefined,
     @Query('search') search: string | undefined,
+    @Query('language') language: 'ar' | 'de' | undefined,
+    @Query('column_keys') columnKeys: string | undefined,
+    @Query('summary_keys') summaryKeys: string | undefined,
     @Res() response: any,
   ) {
     const exportFile = await this.reportsService.exportReport(
       key,
-      { branchId, supplierId, employeeId, dateFrom, dateTo, status, categoryId, expenseTypeId, paymentMethod, paymentStatus, vaultId, bankAccountId, search },
+      { branchId, supplierId, employeeId, dateFrom, dateTo, status, categoryId, expenseTypeId, paymentMethod, paymentStatus, vaultId, bankAccountId, search, language, columnKeys, summaryKeys },
       format === 'pdf' ? 'pdf' : 'excel',
     );
 
@@ -57,6 +60,9 @@ export class ReportsController {
     @Query('vault_id') vaultId?: string,
     @Query('bank_account_id') bankAccountId?: string,
     @Query('search') search?: string,
+    @Query('language') language?: 'ar' | 'de',
+    @Query('column_keys') columnKeys?: string,
+    @Query('summary_keys') summaryKeys?: string,
   ) {
     const filters: ReportFilters = {
       branchId,
@@ -72,6 +78,9 @@ export class ReportsController {
       vaultId,
       bankAccountId,
       search,
+      language,
+      columnKeys,
+      summaryKeys,
     };
 
     return this.reportsService.getReport(key, filters);

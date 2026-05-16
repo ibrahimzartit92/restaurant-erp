@@ -5,7 +5,9 @@ import { BankAccountTransactionEntity } from '../bank-account-transactions/entit
 import { BranchEntity } from '../branches/entities/branch.entity';
 import { DailySaleEntity } from '../daily-sales/entities/daily-sale.entity';
 import { DrawerDailySessionEntity } from '../drawer-daily-sessions/entities/drawer-daily-session.entity';
+import { DrawerTransactionEntity } from '../drawer-transactions/entities/drawer-transaction.entity';
 import { EmployeeAdvanceEntity } from '../employee-advances/entities/employee-advance.entity';
+import { EmployeeDebtEntity } from '../employee-financial-obligations/entities/employee-debt.entity';
 import { EmployeePenaltyEntity } from '../employee-penalties/entities/employee-penalty.entity';
 import { ExpenseEntity } from '../expenses/entities/expense.entity';
 import { hasExpenseHierarchySchema } from '../expenses/expense-schema.guard';
@@ -17,25 +19,161 @@ import { ReportExportService } from './report-export.service';
 import { StockCountEntity } from '../stock-counts/entities/stock-count.entity';
 import { SupplierPaymentEntity } from '../supplier-payments/entities/supplier-payment.entity';
 import { TransferEntity } from '../transfers/entities/transfer.entity';
+import { VaultTransactionEntity } from '../vaults/entities/vault-transaction.entity';
 import { WholesaleSalesService } from '../wholesale-sales/wholesale-sales.service';
-import { ReportColumn, ReportFilters, ReportKey, ReportResult, ReportRow, ReportSummary } from './reports.types';
+import { ReportColumn, ReportFilters, ReportKey, ReportLanguage, ReportResult, ReportRow, ReportSummary } from './reports.types';
 
 type ReportBuilder = (filters: ReportFilters) => Promise<ReportResult>;
 type BuiltReportKey = Exclude<ReportKey, 'dashboard'>;
 
+const reportCatalog = [
+  { key: 'comprehensive', title: 'التقرير الشامل', titleDe: 'Gesamtbericht', description: 'مؤشرات تشغيلية ومالية رئيسية في تقرير واحد.', descriptionDe: 'Zentrale betriebliche und finanzielle Kennzahlen in einem Bericht.' },
+  { key: 'expenses', title: 'تقرير المصاريف', titleDe: 'Ausgabenbericht', description: 'تحليل المصاريف حسب الفترة والفرع وطريقة الدفع.', descriptionDe: 'Auswertung der Ausgaben nach Zeitraum, Filiale und Zahlungsart.' },
+  { key: 'purchases', title: 'تقرير المشتريات', titleDe: 'Einkaufsbericht', description: 'فواتير الشراء والمدفوع والمتبقي حسب المورد والحالة.', descriptionDe: 'Einkaufsrechnungen, bezahlte und offene Beträge nach Lieferant und Status.' },
+  { key: 'wholesale-sales', title: 'تقرير بيع الجملة', titleDe: 'Großhandelsumsatzbericht', description: 'فواتير بيع الجملة والتحصيل والذمم المفتوحة.', descriptionDe: 'Großhandelsrechnungen, Zahlungseingänge und offene Forderungen.' },
+  { key: 'payroll', title: 'تقرير الرواتب', titleDe: 'Lohnbericht', description: 'رواتب الموظفين والاستقطاعات وصافي الصرف.', descriptionDe: 'Löhne, Abzüge und Nettoauszahlungen der Mitarbeiter.' },
+  { key: 'financial-movements', title: 'تقرير الحركات المالية', titleDe: 'Finanzbewegungsbericht', description: 'حركات الدرج والخزنة والبنك الداخلة والخارجة.', descriptionDe: 'Ein- und Ausgänge in Kasse, Tresor und Bank.' },
+  { key: 'employee-obligations', title: 'تقرير التزامات الموظفين', titleDe: 'Mitarbeiterverpflichtungsbericht', description: 'السلف والعهد والديون والعقوبات والمتبقي منها.', descriptionDe: 'Vorschüsse, Schulden, Strafen und offene Mitarbeiterverpflichtungen.' },
+  { key: 'daily-sales', title: 'تقرير المبيعات اليومية', titleDe: 'Tagesumsatzbericht', description: 'ملخص مبيعات الفروع حسب التاريخ وطريقة التحصيل.', descriptionDe: 'Tagesumsätze der Filialen nach Datum und Zahlungsweg.' },
+  { key: 'supplier-statement', title: 'كشف حساب المورد', titleDe: 'Lieferantenkontoauszug', description: 'رصيد المورد من الفواتير والدفعات والحركات.', descriptionDe: 'Lieferantensaldo aus Rechnungen, Zahlungen und Bewegungen.' },
+  { key: 'supplier-payments', title: 'تقرير دفعات الموردين', titleDe: 'Lieferantenzahlungsbericht', description: 'دفعات الموردين النقدية والبنكية مع المراجع.', descriptionDe: 'Bar- und Bankzahlungen an Lieferanten mit Referenzen.' },
+  { key: 'drawer', title: 'تقرير الدرج / الخزنة', titleDe: 'Kassenabschlussbericht', description: 'جلسات الدرج وأرصدة الإغلاق والفروقات.', descriptionDe: 'Kassensitzungen, Abschlussbestände und Differenzen.' },
+  { key: 'bank-transactions', title: 'تقرير الحركات البنكية', titleDe: 'Bankbewegungsbericht', description: 'حركات الحسابات البنكية الواردة والصادرة.', descriptionDe: 'Ein- und ausgehende Bankbewegungen.' },
+  { key: 'branch-transfers', title: 'تقرير التحويل بين الفروع', titleDe: 'Filialtransferbericht', description: 'تحويلات المواد بين الفروع والتكلفة.', descriptionDe: 'Warenbewegungen zwischen Filialen und deren Kosten.' },
+  { key: 'stock-counts', title: 'تقرير الجرد', titleDe: 'Inventurbericht', description: 'نتائج الجرد وفروقات الكميات والتكلفة.', descriptionDe: 'Inventurergebnisse sowie Mengen- und Kostendifferenzen.' },
+  { key: 'advances-penalties', title: 'تقرير السلف والعقوبات', titleDe: 'Vorschuss- und Strafbericht', description: 'سلف وعقوبات الموظفين المرتبطة بالرواتب.', descriptionDe: 'Mitarbeitervorschüsse und Strafen mit Lohnbezug.' },
+] as const;
+
+const labelTranslations: Record<string, { ar: string; de: string }> = {
+  date: { ar: 'التاريخ', de: 'Datum' },
+  branch: { ar: 'الفرع', de: 'Filiale' },
+  count: { ar: 'العدد', de: 'Anzahl' },
+  total: { ar: 'الإجمالي', de: 'Gesamt' },
+  net: { ar: 'الصافي', de: 'Netto' },
+  type: { ar: 'النوع', de: 'Art' },
+  metric: { ar: 'المؤشر', de: 'Kennzahl' },
+  status: { ar: 'الحالة', de: 'Status' },
+  paymentStatus: { ar: 'حالة الدفع', de: 'Zahlungsstatus' },
+  source: { ar: 'المصدر', de: 'Quelle' },
+  account: { ar: 'الحساب', de: 'Konto' },
+  reference: { ar: 'المرجع', de: 'Referenz' },
+  description: { ar: 'الوصف', de: 'Beschreibung' },
+  amount: { ar: 'المبلغ', de: 'Betrag' },
+  direction: { ar: 'الاتجاه', de: 'Richtung' },
+  number: { ar: 'الرقم', de: 'Nummer' },
+  supplier: { ar: 'المورد', de: 'Lieferant' },
+  customer: { ar: 'العميل', de: 'Kunde' },
+  employee: { ar: 'الموظف', de: 'Mitarbeiter' },
+  category: { ar: 'التصنيف', de: 'Kategorie' },
+  item: { ar: 'المادة', de: 'Artikel' },
+  quantity: { ar: 'الكمية', de: 'Menge' },
+  paid: { ar: 'المدفوع', de: 'Bezahlt' },
+  remaining: { ar: 'المتبقي', de: 'Offen' },
+  cash: { ar: 'نقدي', de: 'Bar' },
+  bank: { ar: 'بنكي', de: 'Bank' },
+  vault: { ar: 'خزنة', de: 'Tresor' },
+  drawer: { ar: 'درج', de: 'Kasse' },
+  opening: { ar: 'افتتاحي', de: 'Anfangsbestand' },
+  closing: { ar: 'إغلاق', de: 'Endbestand' },
+  difference: { ar: 'الفرق', de: 'Differenz' },
+  operationalSales: { ar: 'المبيعات التشغيلية', de: 'Betriebliche Umsätze' },
+  wholesaleCollections: { ar: 'تحصيلات الجملة', de: 'Großhandelseingänge' },
+  totalIncome: { ar: 'إجمالي الدخل', de: 'Gesamteinnahmen' },
+  totalExpenses: { ar: 'إجمالي المصاريف', de: 'Gesamtausgaben' },
+  totalPurchases: { ar: 'إجمالي المشتريات', de: 'Gesamteinkäufe' },
+  totalPayroll: { ar: 'إجمالي الرواتب', de: 'Gesamtlohn' },
+  estimatedProfit: { ar: 'الربح التقديري', de: 'Geschätzter Gewinn' },
+  netCashMovement: { ar: 'صافي حركة النقد', de: 'Netto-Kassenbewegung' },
+  netBankMovement: { ar: 'صافي حركة البنك', de: 'Netto-Bankbewegung' },
+  openReceivables: { ar: 'الذمم المفتوحة', de: 'Offene Forderungen' },
+  employeeObligations: { ar: 'التزامات الموظفين', de: 'Mitarbeiterverpflichtungen' },
+};
+
+const valueTranslations: Record<string, { ar: string; de: string }> = {
+  draft: { ar: 'مسودة', de: 'Entwurf' },
+  open: { ar: 'مفتوحة', de: 'Offen' },
+  approved: { ar: 'معتمدة', de: 'Genehmigt' },
+  partially_paid: { ar: 'مدفوعة جزئيا', de: 'Teilweise bezahlt' },
+  paid: { ar: 'مدفوعة', de: 'Bezahlt' },
+  unpaid: { ar: 'غير مدفوعة', de: 'Unbezahlt' },
+  cancelled: { ar: 'ملغاة', de: 'Storniert' },
+  closed: { ar: 'مغلقة', de: 'Geschlossen' },
+  completed: { ar: 'مكتملة', de: 'Abgeschlossen' },
+  active: { ar: 'نشطة', de: 'Aktiv' },
+  settled: { ar: 'مسددة', de: 'Beglichen' },
+  partially_recovered: { ar: 'مستردة جزئيا', de: 'Teilweise zurückgezahlt' },
+  cash: { ar: 'نقدي', de: 'Bar' },
+  bank: { ar: 'بنكي', de: 'Bank' },
+  vault: { ar: 'خزنة', de: 'Tresor' },
+  other: { ar: 'أخرى', de: 'Sonstige' },
+  in: { ar: 'داخل', de: 'Eingang' },
+  out: { ar: 'خارج', de: 'Ausgang' },
+  incoming: { ar: 'داخل', de: 'Eingang' },
+  outgoing: { ar: 'خارج', de: 'Ausgang' },
+  deposit: { ar: 'إيداع', de: 'Einzahlung' },
+  withdrawal: { ar: 'سحب', de: 'Auszahlung' },
+  transfer: { ar: 'تحويل', de: 'Umbuchung' },
+  settlement: { ar: 'تسوية', de: 'Abgleich' },
+  expense_cash: { ar: 'مصروف نقدي', de: 'Barausgabe' },
+  expense_bank: { ar: 'مصروف بنكي', de: 'Bankausgabe' },
+  expense_payment: { ar: 'دفع مصروف', de: 'Ausgabenzahlung' },
+  supplier_payment: { ar: 'دفعة مورد', de: 'Lieferantenzahlung' },
+  supplier_payment_cash: { ar: 'دفعة مورد نقدية', de: 'Lieferantenzahlung bar' },
+  supplier_payment_cash_reversal: { ar: 'عكس دفعة مورد نقدية', de: 'Gegenbuchung Lieferantenzahlung bar' },
+  supplier_payment_bank: { ar: 'دفعة مورد بنكية', de: 'Lieferantenzahlung per Bank' },
+  supplier_payment_bank_reversal: { ar: 'عكس دفعة مورد بنكية', de: 'Gegenbuchung Lieferantenzahlung per Bank' },
+  payroll_payment: { ar: 'صرف راتب', de: 'Lohnzahlung' },
+  payroll_payment_cash: { ar: 'صرف راتب نقدي', de: 'Lohnzahlung bar' },
+  payroll_payment_bank: { ar: 'صرف راتب بنكي', de: 'Lohnzahlung per Bank' },
+  employee_advance: { ar: 'سلفة موظف', de: 'Mitarbeitervorschuss' },
+  employee_advance_cash: { ar: 'سلفة موظف نقدية', de: 'Mitarbeitervorschuss bar' },
+  employee_advance_bank: { ar: 'سلفة موظف بنكية', de: 'Mitarbeitervorschuss per Bank' },
+  employee_debt: { ar: 'دين موظف', de: 'Mitarbeiterschuld' },
+  employee_debt_cash: { ar: 'دين موظف نقدي', de: 'Mitarbeiterschuld bar' },
+  employee_debt_bank: { ar: 'دين موظف بنكي', de: 'Mitarbeiterschuld per Bank' },
+  penalty: { ar: 'عقوبة', de: 'Strafe' },
+  employee_obligation_repayment: { ar: 'سداد التزام موظف', de: 'Rückzahlung Mitarbeiterverpflichtung' },
+  employee_obligation_repayment_cash: { ar: 'سداد التزام موظف نقدي', de: 'Rückzahlung Mitarbeiterverpflichtung bar' },
+  employee_obligation_repayment_bank: { ar: 'سداد التزام موظف بنكي', de: 'Rückzahlung Mitarbeiterverpflichtung per Bank' },
+  employee_obligation_reversal_cash: { ar: 'عكس التزام موظف نقدي', de: 'Gegenbuchung Mitarbeiterverpflichtung bar' },
+  employee_obligation_reversal_bank: { ar: 'عكس التزام موظف بنكي', de: 'Gegenbuchung Mitarbeiterverpflichtung per Bank' },
+  daily_cash_sales: { ar: 'مبيعات يومية نقدية', de: 'Tagesumsatz bar' },
+  wholesale_sales_cash_collection: { ar: 'تحصيل بيع جملة نقدي', de: 'Großhandelseingang bar' },
+  wholesale_sales_receipt_bank: { ar: 'تحصيل بيع جملة بنكي', de: 'Großhandelseingang Bank' },
+  sales_receipt_bank: { ar: 'قبض مبيعات بنكي', de: 'Umsatzeingang Bank' },
+  sales_return_cash: { ar: 'مرتجع نقدي', de: 'Barrückgabe' },
+  expense_cash_reversal: { ar: 'عكس مصروف نقدي', de: 'Gegenbuchung Barausgabe' },
+  expense_bank_reversal: { ar: 'عكس مصروف بنكي', de: 'Gegenbuchung Bankausgabe' },
+  refund_bank: { ar: 'مرتجع بنكي', de: 'Bankrückgabe' },
+  financial_reversal: { ar: 'عكس مالي', de: 'Finanzielle Gegenbuchung' },
+  manual_deposit: { ar: 'إيداع يدوي', de: 'Manuelle Einzahlung' },
+  manual_withdrawal: { ar: 'سحب يدوي', de: 'Manuelle Auszahlung' },
+  admin_withdrawal: { ar: 'سحب إداري', de: 'Administrative Auszahlung' },
+  deposit_from_drawer: { ar: 'إيداع من الدرج', de: 'Einzahlung aus Kasse' },
+  deposit_from_bank: { ar: 'إيداع من البنك', de: 'Einzahlung von Bank' },
+  deposit_from_vault: { ar: 'إيداع من الخزنة', de: 'Einzahlung aus Tresor' },
+  withdrawal_to_bank: { ar: 'تحويل إلى البنك', de: 'Umbuchung zur Bank' },
+  withdrawal_to_vault: { ar: 'تحويل إلى الخزنة', de: 'Umbuchung zum Tresor' },
+  transfer_to_vault: { ar: 'تحويل إلى الخزنة', de: 'Umbuchung zum Tresor' },
+};
+
 @Injectable()
 export class ReportsService {
   private readonly builders: Record<BuiltReportKey, ReportBuilder> = {
+    comprehensive: (filters) => this.comprehensive(filters),
     'daily-sales': (filters) => this.dailySales(filters),
     expenses: (filters) => this.expenses(filters),
     purchases: (filters) => this.purchases(filters),
+    'wholesale-sales': (filters) => this.wholesaleSales(filters),
     'supplier-statement': (filters) => this.supplierStatement(filters),
     'supplier-payments': (filters) => this.supplierPayments(filters),
     drawer: (filters) => this.drawer(filters),
     'bank-transactions': (filters) => this.bankTransactions(filters),
+    'financial-movements': (filters) => this.financialMovements(filters),
     'branch-transfers': (filters) => this.branchTransfers(filters),
     'stock-counts': (filters) => this.stockCounts(filters),
     payroll: (filters) => this.payroll(filters),
+    'employee-obligations': (filters) => this.employeeObligations(filters),
     'advances-penalties': (filters) => this.advancesPenalties(filters),
   };
 
@@ -56,8 +194,12 @@ export class ReportsService {
     private readonly supplierPaymentsRepository: Repository<SupplierPaymentEntity>,
     @InjectRepository(DrawerDailySessionEntity)
     private readonly drawerSessionsRepository: Repository<DrawerDailySessionEntity>,
+    @InjectRepository(DrawerTransactionEntity)
+    private readonly drawerTransactionsRepository: Repository<DrawerTransactionEntity>,
     @InjectRepository(BankAccountTransactionEntity)
     private readonly bankTransactionsRepository: Repository<BankAccountTransactionEntity>,
+    @InjectRepository(VaultTransactionEntity)
+    private readonly vaultTransactionsRepository: Repository<VaultTransactionEntity>,
     @InjectRepository(TransferEntity)
     private readonly transfersRepository: Repository<TransferEntity>,
     @InjectRepository(StockCountEntity)
@@ -68,12 +210,16 @@ export class ReportsService {
     private readonly advancesRepository: Repository<EmployeeAdvanceEntity>,
     @InjectRepository(EmployeePenaltyEntity)
     private readonly penaltiesRepository: Repository<EmployeePenaltyEntity>,
+    @InjectRepository(EmployeeDebtEntity)
+    private readonly employeeDebtsRepository: Repository<EmployeeDebtEntity>,
     private readonly settingsService: SettingsService,
     private readonly reportExportService: ReportExportService,
     private readonly wholesaleSalesService: WholesaleSalesService,
   ) {}
 
   getCatalog() {
+    return reportCatalog.map(({ key, title, description }) => ({ key, title, description }));
+
     return [
       { key: 'daily-sales', title: 'تقرير المبيعات اليومية', description: 'ملخص مبيعات الفروع حسب التاريخ وطريقة التحصيل.' },
       { key: 'expenses', title: 'تقرير المصاريف', description: 'تحليل المصاريف حسب الفرع والتصنيف وطريقة الدفع.' },
@@ -96,7 +242,9 @@ export class ReportsService {
       throw new NotFoundException('Report was not found.');
     }
 
-    return builder(this.cleanFilters(filters));
+    const cleanedFilters = this.cleanFilters(filters);
+    const report = await builder(cleanedFilters);
+    return this.prepareReport(report, cleanedFilters);
   }
 
   async exportReport(key: string, filters: ReportFilters, format: 'excel' | 'pdf') {
@@ -130,6 +278,110 @@ export class ReportsService {
       columns,
       rows,
     };
+  }
+
+  private prepareReport(report: ReportResult, filters: ReportFilters): ReportResult {
+    const language = filters.language === 'de' ? 'de' : 'ar';
+    const catalogItem = reportCatalog.find((item) => item.key === report.key);
+    const localized: ReportResult = {
+      ...report,
+      language,
+      title: language === 'de' ? catalogItem?.titleDe ?? report.title : catalogItem?.title ?? report.title,
+      description:
+        language === 'de' ? catalogItem?.descriptionDe ?? report.description : catalogItem?.description ?? report.description,
+      filterSummary: this.localizedFilterSummary(report.filterSummary, language),
+      availableSummaries: report.summaries.map((summary) => this.localizedSummary(summary, language)),
+      availableColumns: report.columns.map((column) => this.localizedColumn(column, language)),
+      summaries: report.summaries.map((summary) => this.localizedSummary(summary, language)),
+      columns: report.columns.map((column) => this.localizedColumn(column, language)),
+      rows: report.rows.map((row) => this.localizedRow(row, report.columns, language)),
+    };
+
+    return this.applySelectedFields(localized, filters);
+  }
+
+  private applySelectedFields(report: ReportResult, filters: ReportFilters): ReportResult {
+    const selectedColumns = this.parseSelection(filters.columnKeys);
+    const selectedSummaries = this.parseSelection(filters.summaryKeys);
+    const columns = selectedColumns.size ? report.columns.filter((column) => selectedColumns.has(column.key)) : report.columns;
+    const summaries = selectedSummaries.size
+      ? report.summaries.filter((summary) => selectedSummaries.has(summary.key))
+      : report.summaries;
+
+    return {
+      ...report,
+      columns: columns.length ? columns : report.columns,
+      summaries: summaries.length ? summaries : report.summaries,
+    };
+  }
+
+  private parseSelection(value?: string) {
+    return new Set(
+      String(value ?? '')
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean),
+    );
+  }
+
+  private localizedColumn(column: ReportColumn, language: ReportLanguage): ReportColumn {
+    return { ...column, label: this.translateLabel(column.key, column.label, language) };
+  }
+
+  private localizedSummary(summary: ReportSummary, language: ReportLanguage): ReportSummary {
+    return { ...summary, label: this.translateLabel(summary.key, summary.label, language) };
+  }
+
+  private localizedFilterSummary(
+    filterSummary: ReportResult['filterSummary'],
+    language: ReportLanguage,
+  ): ReportResult['filterSummary'] {
+    const germanFallbackLabels = ['Filiale', 'Von Datum', 'Bis Datum'];
+    return (filterSummary ?? []).map((item) => ({
+      label:
+        language === 'de'
+          ? this.translateFreeLabel(item.label, language) === item.label
+            ? germanFallbackLabels[(filterSummary ?? []).indexOf(item)] ?? 'Filter'
+            : this.translateFreeLabel(item.label, language)
+          : this.translateFreeLabel(item.label, language),
+      value: this.translateReportValue(item.value, language),
+    }));
+  }
+
+  private localizedRow(row: ReportRow, columns: ReportColumn[], language: ReportLanguage): ReportRow {
+    return Object.fromEntries(
+      Object.entries(row).map(([key, value]) => {
+        const column = columns.find((item) => item.key === key);
+        if (key === 'metric' && typeof value === 'string') {
+          return [key, this.translateFreeLabel(value, language)];
+        }
+        if (typeof value === 'string' && (column?.type === 'status' || this.isEnumLike(value))) {
+          return [key, this.translateReportValue(value, language)];
+        }
+        return [key, value];
+      }),
+    );
+  }
+
+  private translateLabel(key: string, fallback: string, language: ReportLanguage) {
+    return labelTranslations[key]?.[language] ?? (language === 'de' ? this.translateFreeLabel(fallback, language) : fallback);
+  }
+
+  private translateFreeLabel(value: string, language: ReportLanguage) {
+    if (language === 'ar') return value;
+
+    const normalized = value.trim();
+    const translated = Object.values(labelTranslations).find((entry) => entry.ar === normalized)?.de;
+    return translated ?? normalized;
+  }
+
+  private translateReportValue(value: string, language: ReportLanguage) {
+    const normalized = value.trim();
+    return valueTranslations[normalized]?.[language] ?? normalized;
+  }
+
+  private isEnumLike(value: string) {
+    return /^[a-z0-9_/-]+$/.test(value);
   }
 
   private applyDateRange<T extends ObjectLiteral>(query: SelectQueryBuilder<T>, column: string, filters: ReportFilters) {
@@ -202,6 +454,107 @@ export class ReportsService {
     }).format(Number.isFinite(numericValue) ? numericValue : 0);
 
     return `${formattedValue} ${currencySettings.currencySymbol}`.trim();
+  }
+
+  private async comprehensive(filters: ReportFilters) {
+    const [salesReport, expensesReport, purchasesReport, payrollReport, financialReport, obligationsReport] =
+      await Promise.all([
+        this.dailySales(filters),
+        this.expenses(filters),
+        this.purchases(filters),
+        this.payroll(filters),
+        this.financialMovements(filters),
+        this.employeeObligations(filters),
+      ]);
+    const wholesaleCollections = Number(salesReport.summaries.find((summary) => summary.key === 'wholesaleCollected')?.value ?? 0);
+    const operationalSales = Number(salesReport.summaries.find((summary) => summary.key === 'regularNet')?.value ?? 0);
+    const totalIncome = operationalSales + wholesaleCollections;
+    const totalExpenses = Number(expensesReport.summaries.find((summary) => summary.key === 'total')?.value ?? 0);
+    const totalPurchases = Number(purchasesReport.summaries.find((summary) => summary.key === 'total')?.value ?? 0);
+    const totalPayroll = Number(payrollReport.summaries.find((summary) => summary.key === 'netSalary')?.value ?? 0);
+    const netCashMovement = Number(financialReport.summaries.find((summary) => summary.key === 'netCashMovement')?.value ?? 0);
+    const netBankMovement = Number(financialReport.summaries.find((summary) => summary.key === 'netBankMovement')?.value ?? 0);
+    const openReceivables = Number(salesReport.summaries.find((summary) => summary.key === 'wholesaleReceivables')?.value ?? 0);
+    const employeeObligations = Number(obligationsReport.summaries.find((summary) => summary.key === 'remaining')?.value ?? 0);
+    const summaries = [
+      this.moneySummary('operationalSales', 'المبيعات التشغيلية', operationalSales),
+      this.moneySummary('wholesaleCollections', 'تحصيلات الجملة', wholesaleCollections),
+      this.moneySummary('totalIncome', 'إجمالي الدخل', totalIncome),
+      this.moneySummary('totalExpenses', 'إجمالي المصاريف', totalExpenses),
+      this.moneySummary('totalPurchases', 'إجمالي المشتريات', totalPurchases),
+      this.moneySummary('totalPayroll', 'إجمالي الرواتب', totalPayroll),
+      this.moneySummary('estimatedProfit', 'الربح التقديري', totalIncome - totalExpenses - totalPurchases - totalPayroll),
+      this.moneySummary('netCashMovement', 'صافي حركة النقد', netCashMovement),
+      this.moneySummary('netBankMovement', 'صافي حركة البنك', netBankMovement),
+      this.moneySummary('openReceivables', 'الذمم المفتوحة', openReceivables),
+      this.moneySummary('employeeObligations', 'التزامات الموظفين', employeeObligations),
+    ];
+    const rows = summaries.map((summary) => ({
+      metric: summary.label,
+      value: Number(summary.value ?? 0),
+    }));
+    const report = this.baseResult(
+      'comprehensive',
+      'التقرير الشامل',
+      'ملخص مركزي لأهم مؤشرات التشغيل والمال ضمن الفترة المختارة.',
+      filters,
+      [
+        { key: 'metric', label: 'المؤشر' },
+        { key: 'value', label: 'القيمة', type: 'money' },
+      ],
+      rows,
+      summaries,
+    );
+    report.filterSummary = await this.buildFilterSummary(filters);
+    return report;
+  }
+
+  private async wholesaleSales(filters: ReportFilters) {
+    const invoices = await this.wholesaleSalesService.findAll({
+      branchId: filters.branchId,
+      documentStatus: filters.status,
+      paymentStatus: filters.paymentStatus,
+      invoiceDateFrom: filters.dateFrom,
+      invoiceDateTo: filters.dateTo,
+      search: filters.search,
+    });
+    const rows = invoices.map((invoice) => ({
+      number: invoice.invoiceNumber,
+      date: invoice.invoiceDate,
+      branch: invoice.branch?.name ?? '',
+      customer: invoice.customer?.name ?? '',
+      status: invoice.documentStatus,
+      paymentStatus: invoice.paymentStatus,
+      total: invoice.totalAmount,
+      paid: invoice.paidAmount,
+      remaining: invoice.remainingAmount,
+    }));
+    const report = this.baseResult(
+      'wholesale-sales',
+      'تقرير بيع الجملة',
+      'فواتير بيع الجملة والتحصيل والذمم المفتوحة.',
+      filters,
+      [
+        { key: 'number', label: 'رقم الفاتورة' },
+        { key: 'date', label: 'التاريخ', type: 'date' },
+        { key: 'branch', label: 'الفرع' },
+        { key: 'customer', label: 'العميل' },
+        { key: 'status', label: 'حالة المستند', type: 'status' },
+        { key: 'paymentStatus', label: 'حالة الدفع', type: 'status' },
+        { key: 'total', label: 'الإجمالي', type: 'money' },
+        { key: 'paid', label: 'المحصل', type: 'money' },
+        { key: 'remaining', label: 'المتبقي', type: 'money' },
+      ],
+      rows,
+      [
+        this.numberSummary('count', 'عدد الفواتير', rows.length),
+        this.moneySummary('total', 'إجمالي بيع الجملة', this.sum(rows, 'total')),
+        this.moneySummary('paid', 'إجمالي المحصل', this.sum(rows, 'paid')),
+        this.moneySummary('remaining', 'إجمالي الذمم المفتوحة', this.sum(rows, 'remaining')),
+      ],
+    );
+    report.filterSummary = await this.buildFilterSummary(filters);
+    return report;
   }
 
   private async dailySales(filters: ReportFilters) {
@@ -799,6 +1152,104 @@ export class ReportsService {
     );
   }
 
+  private async financialMovements(filters: ReportFilters) {
+    const drawerQuery = this.drawerTransactionsRepository
+      .createQueryBuilder('transaction')
+      .leftJoinAndSelect('transaction.branch', 'branch')
+      .leftJoinAndSelect('transaction.drawer', 'drawer')
+      .orderBy('transaction.transactionDate', 'DESC');
+    const vaultQuery = this.vaultTransactionsRepository
+      .createQueryBuilder('transaction')
+      .leftJoinAndSelect('transaction.branch', 'branch')
+      .leftJoinAndSelect('transaction.vault', 'vault')
+      .orderBy('transaction.transactionDate', 'DESC');
+    const bankQuery = this.bankTransactionsRepository
+      .createQueryBuilder('transaction')
+      .leftJoinAndSelect('transaction.branch', 'branch')
+      .leftJoinAndSelect('transaction.bankAccount', 'bankAccount')
+      .orderBy('transaction.transactionDate', 'DESC');
+
+    if (filters.branchId) {
+      drawerQuery.andWhere('transaction.branch_id = :branchId', { branchId: filters.branchId });
+      vaultQuery.andWhere('transaction.branch_id = :branchId', { branchId: filters.branchId });
+      bankQuery.andWhere('transaction.branch_id = :branchId', { branchId: filters.branchId });
+    }
+    this.applyDateRange(drawerQuery, 'transaction.transaction_date', filters);
+    this.applyDateRange(vaultQuery, 'transaction.transaction_date', filters);
+    this.applyDateRange(bankQuery, 'transaction.transaction_date', filters);
+
+    const [drawerTransactions, vaultTransactions, bankTransactions] = await Promise.all([
+      drawerQuery.getMany(),
+      vaultQuery.getMany(),
+      bankQuery.getMany(),
+    ]);
+    const rows: ReportRow[] = [
+      ...drawerTransactions.map((transaction) => ({
+        date: transaction.transactionDate,
+        branch: transaction.branch?.name ?? '',
+        source: 'drawer',
+        account: transaction.drawer?.name ?? '',
+        type: transaction.transactionType,
+        direction: transaction.direction,
+        description: transaction.description,
+        amount: transaction.amount,
+      })),
+      ...vaultTransactions.map((transaction) => ({
+        date: transaction.transactionDate,
+        branch: transaction.branch?.name ?? '',
+        source: 'vault',
+        account: transaction.vault?.name ?? '',
+        type: transaction.transactionType,
+        direction: transaction.direction,
+        description: transaction.description,
+        amount: transaction.amount,
+      })),
+      ...bankTransactions.map((transaction) => ({
+        date: transaction.transactionDate,
+        branch: transaction.branch?.name ?? '',
+        source: 'bank',
+        account: transaction.bankAccount?.name ?? '',
+        type: transaction.transactionType,
+        direction: transaction.direction === 'incoming' ? 'in' : 'out',
+        description: transaction.description,
+        amount: transaction.amount,
+      })),
+    ].sort((first, second) => String(second.date).localeCompare(String(first.date)));
+    const incoming = rows.filter((row) => row.direction === 'in');
+    const outgoing = rows.filter((row) => row.direction === 'out');
+    const cashRows = rows.filter((row) => row.source === 'drawer' || row.source === 'vault');
+    const bankRows = rows.filter((row) => row.source === 'bank');
+    const net = (items: ReportRow[]) =>
+      this.round(items.reduce((total, row) => total + (row.direction === 'in' ? 1 : -1) * Number(row.amount ?? 0), 0));
+
+    const report = this.baseResult(
+      'financial-movements',
+      'تقرير الحركات المالية',
+      'حركات الدرج والخزنة والبنك الداخلة والخارجة ضمن الفترة المختارة.',
+      filters,
+      [
+        { key: 'date', label: 'التاريخ', type: 'date' },
+        { key: 'branch', label: 'الفرع' },
+        { key: 'source', label: 'المصدر', type: 'status' },
+        { key: 'account', label: 'الحساب / الدرج / الخزنة' },
+        { key: 'type', label: 'نوع الحركة', type: 'status' },
+        { key: 'direction', label: 'الاتجاه', type: 'status' },
+        { key: 'description', label: 'الوصف' },
+        { key: 'amount', label: 'المبلغ', type: 'money' },
+      ],
+      rows,
+      [
+        this.numberSummary('count', 'عدد الحركات', rows.length),
+        this.moneySummary('incoming', 'إجمالي الداخل', this.sum(incoming, 'amount')),
+        this.moneySummary('outgoing', 'إجمالي الخارج', this.sum(outgoing, 'amount')),
+        this.moneySummary('netCashMovement', 'صافي حركة النقد', net(cashRows)),
+        this.moneySummary('netBankMovement', 'صافي حركة البنك', net(bankRows)),
+      ],
+    );
+    report.filterSummary = await this.buildFilterSummary(filters);
+    return report;
+  }
+
   private async branchTransfers(filters: ReportFilters) {
     const query = this.transfersRepository
       .createQueryBuilder('transfer')
@@ -944,6 +1395,102 @@ export class ReportsService {
         this.moneySummary('remainingAmount', 'إجمالي مستحقات الرواتب', this.sum(rows, 'remainingAmount')),
       ],
     );
+  }
+
+  private async employeeObligations(filters: ReportFilters) {
+    const debtsQuery = this.employeeDebtsRepository
+      .createQueryBuilder('debt')
+      .leftJoinAndSelect('debt.employee', 'employee')
+      .leftJoinAndSelect('employee.defaultBranch', 'branch')
+      .orderBy('debt.debtDate', 'DESC');
+    const advancesQuery = this.advancesRepository
+      .createQueryBuilder('advance')
+      .leftJoinAndSelect('advance.employee', 'employee')
+      .leftJoinAndSelect('employee.defaultBranch', 'branch')
+      .orderBy('advance.advanceDate', 'DESC');
+    const penaltiesQuery = this.penaltiesRepository
+      .createQueryBuilder('penalty')
+      .leftJoinAndSelect('penalty.employee', 'employee')
+      .leftJoinAndSelect('employee.defaultBranch', 'branch')
+      .orderBy('penalty.penaltyDate', 'DESC');
+
+    if (filters.employeeId) {
+      debtsQuery.andWhere('debt.employee_id = :employeeId', { employeeId: filters.employeeId });
+      advancesQuery.andWhere('advance.employee_id = :employeeId', { employeeId: filters.employeeId });
+      penaltiesQuery.andWhere('penalty.employee_id = :employeeId', { employeeId: filters.employeeId });
+    }
+    if (filters.branchId) {
+      debtsQuery.andWhere('employee.default_branch_id = :branchId', { branchId: filters.branchId });
+      advancesQuery.andWhere('employee.default_branch_id = :branchId', { branchId: filters.branchId });
+      penaltiesQuery.andWhere('employee.default_branch_id = :branchId', { branchId: filters.branchId });
+    }
+    this.applyDateRange(debtsQuery, 'debt.debt_date', filters);
+    this.applyDateRange(advancesQuery, 'advance.advance_date', filters);
+    this.applyDateRange(penaltiesQuery, 'penalty.penalty_date', filters);
+
+    const [debts, advances, penalties] = await Promise.all([
+      debtsQuery.getMany(),
+      advancesQuery.getMany(),
+      penaltiesQuery.getMany(),
+    ]);
+    const rows: ReportRow[] = [
+      ...debts.map((debt) => ({
+        date: debt.debtDate,
+        employee: debt.employee?.fullName ?? '',
+        branch: debt.employee?.defaultBranch?.name ?? '',
+        type: 'employee_debt',
+        status: debt.status,
+        amount: debt.amount,
+        paid: debt.recoveredAmount,
+        remaining: debt.remainingAmount,
+      })),
+      ...advances.map((advance) => ({
+        date: advance.advanceDate,
+        employee: advance.employee?.fullName ?? '',
+        branch: advance.employee?.defaultBranch?.name ?? '',
+        type: 'employee_advance',
+        status: advance.status,
+        amount: advance.amount,
+        paid: advance.recoveredAmount,
+        remaining: advance.remainingAmount,
+      })),
+      ...penalties.map((penalty) => ({
+        date: penalty.penaltyDate,
+        employee: penalty.employee?.fullName ?? '',
+        branch: penalty.employee?.defaultBranch?.name ?? '',
+        type: 'penalty',
+        status: penalty.status,
+        amount: penalty.amount,
+        paid: 0,
+        remaining: penalty.amount,
+      })),
+    ].sort((first, second) => String(second.date).localeCompare(String(first.date)));
+
+    const report = this.baseResult(
+      'employee-obligations',
+      'تقرير التزامات الموظفين',
+      'السلف والديون والعقوبات والمتبقي على الموظفين.',
+      filters,
+      [
+        { key: 'date', label: 'التاريخ', type: 'date' },
+        { key: 'employee', label: 'الموظف' },
+        { key: 'branch', label: 'الفرع' },
+        { key: 'type', label: 'نوع الالتزام', type: 'status' },
+        { key: 'status', label: 'الحالة', type: 'status' },
+        { key: 'amount', label: 'المبلغ', type: 'money' },
+        { key: 'paid', label: 'المسترد / المسدد', type: 'money' },
+        { key: 'remaining', label: 'المتبقي', type: 'money' },
+      ],
+      rows,
+      [
+        this.numberSummary('count', 'عدد الالتزامات', rows.length),
+        this.moneySummary('total', 'إجمالي الالتزامات', this.sum(rows, 'amount')),
+        this.moneySummary('paid', 'إجمالي المسترد / المسدد', this.sum(rows, 'paid')),
+        this.moneySummary('remaining', 'إجمالي المتبقي', this.sum(rows, 'remaining')),
+      ],
+    );
+    report.filterSummary = await this.buildFilterSummary(filters);
+    return report;
   }
 
   private async advancesPenalties(filters: ReportFilters) {

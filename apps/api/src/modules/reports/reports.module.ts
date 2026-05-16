@@ -4,7 +4,9 @@ import { BankAccountTransactionEntity } from '../bank-account-transactions/entit
 import { BranchEntity } from '../branches/entities/branch.entity';
 import { DailySaleEntity } from '../daily-sales/entities/daily-sale.entity';
 import { DrawerDailySessionEntity } from '../drawer-daily-sessions/entities/drawer-daily-session.entity';
+import { DrawerTransactionEntity } from '../drawer-transactions/entities/drawer-transaction.entity';
 import { EmployeeAdvanceEntity } from '../employee-advances/entities/employee-advance.entity';
+import { EmployeeDebtEntity } from '../employee-financial-obligations/entities/employee-debt.entity';
 import { EmployeePenaltyEntity } from '../employee-penalties/entities/employee-penalty.entity';
 import { ExpenseEntity } from '../expenses/entities/expense.entity';
 import { ItemCategoryEntity } from '../item-categories/entities/item-category.entity';
@@ -14,6 +16,7 @@ import { StockCountEntity } from '../stock-counts/entities/stock-count.entity';
 import { SettingsModule } from '../settings/settings.module';
 import { SupplierPaymentEntity } from '../supplier-payments/entities/supplier-payment.entity';
 import { TransferEntity } from '../transfers/entities/transfer.entity';
+import { VaultTransactionEntity } from '../vaults/entities/vault-transaction.entity';
 import { WholesaleSalesModule } from '../wholesale-sales/wholesale-sales.module';
 import { ReportExportService } from './report-export.service';
 import { ReportsController } from './reports.controller';
@@ -28,7 +31,9 @@ import { ReportsService } from './reports.service';
       BranchEntity,
       DailySaleEntity,
       DrawerDailySessionEntity,
+      DrawerTransactionEntity,
       EmployeeAdvanceEntity,
+      EmployeeDebtEntity,
       EmployeePenaltyEntity,
       ExpenseEntity,
       ItemCategoryEntity,
@@ -37,6 +42,7 @@ import { ReportsService } from './reports.service';
       StockCountEntity,
       SupplierPaymentEntity,
       TransferEntity,
+      VaultTransactionEntity,
     ]),
   ],
   controllers: [ReportsController],

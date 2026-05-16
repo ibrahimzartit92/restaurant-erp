@@ -1,16 +1,22 @@
 export type ReportKey =
+  | 'comprehensive'
   | 'dashboard'
   | 'daily-sales'
   | 'expenses'
   | 'purchases'
+  | 'wholesale-sales'
   | 'supplier-statement'
   | 'supplier-payments'
   | 'drawer'
   | 'bank-transactions'
+  | 'financial-movements'
   | 'branch-transfers'
   | 'stock-counts'
   | 'payroll'
+  | 'employee-obligations'
   | 'advances-penalties';
+
+export type ReportLanguage = 'ar' | 'de';
 
 export type ReportFilters = {
   branchId?: string;
@@ -26,6 +32,9 @@ export type ReportFilters = {
   vaultId?: string;
   bankAccountId?: string;
   search?: string;
+  language?: ReportLanguage;
+  columnKeys?: string;
+  summaryKeys?: string;
 };
 
 export type ReportColumn = {
@@ -53,8 +62,11 @@ export type ReportResult = {
   title: string;
   description: string;
   generatedAt: string;
+  language?: ReportLanguage;
   filters: ReportFilters;
   filterSummary?: ReportFilterSummary[];
+  availableSummaries?: ReportSummary[];
+  availableColumns?: ReportColumn[];
   summaries: ReportSummary[];
   columns: ReportColumn[];
   rows: ReportRow[];
