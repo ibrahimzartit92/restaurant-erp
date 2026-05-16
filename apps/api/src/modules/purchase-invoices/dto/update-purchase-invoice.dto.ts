@@ -1,5 +1,19 @@
 import { Type } from 'class-transformer';
-import { IsBoolean, IsDateString, IsEnum, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
+import {
+  ArrayMinSize,
+  IsArray,
+  IsBoolean,
+  IsDateString,
+  IsEnum,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+  Min,
+  ValidateNested,
+} from 'class-validator';
+import { CreatePurchaseInvoiceLineDto } from './create-purchase-invoice.dto';
 import { PurchaseInvoiceStatus } from '../entities/purchase-invoice.entity';
 
 export class UpdatePurchaseInvoiceDto {
@@ -64,4 +78,11 @@ export class UpdatePurchaseInvoiceDto {
   @IsString()
   @IsOptional()
   notes?: string | null;
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => CreatePurchaseInvoiceLineDto)
+  @IsOptional()
+  items?: CreatePurchaseInvoiceLineDto[];
 }

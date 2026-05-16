@@ -13,7 +13,12 @@ import { SupplierEntity } from '../suppliers/entities/supplier.entity';
 import { WarehouseEntity } from '../warehouses/entities/warehouse.entity';
 import { CreatePurchaseInvoiceDto } from './dto/create-purchase-invoice.dto';
 import { UpdatePurchaseInvoiceDto } from './dto/update-purchase-invoice.dto';
-import { PurchaseInvoiceEntity, PurchaseInvoiceStatus } from './entities/purchase-invoice.entity';
+import {
+  PurchaseInvoiceApprovalLogEntry,
+  PurchaseInvoiceApprovalSnapshot,
+  PurchaseInvoiceEntity,
+  PurchaseInvoiceStatus,
+} from './entities/purchase-invoice.entity';
 
 type PurchaseInvoiceFilters = {
   branchId?: string;
@@ -191,6 +196,10 @@ export class PurchaseInvoicesService {
       );
 
       const savedLines = await itemRepository.save(lines);
+      savedInvoice.approvedSnapshot = this.isApprovedStatus(savedInvoice.status)
+        ? this.toApprovalSnapshot(savedInvoice, savedLines)
+        : null;
+      await invoiceRepository.save(savedInvoice);
       await this.stockMovementsService.replaceSourceMovements(
         'purchase_invoice',
         savedInvoice.id,
@@ -222,7 +231,16 @@ export class PurchaseInvoicesService {
   }
 
   async update(id: string, updatePurchaseInvoiceDto: UpdatePurchaseInvoiceDto) {
-    const invoice = await this.findByIdOrFail(id);
+    const invoice = await this.purchaseInvoiceRepository.findOne({
+      where: { id },
+      relations: { items: true, payments: true },
+    });
+    if (!invoice) {
+      throw new NotFoundException('Purchase invoice was not found.');
+    }
+    if (!this.canEditInvoice(invoice.status)) {
+      throw new BadRequestException('لا يمكن تعديل فاتورة شراء معتمدة مباشرة. استخدم إجراء إعادة فتح للتعديل ثم أعد اعتمادها.');
+    }
     const previousClosingChanges = this.invoiceClosingChanges(invoice, 'edited');
     await this.ensureCodeIsAvailable(updatePurchaseInvoiceDto.invoiceNumber, id);
     const nextSupplierId =
@@ -241,8 +259,12 @@ export class PurchaseInvoicesService {
       supplierRepresentativeId: nextSupplierRepresentativeId,
     });
 
+    const items = updatePurchaseInvoiceDto.items;
+    const headerPatch = { ...updatePurchaseInvoiceDto };
+    delete headerPatch.items;
+
     Object.assign(invoice, {
-      ...updatePurchaseInvoiceDto,
+      ...headerPatch,
       invoiceNumber: updatePurchaseInvoiceDto.invoiceNumber?.toUpperCase() ?? invoice.invoiceNumber,
       supplierId: nextSupplierId,
       supplierRepresentativeId: nextSupplierRepresentativeId,
@@ -252,26 +274,150 @@ export class PurchaseInvoicesService {
       invoice.isMiscellaneous = true;
     }
 
-    const totalAmount =
-      updatePurchaseInvoiceDto.discountAmount === undefined
-        ? invoice.totalAmount
-        : this.roundMoney(Math.max(invoice.subtotalAmount - updatePurchaseInvoiceDto.discountAmount, 0));
+    if (items) {
+      await this.validateInvoiceItems(items.map((item) => item.itemId));
+      invoice.subtotalAmount = this.calculateSubtotal(items);
+    }
 
+    const discountAmount = updatePurchaseInvoiceDto.discountAmount ?? invoice.discountAmount;
+    const totalAmount = this.roundMoney(Math.max(invoice.subtotalAmount - discountAmount, 0));
+    invoice.discountAmount = discountAmount;
     invoice.totalAmount = totalAmount;
 
-    if (invoice.paidAmount > invoice.totalAmount) {
-      throw new BadRequestException('Paid amount cannot be greater than the invoice total.');
+    if (invoice.status !== PurchaseInvoiceStatus.Reopened && invoice.paidAmount > invoice.totalAmount) {
+      throw new BadRequestException('إجمالي الفاتورة بعد التعديل أقل من المبلغ المدفوع فعليًا. لا يمكن إعادة الاعتماد قبل معالجة الفرق محاسبيًا.');
     }
 
     invoice.remainingAmount = this.roundMoney(totalAmount - invoice.paidAmount);
-    invoice.status = updatePurchaseInvoiceDto.status ?? this.resolveInvoiceStatus(totalAmount, invoice.paidAmount);
+    invoice.status =
+      invoice.status === PurchaseInvoiceStatus.Reopened
+        ? PurchaseInvoiceStatus.Reopened
+        : updatePurchaseInvoiceDto.status ?? this.resolveInvoiceStatus(totalAmount, invoice.paidAmount);
 
-    const saved = await this.purchaseInvoiceRepository.save(invoice);
-    await this.dailySalesClosingService.recordPostCloseChanges([
-      ...previousClosingChanges,
-      ...this.invoiceClosingChanges(saved, 'edited'),
-    ]);
-    return saved;
+    return this.dataSource.transaction(async (manager) => {
+      const invoiceRepository = manager.getRepository(PurchaseInvoiceEntity);
+      const itemRepository = manager.getRepository(PurchaseInvoiceItemEntity);
+      const saved = await invoiceRepository.save(invoice);
+
+      if (items) {
+        await itemRepository.delete({ purchaseInvoiceId: id });
+        const savedLines = await itemRepository.save(
+          items.map((line) =>
+            itemRepository.create({
+              purchaseInvoiceId: id,
+              itemId: line.itemId,
+              quantity: line.quantity,
+              unitPrice: line.unitPrice,
+              lineTotal: this.roundMoney(line.lineTotal ?? line.quantity * line.unitPrice),
+              notes: line.notes ?? null,
+            }),
+          ),
+        );
+
+        if (saved.status !== PurchaseInvoiceStatus.Reopened) {
+          await this.replaceApprovedStockMovements(saved, savedLines, manager);
+        }
+      }
+
+      if (saved.status !== PurchaseInvoiceStatus.Reopened) {
+        await this.dailySalesClosingService.recordPostCloseChanges(
+          [...previousClosingChanges, ...this.invoiceClosingChanges(saved, 'edited')],
+          manager,
+        );
+      }
+
+      return invoiceRepository.findOneOrFail({
+        where: { id },
+        relations: {
+          items: { item: true },
+          payments: { branch: true, drawer: true, bankAccount: true, vault: true },
+        },
+      });
+    });
+  }
+
+  async reopenForEditing(id: string) {
+    return this.dataSource.transaction(async (manager) => {
+      const invoiceRepository = manager.getRepository(PurchaseInvoiceEntity);
+      const invoice = await invoiceRepository.findOne({ where: { id }, relations: { items: true } });
+      if (!invoice) {
+        throw new NotFoundException('Purchase invoice was not found.');
+      }
+      if (!this.isApprovedStatus(invoice.status)) {
+        throw new BadRequestException('يمكن إعادة فتح فواتير الشراء المعتمدة فقط للتعديل.');
+      }
+
+      const snapshot = this.toApprovalSnapshot(invoice, invoice.items ?? []);
+      invoice.approvedSnapshot = snapshot;
+      invoice.status = PurchaseInvoiceStatus.Reopened;
+      invoice.approvalModificationLog = [
+        this.buildApprovalLogEntry('reopened', invoice.invoiceNumber, [
+          { field: 'status', label: 'الحالة', oldValue: this.statusLabel(snapshot.status), newValue: 'مفتوحة للتعديل' },
+        ]),
+        ...(invoice.approvalModificationLog ?? []),
+      ];
+      return invoiceRepository.save(invoice);
+    });
+  }
+
+  async reapprove(id: string) {
+    return this.dataSource.transaction(async (manager) => {
+      const invoiceRepository = manager.getRepository(PurchaseInvoiceEntity);
+      const invoice = await invoiceRepository.findOne({
+        where: { id },
+        relations: { items: true, payments: true },
+      });
+      if (!invoice) {
+        throw new NotFoundException('Purchase invoice was not found.');
+      }
+      if (invoice.status !== PurchaseInvoiceStatus.Reopened) {
+        throw new BadRequestException('الفاتورة ليست في حالة إعادة فتح للتعديل.');
+      }
+
+      const paidAmount = this.roundMoney(
+        (invoice.payments ?? []).reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0),
+      );
+      if (invoice.totalAmount < paidAmount) {
+        throw new BadRequestException('إجمالي الفاتورة بعد التعديل أقل من المبلغ المدفوع فعليًا. لا يمكن إعادة الاعتماد دون معالجة محاسبية صحيحة.');
+      }
+
+      const oldSnapshot = invoice.approvedSnapshot;
+      const oldClosingChanges = oldSnapshot ? this.snapshotClosingChanges(id, oldSnapshot, 'edited') : [];
+      invoice.paidAmount = paidAmount;
+      invoice.remainingAmount = this.roundMoney(invoice.totalAmount - paidAmount);
+      invoice.lastPaymentDate =
+        (invoice.payments ?? [])
+          .map((payment) => payment.paymentDate)
+          .sort()
+          .at(-1) ?? null;
+      invoice.status = this.resolveInvoiceStatus(invoice.totalAmount, paidAmount);
+      invoice.modifiedAfterApproval = true;
+      invoice.approvalRevision = Number(invoice.approvalRevision ?? 0) + 1;
+
+      await this.replaceApprovedStockMovements(invoice, invoice.items ?? [], manager);
+      await this.supplierPaymentsService.reapplyPaymentsForInvoiceBranch(invoice.id, invoice.branchId, manager);
+
+      const newSnapshot = this.toApprovalSnapshot(invoice, invoice.items ?? []);
+      invoice.approvalModificationLog = [
+        this.buildApprovalLogEntry('reapproved', invoice.invoiceNumber, this.diffApprovalSnapshots(oldSnapshot, newSnapshot)),
+        ...(invoice.approvalModificationLog ?? []),
+      ].slice(0, 50);
+      invoice.approvedSnapshot = newSnapshot;
+
+      const saved = await invoiceRepository.save(invoice);
+      await this.dailySalesClosingService.recordPostCloseChanges(
+        [...oldClosingChanges, ...this.invoiceClosingChanges(saved, 'edited')],
+        manager,
+      );
+
+      return invoiceRepository.findOneOrFail({
+        where: { id },
+        relations: {
+          items: { item: true },
+          payments: { branch: true, drawer: true, bankAccount: true, vault: true },
+        },
+      });
+    });
   }
 
   async remove(id: string) {
@@ -335,6 +481,162 @@ export class PurchaseInvoicesService {
         operationId: invoice.id,
       },
     ];
+  }
+
+  private snapshotClosingChanges(
+    invoiceId: string,
+    snapshot: PurchaseInvoiceApprovalSnapshot,
+    actionType: DailySalesClosingOperationChange['actionType'],
+  ): DailySalesClosingOperationChange[] {
+    return [
+      {
+        branchId: snapshot.branchId,
+        effectiveDate: snapshot.invoiceDate,
+        operationType: 'purchase_invoice',
+        actionType,
+        amount: Number(snapshot.totalAmount ?? 0),
+        reference: snapshot.invoiceNumber,
+        operationId: invoiceId,
+      },
+    ];
+  }
+
+  private canEditInvoice(status: PurchaseInvoiceStatus) {
+    return status === PurchaseInvoiceStatus.Draft || status === PurchaseInvoiceStatus.Reopened;
+  }
+
+  private isApprovedStatus(status: PurchaseInvoiceStatus) {
+    return [
+      PurchaseInvoiceStatus.Open,
+      PurchaseInvoiceStatus.PartiallyPaid,
+      PurchaseInvoiceStatus.Paid,
+    ].includes(status);
+  }
+
+  private calculateSubtotal(items: { quantity: number; unitPrice: number; lineTotal?: number }[]) {
+    return this.roundMoney(
+      items.reduce((sum, item) => sum + Number(item.lineTotal ?? item.quantity * item.unitPrice), 0),
+    );
+  }
+
+  private async replaceApprovedStockMovements(
+    invoice: Pick<PurchaseInvoiceEntity, 'id' | 'invoiceDate' | 'warehouseId' | 'invoiceNumber' | 'notes'>,
+    lines: Pick<PurchaseInvoiceItemEntity, 'id' | 'itemId' | 'quantity'>[],
+    manager = this.dataSource.manager,
+  ) {
+    await this.stockMovementsService.replaceSourceMovements(
+      'purchase_invoice',
+      invoice.id,
+      lines.map((line) => ({
+        movementDate: invoice.invoiceDate,
+        warehouseId: invoice.warehouseId,
+        itemId: line.itemId,
+        unitId: null,
+        movementType: StockMovementType.PurchaseIn,
+        quantityIn: Number(line.quantity),
+        sourceType: 'purchase_invoice',
+        sourceId: invoice.id,
+        sourceLineId: line.id,
+        referenceNumber: invoice.invoiceNumber,
+        notes: invoice.notes,
+      })),
+      manager,
+    );
+  }
+
+  private toApprovalSnapshot(
+    invoice: PurchaseInvoiceEntity,
+    items: Pick<PurchaseInvoiceItemEntity, 'id' | 'itemId' | 'quantity' | 'unitPrice' | 'lineTotal' | 'notes'>[],
+  ): PurchaseInvoiceApprovalSnapshot {
+    return {
+      invoiceNumber: invoice.invoiceNumber,
+      invoiceLabel: invoice.invoiceLabel,
+      branchId: invoice.branchId,
+      warehouseId: invoice.warehouseId,
+      supplierId: invoice.supplierId,
+      supplierRepresentativeId: invoice.supplierRepresentativeId,
+      invoiceDate: invoice.invoiceDate,
+      status: invoice.status,
+      subtotalAmount: Number(invoice.subtotalAmount ?? 0),
+      discountAmount: Number(invoice.discountAmount ?? 0),
+      totalAmount: Number(invoice.totalAmount ?? 0),
+      paidAmount: Number(invoice.paidAmount ?? 0),
+      remainingAmount: Number(invoice.remainingAmount ?? 0),
+      isMiscellaneous: invoice.isMiscellaneous,
+      dueDate: invoice.dueDate,
+      lastPaymentDate: invoice.lastPaymentDate,
+      notes: invoice.notes,
+      items: items.map((item) => ({
+        id: item.id,
+        itemId: item.itemId,
+        quantity: Number(item.quantity ?? 0),
+        unitPrice: Number(item.unitPrice ?? 0),
+        lineTotal: Number(item.lineTotal ?? 0),
+        notes: item.notes ?? null,
+      })),
+    };
+  }
+
+  private buildApprovalLogEntry(
+    actionType: PurchaseInvoiceApprovalLogEntry['actionType'],
+    reference: string,
+    changes: PurchaseInvoiceApprovalLogEntry['changes'],
+  ): PurchaseInvoiceApprovalLogEntry {
+    return {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+      actionType,
+      recordedAt: new Date().toISOString(),
+      reference,
+      user: null,
+      changes,
+    };
+  }
+
+  private diffApprovalSnapshots(
+    oldSnapshot: PurchaseInvoiceApprovalSnapshot | null,
+    newSnapshot: PurchaseInvoiceApprovalSnapshot,
+  ): PurchaseInvoiceApprovalLogEntry['changes'] {
+    if (!oldSnapshot) {
+      return [{ field: 'approval', label: 'إعادة الاعتماد', oldValue: null, newValue: newSnapshot.totalAmount }];
+    }
+
+    const changes: PurchaseInvoiceApprovalLogEntry['changes'] = [];
+    const push = (field: string, label: string, oldValue: string | number | null, newValue: string | number | null) => {
+      if (String(oldValue ?? '') !== String(newValue ?? '')) {
+        changes.push({ field, label, oldValue, newValue });
+      }
+    };
+
+    push('invoiceDate', 'تاريخ الفاتورة', oldSnapshot.invoiceDate, newSnapshot.invoiceDate);
+    push('branchId', 'الفرع', oldSnapshot.branchId, newSnapshot.branchId);
+    push('warehouseId', 'المخزن', oldSnapshot.warehouseId, newSnapshot.warehouseId);
+    push('supplierId', 'المورد', oldSnapshot.supplierId, newSnapshot.supplierId);
+    push('invoiceLabel', 'الوصف', oldSnapshot.invoiceLabel, newSnapshot.invoiceLabel);
+    push('subtotalAmount', 'الإجمالي قبل الخصم', oldSnapshot.subtotalAmount, newSnapshot.subtotalAmount);
+    push('discountAmount', 'الخصم', oldSnapshot.discountAmount, newSnapshot.discountAmount);
+    push('totalAmount', 'إجمالي الفاتورة', oldSnapshot.totalAmount, newSnapshot.totalAmount);
+    push('paidAmount', 'المدفوع', oldSnapshot.paidAmount, newSnapshot.paidAmount);
+    push('remainingAmount', 'المتبقي', oldSnapshot.remainingAmount, newSnapshot.remainingAmount);
+    push('dueDate', 'تاريخ الاستحقاق', oldSnapshot.dueDate, newSnapshot.dueDate);
+    push('items', 'مواد الفاتورة', this.itemsSummary(oldSnapshot), this.itemsSummary(newSnapshot));
+
+    return changes.length > 0
+      ? changes
+      : [{ field: 'approval', label: 'إعادة الاعتماد', oldValue: 'بدون تغيير جوهري', newValue: 'تمت إعادة الاعتماد' }];
+  }
+
+  private itemsSummary(snapshot: PurchaseInvoiceApprovalSnapshot) {
+    const quantity = this.roundMoney(snapshot.items.reduce((sum, item) => sum + Number(item.quantity ?? 0), 0));
+    return `${snapshot.items.length} مادة / كمية ${quantity}`;
+  }
+
+  private statusLabel(status: PurchaseInvoiceStatus) {
+    if (status === PurchaseInvoiceStatus.Draft) return 'مسودة';
+    if (status === PurchaseInvoiceStatus.Open) return 'مفتوحة';
+    if (status === PurchaseInvoiceStatus.PartiallyPaid) return 'مدفوعة جزئيًا';
+    if (status === PurchaseInvoiceStatus.Paid) return 'مدفوعة';
+    if (status === PurchaseInvoiceStatus.Reopened) return 'مفتوحة للتعديل';
+    return 'ملغاة';
   }
 
   private async validateHeaderReferences(data: {

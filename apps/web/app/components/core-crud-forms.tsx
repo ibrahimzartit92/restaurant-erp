@@ -428,6 +428,27 @@ type PurchaseLineDraft = {
   notes: string;
 };
 
+type PurchaseInvoiceFormInitial = {
+  id: string;
+  invoiceNumber: string;
+  invoiceLabel?: string | null;
+  branchId: string;
+  warehouseId: string;
+  supplierId?: string | null;
+  invoiceDate: string;
+  dueDate?: string | null;
+  status: string;
+  discountAmount: number;
+  notes?: string | null;
+  items: {
+    itemId: string;
+    item?: ItemOption | null;
+    quantity: number;
+    unitPrice: number;
+    notes?: string | null;
+  }[];
+};
+
 function itemLabel(item: ItemOption) {
   return `${item.code} - ${item.name}`;
 }
@@ -462,6 +483,8 @@ export function PurchaseInvoiceForm({
   vaults,
   currencySymbol = '',
   decimalPlaces = 2,
+  initialInvoice = null,
+  editMode = false,
 }: Readonly<{
   branches: BranchOption[];
   warehouses: WarehouseOption[];
@@ -472,11 +495,25 @@ export function PurchaseInvoiceForm({
   vaults: VaultOption[];
   currencySymbol?: string;
   decimalPlaces?: number;
+  initialInvoice?: PurchaseInvoiceFormInitial | null;
+  editMode?: boolean;
 }>) {
   const router = useRouter();
   const [message, setMessage] = useState<MessageState>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [lines, setLines] = useState<PurchaseLineDraft[]>([emptyPurchaseLine()]);
+  const [lines, setLines] = useState<PurchaseLineDraft[]>(
+    initialInvoice?.items?.length
+      ? initialInvoice.items.map((line) => ({
+          itemId: line.itemId,
+          itemLabel: line.item ? itemLabel(line.item) : '',
+          unitName: line.item?.unit?.name ?? '',
+          priceType: 'purchase',
+          quantity: String(line.quantity),
+          unitPrice: String(line.unitPrice),
+          notes: line.notes ?? '',
+        }))
+      : [emptyPurchaseLine()],
+  );
   const [payments, setPayments] = useState<UnifiedPaymentRow[]>([]);
   const itemOptions = useMemo(() => items.map((item) => ({ ...item, label: itemLabel(item) })), [items]);
 
@@ -516,7 +553,7 @@ export function PurchaseInvoiceForm({
       supplierId: optionalText(formData, 'supplierId'),
       supplierRepresentativeId: null,
       invoiceDate: text(formData, 'invoiceDate'),
-      status: text(formData, 'status') || undefined,
+      status: editMode ? undefined : text(formData, 'status') || undefined,
       discountAmount: numberValue(formData, 'discountAmount'),
       paidAmount: 0,
       isMiscellaneous: !optionalText(formData, 'supplierId'),
@@ -557,8 +594,12 @@ export function PurchaseInvoiceForm({
     }
 
     try {
-      const saved = (await submitJson('/purchase-invoices', 'POST', payload)) as { id?: string };
-      if (saved.id && activePayments.length > 0) {
+      const saved = (await submitJson(
+        editMode && initialInvoice?.id ? `/purchase-invoices/${initialInvoice.id}` : '/purchase-invoices',
+        editMode ? 'PATCH' : 'POST',
+        payload,
+      )) as { id?: string };
+      if (!editMode && saved.id && activePayments.length > 0) {
         await submitJson('/supplier-payments/batch', 'POST', {
           purchaseInvoiceId: saved.id,
           branchId: payload.branchId,
@@ -566,7 +607,7 @@ export function PurchaseInvoiceForm({
           payments: activePayments.map(toBackendPayment),
         });
       }
-      router.push(saved.id ? `/purchase-invoices/${saved.id}` : '/purchase-invoices');
+      router.push(saved.id ? `/purchase-invoices/${saved.id}` : initialInvoice?.id ? `/purchase-invoices/${initialInvoice.id}` : '/purchase-invoices');
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'تعذر حفظ فاتورة الشراء.');
@@ -581,58 +622,60 @@ export function PurchaseInvoiceForm({
       <div className="form-grid">
         <label>
           رقم الفاتورة
-          <input name="invoiceNumber" maxLength={50} placeholder="يولد تلقائيا عند تركه فارغا" />
+          <input name="invoiceNumber" maxLength={50} placeholder="يولد تلقائيا عند تركه فارغا" defaultValue={initialInvoice?.invoiceNumber ?? ''} />
         </label>
         <label>
           الوصف
-          <input name="invoiceLabel" maxLength={180} />
+          <input name="invoiceLabel" maxLength={180} defaultValue={initialInvoice?.invoiceLabel ?? ''} />
         </label>
         <label>
           الفرع
-          <select name="branchId" required>
+          <select name="branchId" required defaultValue={initialInvoice?.branchId ?? ''}>
             <option value="">اختر الفرع</option>
             {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
           </select>
         </label>
         <label>
           المخزن
-          <select name="warehouseId" required>
+          <select name="warehouseId" required defaultValue={initialInvoice?.warehouseId ?? ''}>
             <option value="">اختر المخزن</option>
             {warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}
           </select>
         </label>
         <label>
           المورد
-          <select name="supplierId">
+          <select name="supplierId" defaultValue={initialInvoice?.supplierId ?? ''}>
             <option value="">فاتورة متفرقة بدون مورد</option>
             {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
           </select>
         </label>
         <label>
           تاريخ الفاتورة
-          <input name="invoiceDate" type="date" defaultValue={new Date().toISOString().slice(0, 10)} required />
+          <input name="invoiceDate" type="date" defaultValue={initialInvoice?.invoiceDate ?? new Date().toISOString().slice(0, 10)} required />
         </label>
         <label>
           تاريخ الاستحقاق
-          <input name="dueDate" type="date" />
+          <input name="dueDate" type="date" defaultValue={initialInvoice?.dueDate ?? ''} />
         </label>
+        {!editMode ? (
         <label>
           الحالة
-          <select name="status" defaultValue="open">
+          <select name="status" defaultValue={initialInvoice?.status ?? 'open'}>
             <option value="draft">مسودة</option>
             <option value="open">مفتوحة</option>
             <option value="partially_paid">مدفوعة جزئيا</option>
             <option value="paid">مدفوعة</option>
           </select>
         </label>
+        ) : null}
         <label>
           الخصم
-          <input name="discountAmount" type="number" min="0" step="0.01" defaultValue={0} />
+          <input name="discountAmount" type="number" min="0" step="0.01" defaultValue={initialInvoice?.discountAmount ?? 0} />
         </label>
       </div>
       <label>
         ملاحظات
-        <textarea name="notes" rows={3} />
+        <textarea name="notes" rows={3} defaultValue={initialInvoice?.notes ?? ''} />
       </label>
 
       <section className="transfer-items-section">
@@ -696,6 +739,7 @@ export function PurchaseInvoiceForm({
         </div>
       </section>
 
+      {!editMode ? (
       <PaymentSourceRows
         rows={payments}
         onChange={setPayments}
@@ -706,6 +750,9 @@ export function PurchaseInvoiceForm({
         description="يمكن تركها فارغة أو تقسيم الدفع بين الدرج، البنك، والخزنة."
         showPaymentDate={false}
       />
+      ) : (
+        <p className="notice">تعديل الدفعات يتم من صفحة تفاصيل الفاتورة حسب إجراءات الدفع الحالية. إعادة الاعتماد ستمنع أي إجمالي جديد أقل من المدفوع.</p>
+      )}
 
       <div className="form-actions">
         <button disabled={isSaving} type="submit">{isSaving ? 'جاري الحفظ...' : 'حفظ فاتورة الشراء'}</button>

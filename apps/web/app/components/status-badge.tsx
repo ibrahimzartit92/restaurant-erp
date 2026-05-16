@@ -4,6 +4,7 @@ const labels: Record<string, string> = {
   open: 'مفتوحة',
   partially_paid: 'مدفوعة جزئيًا',
   paid: 'مدفوعة',
+  reopened: 'مفتوحة للتعديل',
   cancelled: 'ملغاة',
   closed: 'مغلقة',
   cash: 'نقدًا',

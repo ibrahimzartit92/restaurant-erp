@@ -66,6 +66,16 @@ export class PurchaseInvoicesController {
     return this.purchaseInvoicesService.update(id, updatePurchaseInvoiceDto);
   }
 
+  @Post(':id/reopen')
+  reopen(@Param('id') id: string) {
+    return this.purchaseInvoicesService.reopenForEditing(id);
+  }
+
+  @Post(':id/reapprove')
+  reapprove(@Param('id') id: string) {
+    return this.purchaseInvoicesService.reapprove(id);
+  }
+
   @Post(':id/cancel')
   cancel(@Param('id') id: string, @Query('vault_id') vaultId?: string) {
     return this.purchaseInvoicesService.cancel(id, vaultId);

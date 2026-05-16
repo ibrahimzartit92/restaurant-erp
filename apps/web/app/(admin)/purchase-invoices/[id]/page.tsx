@@ -21,6 +21,19 @@ type PurchaseInvoiceDetails = {
   totalAmount: number;
   paidAmount: number;
   remainingAmount: number;
+  modifiedAfterApproval?: boolean;
+  approvalModificationLog?: {
+    id: string;
+    actionType: 'reopened' | 'reapproved';
+    recordedAt: string;
+    reference: string;
+    changes: {
+      field: string;
+      label: string;
+      oldValue: string | number | null;
+      newValue: string | number | null;
+    }[];
+  }[] | null;
   notes?: string | null;
   branch?: { name: string } | null;
   warehouse?: { name: string } | null;
@@ -65,6 +78,7 @@ export default async function PurchaseInvoiceDetailsPage({ params }: { params: P
 
   const invoice = invoiceResult.data;
   const isCancelled = invoice.status === 'cancelled';
+  const isReopened = invoice.status === 'reopened';
   const itemColumns: DataColumn<PurchaseInvoiceDetails['items'][number]>[] = [
     { key: 'code', label: 'كود المادة', render: (row) => row.item?.code ?? 'غير محدد' },
     { key: 'name', label: 'المادة', render: (row) => row.item?.name ?? 'غير محدد' },
@@ -105,9 +119,30 @@ export default async function PurchaseInvoiceDetailsPage({ params }: { params: P
         <article className="summary-card">
           <p>حالة الفاتورة</p>
           <strong><StatusBadge value={invoice.status} /></strong>
-          <span>{invoice.invoiceNumber}</span>
+          <span>{invoice.modifiedAfterApproval ? 'معدّلة بعد الاعتماد' : invoice.invoiceNumber}</span>
         </article>
       </section>
+
+      {invoice.modifiedAfterApproval ? (
+        <details className="panel">
+          <summary className="secondary-button compact">معدّلة بعد الاعتماد</summary>
+          <div className="timeline-list">
+            {(invoice.approvalModificationLog ?? []).map((entry) => (
+              <article key={entry.id}>
+                <strong>{entry.actionType === 'reapproved' ? 'إعادة اعتماد' : 'إعادة فتح للتعديل'}</strong>
+                <span>{formatDate(entry.recordedAt)} - {entry.reference}</span>
+                <ul>
+                  {entry.changes.slice(0, 8).map((change) => (
+                    <li key={`${entry.id}-${change.field}`}>
+                      {change.label}: {change.oldValue ?? 'غير محدد'} ← {change.newValue ?? 'غير محدد'}
+                    </li>
+                  ))}
+                </ul>
+              </article>
+            ))}
+          </div>
+        </details>
+      ) : null}
 
       <section className="content-grid">
         <article className="panel">
@@ -135,7 +170,7 @@ export default async function PurchaseInvoiceDetailsPage({ params }: { params: P
               <span>إجراءات الفاتورة منفصلة عن إجراءات الدفع.</span>
             </div>
           </div>
-          <PurchaseInvoiceActions invoiceId={invoice.id} hasPayments={invoice.payments.length > 0 || Number(invoice.paidAmount) > 0} isCancelled={isCancelled} />
+          <PurchaseInvoiceActions invoiceId={invoice.id} hasPayments={invoice.payments.length > 0 || Number(invoice.paidAmount) > 0} isCancelled={isCancelled} status={invoice.status} />
         </article>
       </section>
 
@@ -155,7 +190,7 @@ export default async function PurchaseInvoiceDetailsPage({ params }: { params: P
         <DataTable columns={paymentColumns} rows={invoice.payments} emptyTitle="لا توجد دفعات" emptyText="لا توجد دفعات مسجلة على هذه الفاتورة." />
       </section>
 
-      {!isCancelled ? (
+      {!isCancelled && !isReopened ? (
         <>
           {drawersResult.error ? <p className="notice">{drawersResult.error}</p> : null}
           {bankAccountsResult.error ? <p className="notice">{bankAccountsResult.error}</p> : null}
@@ -171,7 +206,7 @@ export default async function PurchaseInvoiceDetailsPage({ params }: { params: P
             decimalPlaces={currencySettings.decimalPlaces}
           />
         </>
-      ) : null}
+      ) : isReopened ? <p className="notice">الفاتورة مفتوحة للتعديل. أعد اعتمادها قبل تسجيل دفعات جديدة.</p> : null}
 
       {attachmentsResult.error ? <p className="notice">{attachmentsResult.error}</p> : null}
       <AttachmentsPanel entityType="purchase_invoice" entityId={invoice.id} initialAttachments={attachmentsResult.data} />

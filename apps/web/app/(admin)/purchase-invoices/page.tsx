@@ -27,6 +27,7 @@ const statusOptions = [
   { value: 'open', label: 'غير مدفوعة' },
   { value: 'partially_paid', label: 'مدفوعة جزئيا' },
   { value: 'paid', label: 'مدفوعة' },
+  { value: 'reopened', label: 'مفتوحة للتعديل' },
   { value: 'cancelled', label: 'ملغاة' },
   { value: 'draft', label: 'مسودة' },
 ];

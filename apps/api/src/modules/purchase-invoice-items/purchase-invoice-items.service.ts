@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ItemEntity } from '../items/entities/item.entity';
@@ -36,7 +36,7 @@ export class PurchaseInvoiceItemsService {
   }
 
   async create(createPurchaseInvoiceItemDto: CreatePurchaseInvoiceItemDto) {
-    await this.ensureInvoiceExists(createPurchaseInvoiceItemDto.purchaseInvoiceId);
+    await this.ensureInvoiceIsEditable(createPurchaseInvoiceItemDto.purchaseInvoiceId);
     await this.ensureItemExists(createPurchaseInvoiceItemDto.itemId);
 
     const line = this.purchaseInvoiceItemRepository.create({
@@ -55,6 +55,7 @@ export class PurchaseInvoiceItemsService {
 
   async update(id: string, updatePurchaseInvoiceItemDto: UpdatePurchaseInvoiceItemDto) {
     const line = await this.findByIdOrFail(id);
+    await this.ensureInvoiceIsEditable(line.purchaseInvoiceId);
 
     if (updatePurchaseInvoiceItemDto.itemId) {
       await this.ensureItemExists(updatePurchaseInvoiceItemDto.itemId);
@@ -77,6 +78,7 @@ export class PurchaseInvoiceItemsService {
 
   async remove(id: string) {
     const line = await this.findByIdOrFail(id);
+    await this.ensureInvoiceIsEditable(line.purchaseInvoiceId);
     const purchaseInvoiceId = line.purchaseInvoiceId;
     await this.purchaseInvoiceItemRepository.remove(line);
     await this.recalculateInvoiceTotals(purchaseInvoiceId);
@@ -89,6 +91,18 @@ export class PurchaseInvoiceItemsService {
 
     if (!invoice) {
       throw new NotFoundException('Purchase invoice was not found.');
+    }
+  }
+
+  private async ensureInvoiceIsEditable(id: string) {
+    const invoice = await this.purchaseInvoiceRepository.findOne({ where: { id } });
+
+    if (!invoice) {
+      throw new NotFoundException('Purchase invoice was not found.');
+    }
+
+    if (![PurchaseInvoiceStatus.Draft, PurchaseInvoiceStatus.Reopened].includes(invoice.status)) {
+      throw new BadRequestException('لا يمكن تعديل مواد فاتورة شراء معتمدة مباشرة. أعد فتح الفاتورة للتعديل أولًا.');
     }
   }
 
@@ -108,7 +122,9 @@ export class PurchaseInvoiceItemsService {
     invoice.totalAmount = this.roundMoney(Math.max(invoice.subtotalAmount - invoice.discountAmount, 0));
     invoice.remainingAmount = this.roundMoney(invoice.totalAmount - invoice.paidAmount);
 
-    if (invoice.status !== PurchaseInvoiceStatus.Cancelled) {
+    if (invoice.status === PurchaseInvoiceStatus.Reopened) {
+      invoice.status = PurchaseInvoiceStatus.Reopened;
+    } else if (invoice.status !== PurchaseInvoiceStatus.Cancelled) {
       invoice.status = this.resolveInvoiceStatus(invoice.totalAmount, invoice.paidAmount);
     }
 

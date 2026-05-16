@@ -342,6 +342,30 @@ export class SupplierPaymentsService {
     return payments;
   }
 
+  async reapplyPaymentsForInvoiceBranch(purchaseInvoiceId: string, branchId: string, manager = this.dataSource.manager) {
+    const paymentRepository = manager.getRepository(SupplierPaymentEntity);
+    const payments = await paymentRepository.find({ where: { purchaseInvoiceId } });
+
+    for (const payment of payments) {
+      const previousClosingChanges = this.paymentClosingChanges(payment, 'edited');
+      payment.branchId = branchId;
+      const savedPayment = await paymentRepository.save(payment);
+      await this.recreateFinancialMovement(savedPayment, manager);
+      await this.dailySalesClosingService.recordPostCloseChanges(
+        [...previousClosingChanges, ...this.paymentClosingChanges(savedPayment, 'edited')],
+        manager,
+      );
+    }
+
+    await this.recalculateInvoicePaymentState(
+      purchaseInvoiceId,
+      manager.getRepository(PurchaseInvoiceEntity),
+      paymentRepository,
+    );
+
+    return payments;
+  }
+
   private paymentClosingChanges(
     payment: SupplierPaymentEntity,
     actionType: DailySalesClosingOperationChange['actionType'],
@@ -532,6 +556,10 @@ export class SupplierPaymentsService {
 
     if (invoice.status === PurchaseInvoiceStatus.Cancelled) {
       throw new BadRequestException('Cannot add payments to a cancelled invoice.');
+    }
+
+    if (invoice.status === PurchaseInvoiceStatus.Reopened) {
+      throw new BadRequestException('لا يمكن إضافة دفعات لفاتورة شراء مفتوحة للتعديل حتى يتم إعادة اعتمادها.');
     }
 
     if (invoice.branchId !== data.branchId) {

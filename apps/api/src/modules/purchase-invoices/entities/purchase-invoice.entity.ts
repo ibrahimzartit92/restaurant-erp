@@ -21,8 +21,51 @@ export enum PurchaseInvoiceStatus {
   Open = 'open',
   PartiallyPaid = 'partially_paid',
   Paid = 'paid',
+  Reopened = 'reopened',
   Cancelled = 'cancelled',
 }
+
+export type PurchaseInvoiceApprovalSnapshot = {
+  invoiceNumber: string;
+  invoiceLabel: string | null;
+  branchId: string;
+  warehouseId: string;
+  supplierId: string | null;
+  supplierRepresentativeId: string | null;
+  invoiceDate: string;
+  status: PurchaseInvoiceStatus;
+  subtotalAmount: number;
+  discountAmount: number;
+  totalAmount: number;
+  paidAmount: number;
+  remainingAmount: number;
+  isMiscellaneous: boolean;
+  dueDate: string | null;
+  lastPaymentDate: string | null;
+  notes: string | null;
+  items: {
+    id: string;
+    itemId: string;
+    quantity: number;
+    unitPrice: number;
+    lineTotal: number;
+    notes: string | null;
+  }[];
+};
+
+export type PurchaseInvoiceApprovalLogEntry = {
+  id: string;
+  actionType: 'reopened' | 'reapproved';
+  recordedAt: string;
+  reference: string;
+  user?: string | null;
+  changes: {
+    field: string;
+    label: string;
+    oldValue: string | number | null;
+    newValue: string | number | null;
+  }[];
+};
 
 const numericTransformer = {
   to: (value?: number | null) => value ?? 0,
@@ -142,6 +185,18 @@ export class PurchaseInvoiceEntity {
 
   @Column({ type: 'text', nullable: true })
   notes!: string | null;
+
+  @Column({ name: 'modified_after_approval', type: 'boolean', default: false })
+  modifiedAfterApproval!: boolean;
+
+  @Column({ name: 'approval_revision', type: 'integer', default: 0 })
+  approvalRevision!: number;
+
+  @Column({ name: 'approved_snapshot', type: 'jsonb', nullable: true })
+  approvedSnapshot!: PurchaseInvoiceApprovalSnapshot | null;
+
+  @Column({ name: 'approval_modification_log', type: 'jsonb', nullable: true })
+  approvalModificationLog!: PurchaseInvoiceApprovalLogEntry[] | null;
 
   @OneToMany(() => PurchaseInvoiceItemEntity, (item) => item.purchaseInvoice)
   items!: PurchaseInvoiceItemEntity[];
