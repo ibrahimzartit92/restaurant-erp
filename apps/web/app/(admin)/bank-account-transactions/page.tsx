@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { AutoApplyFilterForm } from '../../components/auto-apply-filter-form';
-import { DataTable, type DataColumn } from '../../components/data-table';
+import { type DataColumn } from '../../components/data-table';
 import { PageHeader } from '../../components/page-header';
+import { SplitTransactionsTables } from '../../components/split-transactions-tables';
 import { StatusBadge } from '../../components/status-badge';
 import { buildQuery, fetchList, formatDate, formatMoney } from '../../lib/api';
 import type { BankAccountSummary, BankAccountTransactionSummary, BranchOption } from '../../lib/types';
@@ -10,7 +11,6 @@ const columns: DataColumn<BankAccountTransactionSummary>[] = [
   { key: 'date', label: 'التاريخ', render: (row) => formatDate(row.transactionDate) },
   { key: 'account', label: 'الحساب', render: (row) => row.bankAccount?.name ?? 'غير محدد' },
   { key: 'type', label: 'النوع', render: (row) => <StatusBadge value={row.transactionType} /> },
-  { key: 'direction', label: 'الاتجاه', render: (row) => row.direction === 'incoming' ? 'داخل' : 'خارج' },
   { key: 'amount', label: 'المبلغ', render: (row) => formatMoney(row.amount) },
   { key: 'branch', label: 'الفرع', render: (row) => row.branch?.name ?? 'بدون فرع' },
   { key: 'reference', label: 'المرجع', render: (row) => row.referenceNumber ?? 'غير محدد' },
@@ -35,6 +35,8 @@ export default async function BankAccountTransactionsPage({
   searchParams?: Promise<Record<string, string | undefined>>;
 }) {
   const params = (await searchParams) ?? {};
+  const showAll = params.show_all === '1';
+  const showAllHref = `/bank-account-transactions${buildQuery({ ...params, show_all: '1' })}`;
   const [transactionsResult, branchesResult, bankAccountsResult] = await Promise.all([
     fetchList<BankAccountTransactionSummary>(
       `/bank-account-transactions${buildQuery({
@@ -52,7 +54,7 @@ export default async function BankAccountTransactionsPage({
 
   return (
     <>
-      <PageHeader title="قائمة حركات البنك" description="عرض حركات البنك مع التصفية حسب الحساب والفرع والتاريخ ونوع الحركة." />
+      <PageHeader title="قائمة حركات البنك" description="عرض حركات البنك مفصولة إلى داخل وخارج مع تصفية موحدة حسب الحساب والفرع والتاريخ ونوع الحركة." />
       <div className="page-toolbar">
         <AutoApplyFilterForm className="filters">
           <label>
@@ -105,11 +107,15 @@ export default async function BankAccountTransactionsPage({
         </Link>
       </div>
       {transactionsResult.error ? <p className="notice">{transactionsResult.error}</p> : null}
-      <DataTable
+      <SplitTransactionsTables
         columns={columns}
         rows={transactionsResult.data}
-        emptyTitle="لا توجد حركات بنكية"
-        emptyText="عند إضافة حركة بنكية جديدة ستظهر هنا مع الحساب والنوع والاتجاه والمبلغ."
+        getDate={(row) => row.transactionDate}
+        getDirection={(row) => (row.direction === 'incoming' ? 'in' : 'out')}
+        showAll={showAll}
+        showAllHref={showAllHref}
+        emptyIncomingText="لا توجد حركات بنكية داخلة مطابقة للفلاتر الحالية."
+        emptyOutgoingText="لا توجد حركات بنكية خارجة مطابقة للفلاتر الحالية."
       />
     </>
   );

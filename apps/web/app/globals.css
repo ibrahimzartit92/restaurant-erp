@@ -958,6 +958,30 @@ a {
   gap: 16px;
 }
 
+.split-transactions-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.split-transactions-panel {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 12px 30px rgba(23, 33, 43, 0.05);
+  padding: 16px;
+  min-width: 0;
+}
+
+.split-transactions-panel.incoming {
+  border-top: 4px solid #16a34a;
+}
+
+.split-transactions-panel.outgoing {
+  border-top: 4px solid #dc2626;
+}
+
 .panel {
   padding: 20px;
 }
@@ -2375,6 +2399,7 @@ tr:last-child td {
   }
 
   .content-grid,
+  .split-transactions-grid,
   .dashboard-grid,
   .dashboard-grid-primary,
   .report-grid,

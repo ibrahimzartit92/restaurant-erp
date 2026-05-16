@@ -1,7 +1,7 @@
 import { AutoApplyFilterForm } from '../../components/auto-apply-filter-form';
-import { DataTable, type DataColumn } from '../../components/data-table';
+import { type DataColumn } from '../../components/data-table';
 import { PageHeader } from '../../components/page-header';
-import { StatusBadge } from '../../components/status-badge';
+import { SplitTransactionsTables } from '../../components/split-transactions-tables';
 import { buildQuery, fetchList, formatDate, getMoneyFormatter } from '../../lib/api';
 import type { VaultOption } from '../../lib/types';
 
@@ -28,7 +28,6 @@ const typeOptions = [
   ['payroll_payment', 'دفع راتب'],
   ['expense_payment', 'دفع مصروف'],
   ['supplier_payment', 'دفع مورد'],
-  ['payroll_payment', 'دفع راتب'],
   ['admin_withdrawal', 'سحب إداري'],
   ['manual_withdrawal', 'سحب يدوي'],
   ['settlement', 'تسوية'],
@@ -44,6 +43,8 @@ export default async function VaultTransactionsPage({
   searchParams?: Promise<Record<string, string | undefined>>;
 }) {
   const params = (await searchParams) ?? {};
+  const showAll = params.show_all === '1';
+  const showAllHref = `/vault-transactions${buildQuery({ ...params, show_all: '1' })}`;
   const query = buildQuery({
     vault_id: params.vault_id,
     transaction_type: params.transaction_type,
@@ -62,7 +63,6 @@ export default async function VaultTransactionsPage({
     { key: 'date', label: 'التاريخ', render: (row) => formatDate(row.transactionDate) },
     { key: 'vault', label: 'الخزنة', render: (row) => row.vault?.name ?? 'غير محدد' },
     { key: 'type', label: 'نوع الحركة', render: (row) => typeLabel(row.transactionType) },
-    { key: 'direction', label: 'الاتجاه', render: (row) => <StatusBadge value={row.direction} /> },
     { key: 'amount', label: 'المبلغ', render: (row) => formatMoney(row.amount) },
     {
       key: 'source',
@@ -75,7 +75,7 @@ export default async function VaultTransactionsPage({
 
   return (
     <>
-      <PageHeader title="حركات الخزنة" description="سجل مركزي لكل الداخل والخارج من الخزن مع الفلاتر اليومية." />
+      <PageHeader title="حركات الخزنة" description="سجل مركزي للحركات الداخلة والخارجة من الخزن مع فلاتر موحدة." />
 
       <AutoApplyFilterForm className="filter-bar">
         <label>
@@ -128,7 +128,16 @@ export default async function VaultTransactionsPage({
       </AutoApplyFilterForm>
 
       {transactions.error ? <p className="notice">{transactions.error}</p> : null}
-      <DataTable columns={columns} rows={transactions.data} emptyTitle="لا توجد حركات" emptyText="لا توجد حركات خزنة مطابقة للفلاتر الحالية." />
+      <SplitTransactionsTables
+        columns={columns}
+        rows={transactions.data}
+        getDate={(row) => row.transactionDate}
+        getDirection={(row) => (row.direction === 'in' ? 'in' : 'out')}
+        showAll={showAll}
+        showAllHref={showAllHref}
+        emptyIncomingText="لا توجد حركات خزنة داخلة مطابقة للفلاتر الحالية."
+        emptyOutgoingText="لا توجد حركات خزنة خارجة مطابقة للفلاتر الحالية."
+      />
     </>
   );
 }
